@@ -39,6 +39,12 @@ namespace WebApplication1.Migrations.CompanyDb
                         .IsRequired()
                         .HasColumnType("longtext");
 
+                    b.Property<double>("Latitude")
+                        .HasColumnType("double");
+
+                    b.Property<double>("Longitude")
+                        .HasColumnType("double");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("longtext");
@@ -53,7 +59,54 @@ namespace WebApplication1.Migrations.CompanyDb
 
                     b.HasKey("Id");
 
-                    b.ToTable("Companies");
+                    b.ToTable("companies");
+                });
+
+            modelBuilder.Entity("WebApplication1.Models.Event", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    b.Property<int>("CompanyId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Description")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<int>("Likes")
+                        .HasColumnType("int");
+
+                    b.Property<byte[]>("Photo")
+                        .IsRequired()
+                        .HasColumnType("longblob");
+
+                    b.Property<string>("Title")
+                        .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("CompanyId");
+
+                    b.ToTable("Event");
+                });
+
+            modelBuilder.Entity("WebApplication1.Models.Event", b =>
+                {
+                    b.HasOne("WebApplication1.Models.Company", "Company")
+                        .WithMany("Events")
+                        .HasForeignKey("CompanyId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Company");
+                });
+
+            modelBuilder.Entity("WebApplication1.Models.Company", b =>
+                {
+                    b.Navigation("Events");
                 });
 #pragma warning restore 612, 618
         }

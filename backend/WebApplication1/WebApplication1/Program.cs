@@ -71,8 +71,13 @@ app.MapPost("/users", async (HttpRequest req, UsersDbContext db) =>
         ? Convert.ToBase64String(user.ProfileImage)
         : null;
 
+    int lastId = await db.Users
+        .OrderByDescending(u => u.Id)
+        .Select(u => u.Id)
+        .FirstOrDefaultAsync();
     var userResponse = new UserResponse
     {
+        Id = lastId + 1,
         Username = user.Username,
         FirstName = user.FirstName,
         LastName = user.LastName,
@@ -101,8 +106,7 @@ app.MapPut("/users/{id:int}", async (int id, User input, UsersDbContext db) =>
     return Results.NoContent();
 });
 app.MapPost("/login", async (LoginRequest req, 
-                             UsersDbContext userDb, 
-                             CompanyDbContext companyDb) =>
+                             UsersDbContext userDb) =>
 {
     var user = await userDb.Users
                             .FirstOrDefaultAsync(u => u.Username == req.Username 
@@ -127,126 +131,59 @@ app.MapPost("/login", async (LoginRequest req,
         return Results.Ok(userResponse);
     }
     
-    var company = await companyDb.Companies
-                                 .FirstOrDefaultAsync(c => c.Name == req.Username 
-                                                        || c.Email == req.Username);
-    if (company != null && BCrypt.Net.BCrypt.Verify(req.Password, company.Password))
-    {
-        string pfpCompany = company.ProfileImage is not null
-                            ? Convert.ToBase64String(company.ProfileImage)
-                            : null;
-
-        var companyResponse = new 
-        {
-            Type = "Company",
-            Id = company.Id,
-            Name = company.Name,
-            Email = company.Email,
-            Address = company.Address,
-            Cui = company.Cui,
-            Category = company.Category,
-            ProfileImage = pfpCompany
-        };
-        Console.WriteLine(companyResponse);
-        return Results.Ok(companyResponse);
-    }
-    
     return Results.Unauthorized();
 });
 app.MapGet("/companies", async (CompanyDbContext db) =>
 {
-    await db.Companies.ToListAsync();
-});
-app.MapPost("/companies", async (HttpRequest req, CompanyDbContext db) =>
-{
-    var form = await req.ReadFormAsync();
-    if (await db.Companies.AnyAsync(c => c.Name == form["name"].ToString()) ||
-        await db.Companies.AnyAsync(c => c.Email == form["email"].ToString()))
+    List<Company> companies = await db.Companies.ToListAsync();
+    List<CompanyResponse> companiesResponses = new List<CompanyResponse>();
+    foreach (var c in companies)
     {
-        return Results.Conflict(new {Error = "Name or email already exists!"});
+        var cr = new CompanyResponse
+        {
+            Id = c.Id,
+            Name = c.Name,
+            Email = c.Email,
+            Address = c.Address,
+            Description = c.Description,
+            Tags = c.Tags.Split(",").ToList(),
+            Longitude = c.Longitude,
+            Latitude = c.Latitude,
+            Cui = c.Cui,
+            Category = c.Category,
+            ProfileImage = Convert.ToBase64String(c.ProfileImage)
+        };
+        companiesResponses.Add(cr);
     }
-
-    var file = form.Files.GetFile("default");
-    
-    var company = new Company
-    {
-        Name = form["name"].ToString(),
-        Email = form["email"].ToString(),
-        Address = form["address"].ToString(),
-        Cui = int.Parse(form["cui"].ToString()) ,
-        Category = form["category"].ToString(),
-        Password = BCrypt.Net.BCrypt.HashPassword(form["password"].ToString()),
-    };
-
-    if (file != null && file.Length > 0)
-    {
-        using var ms = new MemoryStream();
-        await file.OpenReadStream().CopyToAsync(ms);
-        company.ProfileImage = ms.ToArray();
-    }
-    
-    string pfpCompany = company.ProfileImage is not null
-        ? Convert.ToBase64String(company.ProfileImage)
-        : null;
-
-    Console.WriteLine(pfpCompany);
-    
-    var companyResponse = new CompanyResponse
-    {
-        Id = company.Id,
-        Name = company.Name,
-        Email = company.Email,
-        Address = company.Address,
-        Cui = company.Cui,
-        Category = company.Category,
-        ProfileImage = pfpCompany
-    };
-
-
-    db.Companies.Add(company);
-    await db.SaveChangesAsync();
-    return Results.Created($"/companies/{company.Id}", companyResponse);
+    return Results.Ok(companiesResponses);
 });
-app.MapPut("changepfpcompany", async (HttpRequest req, CompanyDbContext db) =>
+
+app.MapPut("changepfp", async (HttpRequest req, UsersDbContext db1) =>
 {
-    Console.WriteLine("changepfpcompany");
+    if (!req.HasFormContentType)
+        return Results.BadRequest("Expected multipart form-data");
+
     var form = await req.ReadFormAsync();
-    int companyId = int.Parse(form["companyId"]);
+
+    if (!form.TryGetValue("id", out var idValues) || !int.TryParse(idValues, out int userId))
+        return Results.BadRequest("Missing or invalid 'id'");
+
     var file = form.Files.GetFile("file");
-    var company = await db.Companies.FindAsync(companyId);
-    if (file != null && file.Length > 0)
-    {
-        using var ms = new MemoryStream();
-        await file.OpenReadStream().CopyToAsync(ms);
-        company.ProfileImage = ms.ToArray();
-    }
+    if (file == null || file.Length == 0)
+        return Results.BadRequest("Missing file");
 
-    await db.SaveChangesAsync();
+    var user = await db1.Users.FindAsync(userId);
+    if (user == null)
+        return Results.NotFound();
+
+    using var ms = new MemoryStream();
+    await file.OpenReadStream().CopyToAsync(ms);
+    user.ProfileImage = ms.ToArray();
+
+    await db1.SaveChangesAsync();
     return Results.NoContent();
 });
-app.MapPost("/events", async (HttpRequest req, EventDbContext db) =>
-{
-    var form = await req.ReadFormAsync();
 
-    var file = form.Files.GetFile("file");
-    var newEvent = new Event
-    {
-        Title = form["title"].ToString(),
-        Description = form["description"].ToString(),
-        Likes = 0,
-        CompanyId = int.Parse(form["companyId"].ToString()),
-    };
-    if (file != null && file.Length > 0)
-    {
-        using var ms = new MemoryStream();
-        await file.OpenReadStream().CopyToAsync(ms);
-        newEvent.Photo = ms.ToArray();
-    }
-
-    db.Events.Add(newEvent);
-    await db.SaveChangesAsync();
-    return Results.Created();
-});
 app.MapGet("/events", async (EventDbContext db, CompanyDbContext db1) =>
 {
     List<Event> events = await db.Events.ToListAsync();
@@ -259,6 +196,7 @@ app.MapGet("/events", async (EventDbContext db, CompanyDbContext db1) =>
             Id = e.Id,
             Title = e.Title,
             Description = e.Description,
+            Tags = e.Tags.Split(",").ToList(),
             Likes = e.Likes,
             Photo = Convert.ToBase64String(e.Photo),
             Company = company.Name
@@ -295,6 +233,19 @@ app.MapPost("companyevents", async (HttpRequest req, CompanyDbContext db, EventD
     }
 
     return Results.Ok(eventResponses);
+});
+app.MapGet("/companies/{id}/menu", async (int id, CompanyDbContext db) =>
+{
+    var company = await db.Companies.FindAsync(id);
+    if (company == null || company.MenuData.Length == 0)
+    {
+        Console.WriteLine("nu are meniu");
+        return Results.NotFound("Meniu inexistent");
+    }
+
+    Console.WriteLine("are meniu");
+
+    return Results.File(company.MenuData, "application/pdf", company.MenuName);
 });
 
 app.Run();

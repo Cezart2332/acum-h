@@ -37,3 +37,4 @@ C:\Users\Cezar\Desktop\acum-h\backend\WebApplication1\WebApplication1\bin\Debug\
 C:\Users\Cezar\Desktop\acum-h\backend\WebApplication1\WebApplication1\bin\Debug\net9.0\System.CodeDom.dll
 C:\Users\Cezar\Desktop\acum-h\backend\WebApplication1\WebApplication1\bin\Debug\net9.0\BCrypt.Net-Next.dll
 C:\Users\Cezar\Desktop\acum-h\backend\WebApplication1\WebApplication1\obj\Debug\net9.0\staticwebassets.build.json.cache
+C:\Users\Cezar\Desktop\acum-h\backend\WebApplication1\WebApplication1\obj\Debug\net9.0\WebApplication1.sourcelink.json
