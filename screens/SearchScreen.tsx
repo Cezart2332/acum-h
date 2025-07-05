@@ -60,12 +60,13 @@ export default function SearchScreen({ navigation }: { navigation?: any }) {
   const [query, setQuery] = useState("");
   const [events, setEvents] = useState<EventData[]>([]);
   const [restaurants, setRestaurants] = useState<CompanyData[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [dataLoading, setDataLoading] = useState(true);
   const [searchFocused, setSearchFocused] = useState(false);
   const fadeAnim = new Animated.Value(0);
   const scaleAnim = new Animated.Value(0.95);
 
   useEffect(() => {
+    // Start animations immediately
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -79,27 +80,34 @@ export default function SearchScreen({ navigation }: { navigation?: any }) {
         useNativeDriver: true,
       }),
     ]).start();
-  }, []);
 
-  useEffect(() => {
+    // Load data in background with timeout
     const fetchData = async () => {
       try {
-        const [eventsResponse, companiesResponse] = await Promise.all([
-          fetch(`${BASE_URL}/events`),
-          fetch(`${BASE_URL}/companies`),
+        // Set a timeout to prevent infinite loading
+        const timeoutPromise = new Promise((_, reject) =>
+          setTimeout(() => reject(new Error('Request timeout')), 10000)
+        );
+
+        const fetchPromise = Promise.all([
+          fetch(`${BASE_URL}/events`).then(res => res.ok ? res.json() : []),
+          fetch(`${BASE_URL}/companies`).then(res => res.ok ? res.json() : []),
         ]);
-        
-        const eventsData = await eventsResponse.json();
-        const companiesData = await companiesResponse.json();
+
+        const [eventsData, companiesData] = await Promise.race([
+          fetchPromise,
+          timeoutPromise
+        ]) as [EventData[], CompanyData[]];
         
         setEvents(eventsData || []);
         setRestaurants(companiesData || []);
       } catch (err) {
-        console.warn("Fetching data failed", err);
+        console.warn("Fetching data failed:", err);
+        // Set empty arrays so search still works
         setEvents([]);
         setRestaurants([]);
       } finally {
-        setLoading(false);
+        setDataLoading(false);
       }
     };
 
@@ -157,25 +165,6 @@ export default function SearchScreen({ navigation }: { navigation?: any }) {
     }
   };
 
-  if (loading) {
-    return (
-      <SafeAreaView style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#0F0817" />
-        <View style={styles.loadingContainer}>
-          <Animated.View style={[styles.loadingContent, { opacity: fadeAnim }]}>
-            <LinearGradient
-              colors={['#6C3AFF', '#9B59B6', '#BB86FC']}
-              style={styles.loadingGradient}
-            >
-              <ActivityIndicator size="large" color="#FFFFFF" />
-              <Text style={styles.loadingText}>Căutăm pentru tine...</Text>
-            </LinearGradient>
-          </Animated.View>
-        </View>
-      </SafeAreaView>
-    );
-  }
-
   const sections: SearchSection[] = [
     { 
       title: "Evenimente", 
@@ -195,14 +184,21 @@ export default function SearchScreen({ navigation }: { navigation?: any }) {
       >
         <Ionicons name="search-outline" size={64} color="#6C3AFF" />
         <Text style={styles.emptyTitle}>
-          {query ? "Nu am găsit rezultate" : "Începe să cauți"}
+          {dataLoading ? "Încărcăm datele..." : 
+           query ? "Nu am găsit rezultate" : "Începe să cauți"}
         </Text>
         <Text style={styles.emptySubtitle}>
-          {query 
-            ? "Încearcă să cauți cu alți termeni" 
-            : "Caută evenimente sau restaurante"
-          }
+          {dataLoading ? "Te rugăm să aștepți..." :
+           query ? "Încearcă să cauți cu alți termeni" : 
+           "Caută evenimente sau restaurante"}
         </Text>
+        {dataLoading && (
+          <ActivityIndicator 
+            size="large" 
+            color="#6C3AFF" 
+            style={{ marginTop: 20 }}
+          />
+        )}
       </LinearGradient>
     </Animated.View>
   );
@@ -213,7 +209,7 @@ export default function SearchScreen({ navigation }: { navigation?: any }) {
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#0F0817" />
       
-      {/* Header with gradient */}
+      {/* Header with gradient - ALWAYS VISIBLE */}
       <LinearGradient
         colors={['#0F0817', '#1A1A1A']}
         style={styles.headerGradient}
@@ -256,13 +252,19 @@ export default function SearchScreen({ navigation }: { navigation?: any }) {
           </View>
           
           {query.length > 0 && (
-            <Text style={styles.resultsCount}>
-              {filteredEvents.length + filteredRestaurants.length} rezultate găsite
-            </Text>
+            <View style={styles.resultsInfo}>
+              <Text style={styles.resultsCount}>
+                {filteredEvents.length + filteredRestaurants.length} rezultate găsite
+              </Text>
+              {dataLoading && (
+                <ActivityIndicator size="small" color="#A78BFA" style={{ marginLeft: 10 }} />
+              )}
+            </View>
           )}
         </Animated.View>
       </LinearGradient>
 
+      {/* Content Area */}
       {!hasResults ? (
         <EmptyResults />
       ) : (
@@ -306,12 +308,23 @@ export default function SearchScreen({ navigation }: { navigation?: any }) {
                   activeOpacity={0.8}
                 >
                   <View style={styles.cardImageContainer}>
-                    <Image
-                      source={{
-                        uri: `data:image/jpg;base64,${item.image}`,
-                      }}
-                      style={styles.cardImage}
-                    />
+                    {item.image ? (
+                      <Image
+                        source={{
+                          uri: `data:image/jpg;base64,${item.image}`,
+                        }}
+                        style={styles.cardImage}
+                        defaultSource={require('../assets/default.jpg')}
+                      />
+                    ) : (
+                      <View style={styles.cardImagePlaceholder}>
+                        <Ionicons 
+                          name={item.type === 'event' ? "calendar" : "restaurant"} 
+                          size={32} 
+                          color="#6C3AFF" 
+                        />
+                      </View>
+                    )}
                     <LinearGradient
                       colors={['transparent', 'rgba(15,8,23,0.8)']}
                       style={styles.cardImageOverlay}
@@ -419,35 +432,16 @@ const styles = StyleSheet.create({
   clearButton: {
     padding: 4,
   },
-  resultsCount: {
+  resultsInfo: {
+    flexDirection: 'row',
+    alignItems: 'center',
     marginTop: 8,
     marginLeft: 4,
+  },
+  resultsCount: {
     fontSize: 14,
     color: "#A78BFA",
     fontWeight: "500",
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 40,
-  },
-  loadingContent: {
-    width: "100%",
-    alignItems: "center",
-  },
-  loadingGradient: {
-    borderRadius: 20,
-    padding: 40,
-    alignItems: "center",
-    width: "100%",
-  },
-  loadingText: {
-    marginTop: 16,
-    fontSize: 18,
-    color: "#FFFFFF",
-    fontWeight: "600",
-    textAlign: "center",
   },
   emptyContainer: {
     flex: 1,
@@ -534,6 +528,13 @@ const styles = StyleSheet.create({
   cardImage: {
     width: "100%",
     height: "100%",
+  },
+  cardImagePlaceholder: {
+    width: "100%",
+    height: "100%",
+    backgroundColor: "#2A1A4A",
+    alignItems: "center",
+    justifyContent: "center",
   },
   cardImageOverlay: {
     position: "absolute",
