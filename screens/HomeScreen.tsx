@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
   View,
   Text,
@@ -17,6 +17,7 @@ import { useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "./RootStackParamList";
 import BASE_URL from "../config";
+import { cachedFetch, cachedAsyncStorage } from "../utils/apiCache";
 
 type HomeNav = NativeStackNavigationProp<RootStackParamList, "Home">;
 
@@ -48,6 +49,114 @@ interface EventData {
   photo: string;
 }
 
+// Memoized header component
+const HeaderComponent = React.memo(({ 
+  eOrR, 
+  loading, 
+  userData, 
+  onProfilePress 
+}: {
+  eOrR: boolean;
+  loading: boolean;
+  userData: UserData | null;
+  onProfilePress: () => void;
+}) => (
+  <View style={styles.headerContainer}>
+    <Text style={styles.headerTitle}>
+      {eOrR ? "Evenimente" : "Restaurante"}
+    </Text>
+    {loading ? (
+      <View style={styles.profilePlaceholder} />
+    ) : userData?.profileImage ? (
+      <TouchableOpacity onPress={onProfilePress}>
+        <Image
+          style={styles.profilePic}
+          source={{ uri: `data:image/jpg;base64,${userData.profileImage}` }}
+        />
+      </TouchableOpacity>
+    ) : (
+      <View style={styles.profilePlaceholder} />
+    )}
+  </View>
+));
+
+// Memoized selector component
+const SelectorComponent = React.memo(({ 
+  eOrR, 
+  onToggle 
+}: {
+  eOrR: boolean;
+  onToggle: (value: boolean) => void;
+}) => (
+  <View style={styles.selectorContainer}>
+    <TouchableOpacity
+      style={[styles.selectContentButton, eOrR && styles.activeButton]}
+      onPress={() => onToggle(true)}
+    >
+      <Text style={eOrR ? styles.activeSelectorText : styles.selectorText}>
+        Evenimente
+      </Text>
+    </TouchableOpacity>
+    <TouchableOpacity
+      style={[styles.selectContentButton, !eOrR && styles.activeButton]}
+      onPress={() => onToggle(false)}
+    >
+      <Text style={!eOrR ? styles.activeSelectorText : styles.selectorText}>
+        Restaurante
+      </Text>
+    </TouchableOpacity>
+  </View>
+));
+
+// Memoized list item component
+const ListItemComponent = React.memo(({ 
+  item, 
+  isEvent, 
+  onPress 
+}: {
+  item: EventData | CompanyData;
+  isEvent: boolean;
+  onPress: () => void;
+}) => {
+  const eventItem = item as EventData;
+  const companyItem = item as CompanyData;
+
+  return (
+    <TouchableOpacity style={styles.card} onPress={onPress}>
+      <ImageBackground
+        source={{
+          uri: `data:image/jpg;base64,${
+            isEvent ? eventItem.photo : companyItem.profileImage
+          }`,
+        }}
+        style={styles.cardImage}
+        imageStyle={styles.cardImageStyle}
+      >
+        <View style={styles.cardOverlay} />
+        <View style={styles.cardTextContainer}>
+          <Text style={styles.cardTitle}>
+            {isEvent ? eventItem.title : companyItem.name}
+          </Text>
+
+          {!isEvent && (
+            <View style={styles.tagsContainer}>
+              {companyItem.tags?.map((tag, index) => (
+                <View key={`${item.id}-${index}`} style={styles.tag}>
+                  <Text style={styles.tagText}>{tag}</Text>
+                </View>
+              ))}
+            </View>
+          )}
+
+          <Text style={styles.cardDate}>
+            {isEvent ? eventItem.description : companyItem.category}
+          </Text>
+        </View>
+      </ImageBackground>
+    </TouchableOpacity>
+  );
+});
+
 export default function HomeScreen({ navigation }: { navigation: HomeNav }) {
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
@@ -55,160 +164,159 @@ export default function HomeScreen({ navigation }: { navigation: HomeNav }) {
   const [restaurants, setRestaurants] = useState<CompanyData[]>([]);
   const [eOrR, setEorR] = useState<boolean>(true);
 
-  const loadUserAndData = async () => {
+  // Memoized API functions
+  const loadUserData = useCallback(async () => {
     try {
-      const jsonValue = await AsyncStorage.getItem("user");
-      const parsed = jsonValue ? JSON.parse(jsonValue) : null;
-      setUserData(parsed);
+      const user = await cachedAsyncStorage(
+        "user",
+        async () => {
+          const jsonValue = await AsyncStorage.getItem("user");
+          return jsonValue ? JSON.parse(jsonValue) : null;
+        },
+        5 * 60 * 1000 // 5 minutes cache
+      );
+      setUserData(user);
     } catch (err) {
-      console.warn("Loading data failed", err);
+      console.warn("Loading user data failed", err);
     }
-  };
+  }, []);
 
-  const loadEvents = async () => {
+  const loadEvents = useCallback(async () => {
     try {
-      const response = await fetch(`${BASE_URL}/events`);
-      const data: EventData[] = await response.json();
-      setEvents(data);
+      const eventData = await cachedFetch<EventData[]>(
+        `${BASE_URL}/events`,
+        { ttl: 10 * 60 * 1000 } // 10 minutes cache
+      );
+      setEvents(eventData);
     } catch (err) {
       console.warn("Fetching events failed", err);
     }
-  };
+  }, []);
 
-  const loadCompanies = async () => {
+  const loadCompanies = useCallback(async () => {
     try {
-      const res = await fetch(`${BASE_URL}/companies`);
-      if (!res.ok) throw new Error(res.statusText);
-      const data: CompanyData[] = await res.json();
-      setRestaurants(data);
+      const companyData = await cachedFetch<CompanyData[]>(
+        `${BASE_URL}/companies`,
+        { ttl: 15 * 60 * 1000 } // 15 minutes cache
+      );
+      setRestaurants(companyData);
     } catch (e) {
       console.error("Error fetching companies:", e);
       Alert.alert("Error", "Could not load companies");
     }
-  };
-
-  useEffect(() => {
-    loadEvents();
-    loadCompanies();
   }, []);
 
+  // Memoized data loading function
+  const loadAllData = useCallback(async () => {
+    setLoading(true);
+    try {
+      await Promise.all([
+        loadUserData(),
+        loadEvents(),
+        loadCompanies(),
+      ]);
+    } finally {
+      setLoading(false);
+    }
+  }, [loadUserData, loadEvents, loadCompanies]);
+
+  // Initial load
+  useEffect(() => {
+    loadAllData();
+  }, [loadAllData]);
+
+  // Refresh on screen focus (less frequently)
   useFocusEffect(
     useCallback(() => {
-      setLoading(true);
-      loadUserAndData().finally(() => setLoading(false));
-      loadEvents();
-      loadCompanies();
-    }, [])
+      // Only refresh user data on focus, not all data
+      loadUserData();
+    }, [loadUserData])
   );
 
-  const renderHeader = () => (
-    <View style={styles.headerContainer}>
-      <Text style={styles.headerTitle}>
-        {eOrR ? "Evenimente" : "Restaurante"}
-      </Text>
-      {loading ? (
-        <View style={styles.profilePlaceholder} />
-      ) : userData?.profileImage ? (
-        <TouchableOpacity onPress={() => navigation.navigate("Profile")}>
-          <Image
-            style={styles.profilePic}
-            source={{ uri: `data:image/jpg;base64,${userData.profileImage}` }}
-          />
-        </TouchableOpacity>
-      ) : (
-        <View style={styles.profilePlaceholder} />
-      )}
-    </View>
+  // Memoized navigation handlers
+  const handleProfilePress = useCallback(() => {
+    navigation.navigate("Profile");
+  }, [navigation]);
+
+  const handleItemPress = useCallback(
+    (item: EventData | CompanyData) => {
+      if (eOrR) {
+        navigation.navigate("EventScreen", { event: item as EventData });
+      } else {
+        navigation.navigate("Info", { company: item as CompanyData });
+      }
+    },
+    [navigation, eOrR]
   );
 
-  const renderItem = ({ item }: { item: EventData | CompanyData }) => {
-    const isEvent = eOrR;
-    const { id, title, description } = item as EventData;
-    const company = item as CompanyData;
+  const handleToggle = useCallback((value: boolean) => {
+    setEorR(value);
+  }, []);
 
-    return (
-      <TouchableOpacity
-        style={styles.card}
-        onPress={() => {
-          if (isEvent) {
-            navigation.navigate("EventScreen", { event: item as EventData });
-          } else {
-            navigation.navigate("Info", { company });
-          }
-        }}
-      >
-        <ImageBackground
-          source={{
-            uri: `data:image/jpg;base64,${
-              isEvent ? (item as EventData).photo : company.profileImage
-            }`,
-          }}
-          style={styles.cardImage}
-          imageStyle={styles.cardImageStyle}
-        >
-          <View style={styles.cardOverlay} />
-          <View style={styles.cardTextContainer}>
-            <Text style={styles.cardTitle}>
-              {isEvent ? title : company.name}
-            </Text>
+  // Memoized data for rendering
+  const currentData = useMemo(() => {
+    return eOrR ? events : restaurants;
+  }, [eOrR, events, restaurants]);
 
-            {!isEvent && (
-              <View style={styles.tagsContainer}>
-                {company.tags?.map((tag, index) => (
-                  <View key={`${id}-${index}`} style={styles.tag}>
-                    <Text style={styles.tagText}>{tag}</Text>
-                  </View>
-                ))}
-              </View>
-            )}
+  // Memoized render item function
+  const renderItem = useCallback(
+    ({ item }: { item: EventData | CompanyData }) => (
+      <ListItemComponent
+        item={item}
+        isEvent={eOrR}
+        onPress={() => handleItemPress(item)}
+      />
+    ),
+    [eOrR, handleItemPress]
+  );
 
-            <Text style={styles.cardDate}>
-              {isEvent ? description : company.category}
-            </Text>
-          </View>
-        </ImageBackground>
-      </TouchableOpacity>
-    );
-  };
+  // Memoized key extractor
+  const keyExtractor = useCallback(
+    (item: EventData | CompanyData) => item.id.toString(),
+    []
+  );
+
+  // Memoized list performance props
+  const listProps = useMemo(
+    () => ({
+      data: currentData,
+      keyExtractor,
+      renderItem,
+      contentContainerStyle: styles.listContent,
+      showsVerticalScrollIndicator: false,
+      removeClippedSubviews: true,
+      maxToRenderPerBatch: 10,
+      windowSize: 10,
+      initialNumToRender: 8,
+      updateCellsBatchingPeriod: 50,
+      getItemLayout: undefined, // Let FlatList handle this for variable heights
+    }),
+    [currentData, keyExtractor, renderItem]
+  );
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#0F0817" />
-      {renderHeader()}
-      <View style={styles.selectorContainer}>
-        <TouchableOpacity
-          style={[styles.selectContentButton, eOrR && styles.activeButton]}
-          onPress={() => setEorR(true)}
-        >
-          <Text style={eOrR ? styles.activeSelectorText : styles.selectorText}>
-            Evenimente
-          </Text>
-        </TouchableOpacity>
-        <TouchableOpacity
-          style={[styles.selectContentButton, !eOrR && styles.activeButton]}
-          onPress={() => setEorR(false)}
-        >
-          <Text style={!eOrR ? styles.activeSelectorText : styles.selectorText}>
-            Restaurante
-          </Text>
-        </TouchableOpacity>
-      </View>
+      
+      <HeaderComponent
+        eOrR={eOrR}
+        loading={loading}
+        userData={userData}
+        onProfilePress={handleProfilePress}
+      />
+
+      <SelectorComponent eOrR={eOrR} onToggle={handleToggle} />
 
       {loading ? (
         <ActivityIndicator size="large" color="#6C3AFF" style={styles.loader} />
       ) : (
-        <FlatList
-          data={eOrR ? events : restaurants}
-          keyExtractor={(item) => item.id.toString()}
-          renderItem={renderItem}
-          contentContainerStyle={styles.listContent}
-          showsVerticalScrollIndicator={false}
-        />
+        <FlatList {...listProps} />
       )}
     </SafeAreaView>
   );
 }
 
+// Styles remain the same as original
 const styles = StyleSheet.create({
   container: {
     flex: 1,
