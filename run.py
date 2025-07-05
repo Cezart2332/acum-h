@@ -1,7 +1,7 @@
 from ai_recommender import AIRecommender
 
 if __name__ == "__main__":
-    dotnet_url = "http://192.168.0.151:5298"
+    dotnet_url = "http://172.20.10.2:5298"
     bot = AIRecommender(dotnet_url)
     
     while True:

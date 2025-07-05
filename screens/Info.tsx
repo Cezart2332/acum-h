@@ -160,10 +160,6 @@ const Info: React.FC<Props> = ({ navigation, route }) => {
             <Text style={styles.infoText}>{company.email}</Text>
           </View>
           <View style={styles.row}>
-            <Ionicons name="business-outline" size={20} color="#A78BFA" />
-            <Text style={styles.infoText}>CUI: {company.cui}</Text>
-          </View>
-          <View style={styles.row}>
             <Ionicons name="pricetag-outline" size={20} color="#A78BFA" />
             <Text style={styles.infoText}>{company.category}</Text>
           </View>
