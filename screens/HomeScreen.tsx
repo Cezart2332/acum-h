@@ -77,7 +77,7 @@ export default function HomeScreen({ navigation }: { navigation: HomeNav }) {
 
   const loadCompanies = async () => {
     try {
-      const res = await fetch("http://172.20.10.2:5298/companies");
+      const res = await fetch(`${BASE_URL}/companies`);
       if (!res.ok) throw new Error(res.statusText);
       const data: CompanyData[] = await res.json();
       setRestaurants(data);

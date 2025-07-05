@@ -196,7 +196,7 @@ export default function HomeScreenOptimized({ navigation }: { navigation: HomeNa
   const loadCompanies = useCallback(async () => {
     try {
       const companyData = await cachedFetch<CompanyData[]>(
-        "http://172.20.10.2:5298/companies",
+        `${BASE_URL}/companies`,
         { ttl: 15 * 60 * 1000 } // 15 minutes cache
       );
       setRestaurants(companyData);

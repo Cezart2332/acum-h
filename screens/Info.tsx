@@ -100,7 +100,7 @@ const Info: React.FC<Props> = ({ navigation, route }) => {
 
   const openMenu = async () => {
     try {
-      const url = `http://172.20.10.2:5298/companies/${company.id}/menu`;
+      const url = `${BASE_URL}/companies/${company.id}/menu`;
       await Linking.openURL(url);
     } catch (error) {
       Alert.alert("Eroare", "Nu s-a putut deschide meniul");
