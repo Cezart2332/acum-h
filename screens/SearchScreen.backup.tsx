@@ -15,7 +15,14 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from 'expo-linear-gradient';
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { RootStackParamList } from "./RootStackParamList";
 import BASE_URL from "../config";
+import { cachedFetch } from "../utils/apiCache";
+
+type SearchNav = {
+  navigate: (screen: string, params?: any) => void;
+};
 
 interface EventData {
   id: string;
@@ -34,7 +41,7 @@ interface CompanyData {
   category?: string;
   profileImage?: string;
   description?: string;
-  tags?: string[];
+  tags: string[];
 }
 
 type SectionItem = EventData | CompanyData;
@@ -77,47 +84,36 @@ export default function SearchScreen({ navigation }: { navigation?: any }) {
   }, []);
 
   useEffect(() => {
-    const fetchData = async () => {
+    (async () => {
       try {
-        const [eventsResponse, companiesResponse] = await Promise.all([
-          fetch(`${BASE_URL}/events`),
-          fetch(`${BASE_URL}/companies`),
+        const [evtData, compData] = await Promise.all([
+          cachedFetch<EventData[]>(`${BASE_URL}/events`, { ttl: 10 * 60 * 1000 }),
+          cachedFetch<CompanyData[]>(`${BASE_URL}/companies`, { ttl: 15 * 60 * 1000 }),
         ]);
-        
-        const eventsData = await eventsResponse.json();
-        const companiesData = await companiesResponse.json();
-        
-        setEvents(eventsData || []);
-        setRestaurants(companiesData || []);
+        setEvents(evtData);
+        setRestaurants(compData);
       } catch (err) {
         console.warn("Fetching data failed", err);
-        setEvents([]);
-        setRestaurants([]);
       } finally {
         setLoading(false);
       }
-    };
-
-    fetchData();
+    })();
   }, []);
 
   const filteredEvents = events.filter((e) =>
     e.title.toLowerCase().includes(query.toLowerCase()) ||
-    (e.description && e.description.toLowerCase().includes(query.toLowerCase()))
+    e.description?.toLowerCase().includes(query.toLowerCase())
   );
 
   const filteredRestaurants = restaurants.filter((r) =>
-    (r.name && r.name.toLowerCase().includes(query.toLowerCase())) ||
-    (r.category && r.category.toLowerCase().includes(query.toLowerCase())) ||
-    (r.address && r.address.toLowerCase().includes(query.toLowerCase())) ||
-    (r.tags && r.tags.some(tag => tag.toLowerCase().includes(query.toLowerCase())))
+    r.name?.toLowerCase().includes(query.toLowerCase()) ||
+    r.category?.toLowerCase().includes(query.toLowerCase()) ||
+    r.address?.toLowerCase().includes(query.toLowerCase()) ||
+    r.tags?.some(tag => tag.toLowerCase().includes(query.toLowerCase()))
   );
 
   const handleItemPress = (item: SectionItem, section: SearchSection) => {
-    if (!navigation) {
-      console.warn("Navigation not available");
-      return;
-    }
+    if (!navigation) return;
     
     if (section.title === "Evenimente") {
       navigation.navigate("EventScreen", { event: item as EventData });
@@ -230,12 +226,11 @@ export default function SearchScreen({ navigation }: { navigation?: any }) {
         <EmptyResults />
       ) : (
         <Animated.View style={[styles.listContainer, { opacity: fadeAnim }]}>
-          <SectionList
+          <SectionList<SearchSection["data"][number], SearchSection>
             sections={sections}
-            keyExtractor={(item, idx) => {
-              const id = (item as EventData).id || (item as CompanyData).id?.toString() || idx.toString();
-              return `${id}-${idx}`;
-            }}
+            keyExtractor={(item, idx) =>
+              `${(item as any).id || (item as any).name}-${idx}`
+            }
             renderSectionHeader={({ section: { title, data } }) =>
               data.length > 0 ? (
                 <View style={styles.sectionHeaderContainer}>
@@ -251,7 +246,7 @@ export default function SearchScreen({ navigation }: { navigation?: any }) {
                 </View>
               ) : null
             }
-            renderItem={({ item, section }) => (
+            renderItem={({ item, section, index }) => (
               <Animated.View
                 style={[
                   styles.cardWrapper,
@@ -310,7 +305,7 @@ export default function SearchScreen({ navigation }: { navigation?: any }) {
                       </View>
                     )}
 
-                    {section.title === "Restaurante" && (item as CompanyData).tags && (item as CompanyData).tags!.length > 0 && (
+                    {section.title === "Restaurante" && (item as CompanyData).tags && (
                       <View style={styles.tagsContainer}>
                         {(item as CompanyData).tags!.slice(0, 2).map((tag, tagIndex) => (
                           <View key={tagIndex} style={styles.tag}>

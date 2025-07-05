@@ -15,14 +15,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from 'expo-linear-gradient';
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import type { RootStackParamList } from "./RootStackParamList";
 import BASE_URL from "../config";
-import { cachedFetch } from "../utils/apiCache";
-
-type SearchNav = {
-  navigate: (screen: string, params?: any) => void;
-};
 
 interface EventData {
   id: string;
@@ -41,20 +34,25 @@ interface CompanyData {
   category?: string;
   profileImage?: string;
   description?: string;
-  tags: string[];
+  tags?: string[];
 }
 
-type SectionItem = EventData | CompanyData;
+// Unified interface for section list items
+interface SearchItem {
+  id: string;
+  title: string;
+  subtitle?: string;
+  image: string;
+  type: 'event' | 'restaurant';
+  address?: string;
+  tags?: string[];
+  originalData: EventData | CompanyData;
+}
 
-type EventSection = {
-  title: "Evenimente";
-  data: EventData[];
-};
-type RestaurantSection = {
-  title: "Restaurante";
-  data: CompanyData[];
-};
-type SearchSection = EventSection | RestaurantSection;
+interface SearchSection {
+  title: string;
+  data: SearchItem[];
+}
 
 const { width } = Dimensions.get('window');
 
@@ -84,41 +82,78 @@ export default function SearchScreen({ navigation }: { navigation?: any }) {
   }, []);
 
   useEffect(() => {
-    (async () => {
+    const fetchData = async () => {
       try {
-        const [evtData, compData] = await Promise.all([
-          cachedFetch<EventData[]>(`${BASE_URL}/events`, { ttl: 10 * 60 * 1000 }),
-          cachedFetch<CompanyData[]>(`${BASE_URL}/companies`, { ttl: 15 * 60 * 1000 }),
+        const [eventsResponse, companiesResponse] = await Promise.all([
+          fetch(`${BASE_URL}/events`),
+          fetch(`${BASE_URL}/companies`),
         ]);
-        setEvents(evtData);
-        setRestaurants(compData);
+        
+        const eventsData = await eventsResponse.json();
+        const companiesData = await companiesResponse.json();
+        
+        setEvents(eventsData || []);
+        setRestaurants(companiesData || []);
       } catch (err) {
         console.warn("Fetching data failed", err);
+        setEvents([]);
+        setRestaurants([]);
       } finally {
         setLoading(false);
       }
-    })();
+    };
+
+    fetchData();
   }, []);
+
+  // Convert data to unified format
+  const convertEventsToSearchItems = (events: EventData[]): SearchItem[] => {
+    return events.map(event => ({
+      id: event.id,
+      title: event.title,
+      subtitle: event.description,
+      image: event.photo,
+      type: 'event' as const,
+      tags: event.tags,
+      originalData: event,
+    }));
+  };
+
+  const convertRestaurantsToSearchItems = (restaurants: CompanyData[]): SearchItem[] => {
+    return restaurants.map(restaurant => ({
+      id: restaurant.id?.toString() || '',
+      title: restaurant.name || '',
+      subtitle: restaurant.category,
+      image: restaurant.profileImage || '',
+      type: 'restaurant' as const,
+      address: restaurant.address,
+      tags: restaurant.tags,
+      originalData: restaurant,
+    }));
+  };
 
   const filteredEvents = events.filter((e) =>
     e.title.toLowerCase().includes(query.toLowerCase()) ||
-    e.description?.toLowerCase().includes(query.toLowerCase())
+    (e.description && e.description.toLowerCase().includes(query.toLowerCase()))
   );
 
   const filteredRestaurants = restaurants.filter((r) =>
-    r.name?.toLowerCase().includes(query.toLowerCase()) ||
-    r.category?.toLowerCase().includes(query.toLowerCase()) ||
-    r.address?.toLowerCase().includes(query.toLowerCase()) ||
-    r.tags?.some(tag => tag.toLowerCase().includes(query.toLowerCase()))
+    (r.name && r.name.toLowerCase().includes(query.toLowerCase())) ||
+    (r.category && r.category.toLowerCase().includes(query.toLowerCase())) ||
+    (r.address && r.address.toLowerCase().includes(query.toLowerCase())) ||
+    (r.tags && r.tags.some(tag => tag.toLowerCase().includes(query.toLowerCase())))
   );
 
-  const handleItemPress = (item: SectionItem, section: SearchSection) => {
-    if (!navigation) return;
+  const handleItemPress = (item: SearchItem) => {
+    if (!navigation) {
+      console.warn("Navigation not available");
+      return;
+    }
     
-    if (section.title === "Evenimente") {
-      navigation.navigate("EventScreen", { event: item as EventData });
+    if (item.type === 'event') {
+      navigation.navigate("EventScreen", { event: item.originalData });
     } else {
-      navigation.navigate("Info", { company: item as CompanyData });
+      navigation.navigate("Info", { company: item.originalData });
     }
   };
 
@@ -142,8 +177,14 @@ export default function SearchScreen({ navigation }: { navigation?: any }) {
   }
 
   const sections: SearchSection[] = [
-    { title: "Evenimente", data: filteredEvents },
-    { title: "Restaurante", data: filteredRestaurants },
+    { 
+      title: "Evenimente", 
+      data: convertEventsToSearchItems(filteredEvents)
+    },
+    { 
+      title: "Restaurante", 
+      data: convertRestaurantsToSearchItems(filteredRestaurants)
+    },
   ];
 
   const EmptyResults = () => (
@@ -226,11 +267,9 @@ export default function SearchScreen({ navigation }: { navigation?: any }) {
         <EmptyResults />
       ) : (
         <Animated.View style={[styles.listContainer, { opacity: fadeAnim }]}>
-          <SectionList<SearchSection["data"][number], SearchSection>
+          <SectionList<SearchItem>
             sections={sections}
-            keyExtractor={(item, idx) =>
-              `${(item as any).id || (item as any).name}-${idx}`
-            }
+            keyExtractor={(item, idx) => `${item.id}-${idx}`}
             renderSectionHeader={({ section: { title, data } }) =>
               data.length > 0 ? (
                 <View style={styles.sectionHeaderContainer}>
@@ -246,7 +285,7 @@ export default function SearchScreen({ navigation }: { navigation?: any }) {
                 </View>
               ) : null
             }
-            renderItem={({ item, section, index }) => (
+            renderItem={({ item }) => (
               <Animated.View
                 style={[
                   styles.cardWrapper,
@@ -263,17 +302,13 @@ export default function SearchScreen({ navigation }: { navigation?: any }) {
               >
                 <TouchableOpacity
                   style={styles.card}
-                  onPress={() => handleItemPress(item, section)}
+                  onPress={() => handleItemPress(item)}
                   activeOpacity={0.8}
                 >
                   <View style={styles.cardImageContainer}>
                     <Image
                       source={{
-                        uri: `data:image/jpg;base64,${
-                          section.title === "Evenimente"
-                            ? (item as EventData).photo
-                            : (item as CompanyData).profileImage
-                        }`,
+                        uri: `data:image/jpg;base64,${item.image}`,
                       }}
                       style={styles.cardImage}
                     />
@@ -285,36 +320,32 @@ export default function SearchScreen({ navigation }: { navigation?: any }) {
                   
                   <View style={styles.cardContent}>
                     <Text style={styles.cardTitle} numberOfLines={2}>
-                      {section.title === "Evenimente"
-                        ? (item as EventData).title
-                        : (item as CompanyData).name}
+                      {item.title}
                     </Text>
                     
                     <Text style={styles.cardSubtitle} numberOfLines={2}>
-                      {section.title === "Evenimente"
-                        ? (item as EventData).description
-                        : (item as CompanyData).category}
+                      {item.subtitle}
                     </Text>
 
-                    {section.title === "Restaurante" && (item as CompanyData).address && (
+                    {item.type === 'restaurant' && item.address && (
                       <View style={styles.addressContainer}>
                         <Ionicons name="location-outline" size={14} color="#A78BFA" />
                         <Text style={styles.addressText} numberOfLines={1}>
-                          {(item as CompanyData).address}
+                          {item.address}
                         </Text>
                       </View>
                     )}
 
-                    {section.title === "Restaurante" && (item as CompanyData).tags && (
+                    {item.type === 'restaurant' && item.tags && item.tags.length > 0 && (
                       <View style={styles.tagsContainer}>
-                        {(item as CompanyData).tags!.slice(0, 2).map((tag, tagIndex) => (
+                        {item.tags.slice(0, 2).map((tag, tagIndex) => (
                           <View key={tagIndex} style={styles.tag}>
                             <Text style={styles.tagText}>{tag}</Text>
                           </View>
                         ))}
-                        {(item as CompanyData).tags!.length > 2 && (
+                        {item.tags.length > 2 && (
                           <Text style={styles.moreTagsText}>
-                            +{(item as CompanyData).tags!.length - 2}
+                            +{item.tags.length - 2}
                           </Text>
                         )}
                       </View>
@@ -327,7 +358,7 @@ export default function SearchScreen({ navigation }: { navigation?: any }) {
                       style={styles.actionButton}
                     >
                       <Ionicons 
-                        name={section.title === "Evenimente" ? "calendar" : "restaurant"} 
+                        name={item.type === 'event' ? "calendar" : "restaurant"} 
                         size={20} 
                         color="#FFFFFF" 
                       />
