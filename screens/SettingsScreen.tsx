@@ -8,8 +8,13 @@ import {
   TouchableOpacity,
   Alert,
   ScrollView,
+  Animated,
+  StatusBar,
+  Dimensions,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from 'expo-linear-gradient';
+import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 
 export type RootStackParamList = {
@@ -20,6 +25,152 @@ export type RootStackParamList = {
 };
 type HomeNav = NativeStackNavigationProp<RootStackParamList, "Home">;
 
+const { width } = Dimensions.get('window');
+
+interface SettingItemProps {
+  icon: string;
+  title: string;
+  subtitle?: string;
+  onPress?: () => void;
+  rightElement?: React.ReactNode;
+  danger?: boolean;
+}
+
+const SettingItem: React.FC<SettingItemProps> = ({
+  icon,
+  title,
+  subtitle,
+  onPress,
+  rightElement,
+  danger = false,
+}) => {
+  const [scaleAnim] = useState(new Animated.Value(1));
+
+  const animatePress = () => {
+    Animated.sequence([
+      Animated.timing(scaleAnim, {
+        toValue: 0.95,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+      Animated.timing(scaleAnim, {
+        toValue: 1,
+        duration: 100,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  };
+
+  return (
+    <Animated.View style={[styles.settingItemWrapper, { transform: [{ scale: scaleAnim }] }]}>
+      <TouchableOpacity
+        style={[styles.settingItem, danger && styles.dangerItem]}
+        onPress={() => {
+          animatePress();
+          setTimeout(() => onPress?.(), 150);
+        }}
+        activeOpacity={0.8}
+      >
+        <LinearGradient
+          colors={danger ? ['#FF6B6B', '#FF8E53'] : ['#1A1A1A', '#2A1A4A']}
+          style={styles.settingItemGradient}
+        >
+          <View style={styles.settingItemLeft}>
+            <View style={[styles.iconContainer, danger && styles.dangerIconContainer]}>
+              <LinearGradient
+                colors={danger ? ['#FFFFFF20', '#FFFFFF10'] : ['#6C3AFF', '#BB86FC']}
+                style={styles.iconGradient}
+              >
+                <Ionicons 
+                  name={icon as any} 
+                  size={24} 
+                  color={danger ? "#FFFFFF" : "#FFFFFF"} 
+                />
+              </LinearGradient>
+            </View>
+            <View style={styles.textContainer}>
+              <Text style={[styles.settingTitle, danger && styles.dangerText]}>
+                {title}
+              </Text>
+              {subtitle && (
+                <Text style={[styles.settingSubtitle, danger && styles.dangerSubtext]}>
+                  {subtitle}
+                </Text>
+              )}
+            </View>
+          </View>
+          
+          <View style={styles.settingItemRight}>
+            {rightElement || (
+              <Ionicons 
+                name="chevron-forward" 
+                size={20} 
+                color={danger ? "#FFFFFF80" : "#A78BFA"} 
+              />
+            )}
+          </View>
+        </LinearGradient>
+      </TouchableOpacity>
+    </Animated.View>
+  );
+};
+
+const CustomSwitch: React.FC<{
+  value: boolean;
+  onValueChange: (value: boolean) => void;
+}> = ({ value, onValueChange }) => {
+  const [switchAnim] = useState(new Animated.Value(value ? 1 : 0));
+
+  useEffect(() => {
+    Animated.timing(switchAnim, {
+      toValue: value ? 1 : 0,
+      duration: 200,
+      useNativeDriver: false,
+    }).start();
+  }, [value]);
+
+  return (
+    <TouchableOpacity
+      style={styles.customSwitchContainer}
+      onPress={() => onValueChange(!value)}
+      activeOpacity={0.8}
+    >
+      <Animated.View
+        style={[
+          styles.customSwitchTrack,
+          {
+            backgroundColor: switchAnim.interpolate({
+              inputRange: [0, 1],
+              outputRange: ['#2A1A4A', '#6C3AFF'],
+            }),
+          },
+        ]}
+      >
+        <Animated.View
+          style={[
+            styles.customSwitchThumb,
+            {
+              transform: [
+                {
+                  translateX: switchAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [2, 22],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          <LinearGradient
+            colors={['#FFFFFF', '#E0E0FF']}
+            style={styles.thumbGradient}
+          />
+        </Animated.View>
+      </Animated.View>
+    </TouchableOpacity>
+  );
+};
+
 export default function SettingsScreen({
   navigation,
 }: {
@@ -27,8 +178,25 @@ export default function SettingsScreen({
 }) {
   const [notif, setNotif] = useState<boolean>(true);
   const [dark, setDark] = useState<boolean>(false);
+  const [fadeAnim] = useState(new Animated.Value(0));
+  const [slideAnim] = useState(new Animated.Value(50));
 
   useEffect(() => {
+    // Animate screen entrance
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+    ]).start();
+
+    // Load settings
     (async () => {
       const n = await AsyncStorage.getItem("notif");
       const d = await AsyncStorage.getItem("dark");
@@ -41,90 +209,376 @@ export default function SettingsScreen({
     setNotif(val);
     await AsyncStorage.setItem("notif", JSON.stringify(val));
   };
+
   const toggleDark = async (val: boolean) => {
     setDark(val);
     await AsyncStorage.setItem("dark", JSON.stringify(val));
-    // you can also trigger theme context here
   };
 
   const logOut = async () => {
-    await AsyncStorage.multiSet([
-      ["loggedIn", "false"],
-      ["user", "null"],
-    ]);
-    navigation.replace("Login");
+    Alert.alert(
+      "Confirmare Deconectare",
+      "Ești sigur că vrei să te deconectezi?",
+      [
+        {
+          text: "Anulează",
+          style: "cancel",
+        },
+        {
+          text: "Deconectează",
+          style: "destructive",
+          onPress: async () => {
+            await AsyncStorage.multiSet([
+              ["loggedIn", "false"],
+              ["user", "null"],
+            ]);
+            navigation.replace("Login");
+          },
+        },
+      ]
+    );
   };
 
   const onChangePassword = () =>
-    Alert.alert("Change Password", "Redirect to change password screen");
-  const onAbout = () => Alert.alert("About", "App version: Alpha 0.1.0");
+    Alert.alert(
+      "Schimbă Parola", 
+      "Funcția va fi disponibilă în curând",
+      [{ text: "OK", style: "default" }]
+    );
+
+  const onAbout = () =>
+    Alert.alert(
+      "Despre Aplicație", 
+      "Acum-H\nVersiune: 1.0.0\nO aplicație pentru găsirea celor mai bune restaurante și evenimente.\n\n© 2024 Acum-H Team",
+      [{ text: "OK", style: "default" }]
+    );
+
+  const onPrivacy = () =>
+    Alert.alert(
+      "Politica de Confidențialitate",
+      "Respectăm confidențialitatea datelor tale. Pentru mai multe detalii, vezi politica completă în aplicație.",
+      [{ text: "OK", style: "default" }]
+    );
+
+  const onSupport = () =>
+    Alert.alert(
+      "Suport",
+      "Ai întrebări? Contactează-ne la support@acum-h.ro",
+      [{ text: "OK", style: "default" }]
+    );
 
   return (
     <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scroll}>
-        <Text style={styles.sectionHeader}>Account</Text>
-        <TouchableOpacity style={styles.item} onPress={onChangePassword}>
-          <Text style={styles.itemText}>Change Password</Text>
-        </TouchableOpacity>
+      <StatusBar barStyle="light-content" backgroundColor="#0F0817" />
+      
+      {/* Header */}
+      <Animated.View 
+        style={[
+          styles.header,
+          { 
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }]
+          }
+        ]}
+      >
+        <LinearGradient
+          colors={['#0F0817', '#1A1A1A']}
+          style={styles.headerGradient}
+        >
+          <Text style={styles.headerTitle}>Setări</Text>
+          <Text style={styles.headerSubtitle}>Personalizează experiența ta</Text>
+        </LinearGradient>
+      </Animated.View>
 
-        <Text style={styles.sectionHeader}>Preferences</Text>
-        <View style={styles.itemRow}>
-          <Text style={styles.itemText}>Notifications</Text>
-          <Switch value={notif} onValueChange={toggleNotif} />
-        </View>
-        <View style={styles.itemRow}>
-          <Text style={styles.itemText}>Dark Mode</Text>
-          <Switch value={dark} onValueChange={toggleDark} />
-        </View>
+      <ScrollView 
+        style={styles.scrollView}
+        contentContainerStyle={styles.scrollContent}
+        showsVerticalScrollIndicator={false}
+      >
+        <Animated.View 
+          style={[
+            styles.content,
+            { 
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }]
+            }
+          ]}
+        >
+          {/* Account Section */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeaderContainer}>
+              <LinearGradient
+                colors={['#6C3AFF', '#BB86FC']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.sectionHeaderGradient}
+              >
+                <Ionicons name="person" size={20} color="#FFFFFF" />
+                <Text style={styles.sectionHeader}>Cont</Text>
+              </LinearGradient>
+            </View>
 
-        <Text style={styles.sectionHeader}>Other</Text>
-        <TouchableOpacity style={styles.item} onPress={onAbout}>
-          <Text style={styles.itemText}>About</Text>
-        </TouchableOpacity>
+            <SettingItem
+              icon="key-outline"
+              title="Schimbă Parola"
+              subtitle="Actualizează parola contului"
+              onPress={onChangePassword}
+            />
 
-        <TouchableOpacity style={styles.logout} onPress={logOut}>
-          <Text style={styles.logoutText}>Log Out</Text>
-        </TouchableOpacity>
+            <SettingItem
+              icon="shield-checkmark-outline"
+              title="Confidențialitate"
+              subtitle="Politica de confidențialitate"
+              onPress={onPrivacy}
+            />
+          </View>
+
+          {/* Preferences Section */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeaderContainer}>
+              <LinearGradient
+                colors={['#6C3AFF', '#BB86FC']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.sectionHeaderGradient}
+              >
+                <Ionicons name="settings" size={20} color="#FFFFFF" />
+                <Text style={styles.sectionHeader}>Preferințe</Text>
+              </LinearGradient>
+            </View>
+
+            <SettingItem
+              icon="notifications-outline"
+              title="Notificări"
+              subtitle={notif ? "Activat" : "Dezactivat"}
+              rightElement={
+                <CustomSwitch
+                  value={notif}
+                  onValueChange={toggleNotif}
+                />
+              }
+            />
+
+            <SettingItem
+              icon="moon-outline"
+              title="Mod Întunecat"
+              subtitle={dark ? "Activat" : "Dezactivat"}
+              rightElement={
+                <CustomSwitch
+                  value={dark}
+                  onValueChange={toggleDark}
+                />
+              }
+            />
+          </View>
+
+          {/* Support Section */}
+          <View style={styles.section}>
+            <View style={styles.sectionHeaderContainer}>
+              <LinearGradient
+                colors={['#6C3AFF', '#BB86FC']}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 0 }}
+                style={styles.sectionHeaderGradient}
+              >
+                <Ionicons name="help-circle" size={20} color="#FFFFFF" />
+                <Text style={styles.sectionHeader}>Suport</Text>
+              </LinearGradient>
+            </View>
+
+            <SettingItem
+              icon="chatbubble-ellipses-outline"
+              title="Suport Tehnic"
+              subtitle="Contactează echipa de suport"
+              onPress={onSupport}
+            />
+
+            <SettingItem
+              icon="information-circle-outline"
+              title="Despre Aplicație"
+              subtitle="Versiune și informații"
+              onPress={onAbout}
+            />
+          </View>
+
+          {/* Logout Section */}
+          <View style={[styles.section, styles.lastSection]}>
+            <SettingItem
+              icon="log-out-outline"
+              title="Deconectează"
+              subtitle="Ieși din cont"
+              onPress={logOut}
+              danger={true}
+            />
+          </View>
+        </Animated.View>
       </ScrollView>
     </SafeAreaView>
   );
 }
 
 const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#fff" },
-  scroll: { padding: 20 },
+  container: { 
+    flex: 1, 
+    backgroundColor: "#0F0817" 
+  },
+  header: {
+    paddingBottom: 8,
+  },
+  headerGradient: {
+    paddingHorizontal: 24,
+    paddingVertical: 20,
+  },
+  headerTitle: {
+    fontSize: 32,
+    fontWeight: "800",
+    color: "#E0E0FF",
+    letterSpacing: -0.5,
+    marginBottom: 4,
+  },
+  headerSubtitle: {
+    fontSize: 16,
+    color: "#A78BFA",
+    fontWeight: "500",
+  },
+  scrollView: {
+    flex: 1,
+  },
+  scrollContent: {
+    paddingBottom: 40,
+  },
+  content: {
+    paddingHorizontal: 24,
+  },
+  section: {
+    marginBottom: 32,
+  },
+  lastSection: {
+    marginBottom: 0,
+  },
+  sectionHeaderContainer: {
+    marginBottom: 16,
+    borderRadius: 12,
+    overflow: "hidden",
+  },
+  sectionHeaderGradient: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 12,
+  },
   sectionHeader: {
     fontSize: 18,
     fontWeight: "700",
-    color: "#444",
-    marginTop: 20,
-    marginBottom: 10,
+    color: "#FFFFFF",
+    marginLeft: 8,
+    letterSpacing: 0.3,
   },
-  item: {
-    backgroundColor: "#f4f4f4",
-    padding: 16,
-    borderRadius: 12,
+  settingItemWrapper: {
     marginBottom: 12,
-    elevation: 1,
   },
-  itemRow: {
+  settingItem: {
+    borderRadius: 16,
+    overflow: "hidden",
+    shadowColor: "#6C3AFF",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.1,
+    shadowRadius: 8,
+    elevation: 4,
+  },
+  dangerItem: {
+    shadowColor: "#FF6B6B",
+  },
+  settingItemGradient: {
     flexDirection: "row",
+    alignItems: "center",
     justifyContent: "space-between",
-    alignItems: "center",
-    backgroundColor: "#f4f4f4",
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-    elevation: 1,
+    paddingHorizontal: 20,
+    paddingVertical: 16,
+    borderWidth: 1,
+    borderColor: "#2A1A4A",
   },
-  itemText: { fontSize: 16, color: "#333" },
-  logout: {
-    marginTop: 30,
-    backgroundColor: "#e74c3c",
-    padding: 16,
-    borderRadius: 12,
+  settingItemLeft: {
+    flexDirection: "row",
     alignItems: "center",
+    flex: 1,
+  },
+  iconContainer: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    marginRight: 16,
+    overflow: "hidden",
+  },
+  dangerIconContainer: {
+    shadowColor: "#FF6B6B",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.3,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  iconGradient: {
+    width: "100%",
+    height: "100%",
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  textContainer: {
+    flex: 1,
+  },
+  settingTitle: {
+    fontSize: 17,
+    fontWeight: "600",
+    color: "#E0E0FF",
+    marginBottom: 2,
+    letterSpacing: 0.2,
+  },
+  dangerText: {
+    color: "#FFFFFF",
+  },
+  settingSubtitle: {
+    fontSize: 14,
+    color: "#A78BFA",
+    lineHeight: 18,
+  },
+  dangerSubtext: {
+    color: "#FFFFFF80",
+  },
+  settingItemRight: {
+    alignItems: "center",
+    justifyContent: "center",
+  },
+  // Custom Switch Styles
+  customSwitchContainer: {
+    width: 48,
+    height: 28,
+  },
+  customSwitchTrack: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 14,
+    justifyContent: "center",
+    position: "relative",
+    shadowColor: "#6C3AFF",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
     elevation: 2,
   },
-  logoutText: { color: "#fff", fontSize: 16, fontWeight: "700" },
+  customSwitchThumb: {
+    width: 24,
+    height: 24,
+    borderRadius: 12,
+    position: "absolute",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.2,
+    shadowRadius: 4,
+    elevation: 4,
+  },
+  thumbGradient: {
+    width: "100%",
+    height: "100%",
+    borderRadius: 12,
+  },
 });
