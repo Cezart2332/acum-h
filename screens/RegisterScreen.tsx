@@ -18,6 +18,7 @@ import type { RootStackParamList } from "./RootStackParamList";
 
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { jsx } from "react/jsx-runtime";
+import BASE_URL from "../config";
 
 type RegisterScreenNavigationProp = NativeStackNavigationProp<
   RootStackParamList,
@@ -67,7 +68,7 @@ export default function RegisterScreen({ navigation }: Props) {
         method: "POST",
         body: formData,
       };
-      const response = await fetch("http://172.20.10.2:5298/users", Register);
+      const response = await fetch(`${BASE_URL}/users`, Register);
       const data = await response.json();
       await AsyncStorage.setItem("user", JSON.stringify(data));
       await AsyncStorage.setItem("loggedIn", JSON.stringify(true));

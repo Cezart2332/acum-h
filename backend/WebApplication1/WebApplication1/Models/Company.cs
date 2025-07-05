@@ -27,5 +27,6 @@ namespace WebApplication1.Models
         public byte[] MenuData { get; set; } = Array.Empty<byte>(); // 🆕
 
         public ICollection<Event> Events { get; set; } = new List<Event>();
+        public ICollection<CompanyHour> CompanyHours { get; set; } = new List<CompanyHour>();
     }
 }

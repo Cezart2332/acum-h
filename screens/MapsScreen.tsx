@@ -7,12 +7,60 @@ import {
   ActivityIndicator,
   Text,
   ImageBackground,
+  Platform,
+  TouchableOpacity,
 } from "react-native";
-import MapView, { Marker, Region, Callout } from "react-native-maps";
+import MapView, {
+  Marker,
+  Region,
+  Callout,
+  PROVIDER_GOOGLE,
+} from "react-native-maps";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "./RootStackParamList";
 import * as Location from "expo-location";
 import haversine from "haversine-distance";
+import BASE_URL from "../config";
+
+const DARK_MAP_STYLE = [
+  {
+    elementType: "geometry",
+    stylers: [{ color: "#121212" }],
+  },
+  {
+    elementType: "labels.text.fill",
+    stylers: [{ color: "#ffffff" }],
+  },
+  {
+    elementType: "labels.text.stroke",
+    stylers: [{ color: "#000000" }, { weight: 1 }],
+  },
+  {
+    featureType: "road",
+    elementType: "geometry",
+    stylers: [{ color: "#2e2e2e" }],
+  },
+  {
+    featureType: "road.highway",
+    elementType: "geometry",
+    stylers: [{ color: "#3e3e3e" }],
+  },
+  {
+    featureType: "road.arterial",
+    elementType: "geometry",
+    stylers: [{ color: "#333333" }],
+  },
+  {
+    featureType: "water",
+    elementType: "geometry",
+    stylers: [{ color: "#0d1b2a" }],
+  },
+  {
+    featureType: "poi",
+    elementType: "geometry",
+    stylers: [{ color: "#1f1f1f" }],
+  },
+];
 
 type MapNav = NativeStackNavigationProp<RootStackParamList, "Map">;
 
@@ -37,7 +85,7 @@ export default function MapsScreen({ navigation }: { navigation: MapNav }) {
       setLocation(loc);
 
       try {
-        const res = await fetch("http://172.20.10.2:5298/companies");
+        const res = await fetch(`${BASE_URL}/companies`);
         if (!res.ok) throw new Error(res.statusText);
         const data = await res.json();
         setCompanies(data);
@@ -63,15 +111,16 @@ export default function MapsScreen({ navigation }: { navigation: MapNav }) {
         })),
       ];
       mapRef.current.fitToCoordinates(coords, {
-        edgePadding: { top: 50, right: 50, bottom: 50, left: 50 },
+        edgePadding: { top: 80, right: 80, bottom: 80, left: 80 },
         animated: true,
       });
     }
   }, [loading, location, companies]);
 
-  if (loading || !location) {
-    return <ActivityIndicator style={{ flex: 1 }} size="large" />;
-  }
+  if (loading || !location)
+    return (
+      <ActivityIndicator style={{ flex: 1 }} size="large" color="#9b59b6" />
+    );
 
   const initialRegion: Region = {
     latitude: location.coords.latitude,
@@ -84,43 +133,50 @@ export default function MapsScreen({ navigation }: { navigation: MapNav }) {
     <View style={styles.container}>
       <MapView
         ref={mapRef}
+        provider={PROVIDER_GOOGLE}
         style={{ width, height }}
+        customMapStyle={DARK_MAP_STYLE}
         initialRegion={initialRegion}
         showsUserLocation
         showsMyLocationButton
       >
-        {companies.map((company, index) => {
-          const distMeters = haversine(
-            { lat: location.coords.latitude, lng: location.coords.longitude },
-            { lat: company.latitude, lng: company.longitude }
-          );
-          const distKm = (distMeters / 1000).toFixed(1);
+        {companies.map((company, idx) => {
+          const distKm = (
+            haversine(
+              { lat: location.coords.latitude, lng: location.coords.longitude },
+              { lat: company.latitude, lng: company.longitude }
+            ) / 1000
+          ).toFixed(1);
+
           return (
             <Marker
-              key={index}
+              key={idx}
               coordinate={{
                 latitude: company.latitude,
                 longitude: company.longitude,
               }}
+              pinColor="#bb86fc"
             >
               <Callout
-                tooltip
+                tooltip={Platform.OS === "ios"}
+                style={
+                  Platform.OS === "android" ? styles.androidCallout : undefined
+                }
+                // This is required for iOS to work
                 onPress={() => navigation.navigate("Info", { company })}
               >
-                <View style={styles.calloutContainer}>
-                  <ImageBackground
-                    source={{
-                      uri: `data:image/jpg;base64,${company.profileImage}`,
-                    }}
-                    style={styles.calloutImage}
-                    imageStyle={styles.calloutImageStyle}
+                {/* Conditionally wrap content for Android */}
+                {Platform.OS === "android" ? (
+                  <TouchableOpacity
+                    activeOpacity={0.7}
+                    onPress={() => navigation.navigate("Info", { company })}
                   >
-                    <View style={styles.calloutOverlay} />
-                    <Text style={styles.calloutTitle}>{company.name}</Text>
-                  </ImageBackground>
-                  <Text style={styles.calloutSubtitle}>{company.category}</Text>
-                  <Text style={styles.calloutDistance}>{distKm} km</Text>
-                </View>
+                    <CalloutContent company={company} distKm={distKm} />
+                  </TouchableOpacity>
+                ) : (
+                  // For iOS, we don't need TouchableOpacity since Callout handles it
+                  <CalloutContent company={company} distKm={distKm} />
+                )}
               </Callout>
             </Marker>
           );
@@ -130,39 +186,83 @@ export default function MapsScreen({ navigation }: { navigation: MapNav }) {
   );
 }
 
+// Separate component for callout content
+const CalloutContent = ({
+  company,
+  distKm,
+}: {
+  company: any;
+  distKm: string;
+}) => (
+  <View style={styles.callout}>
+    <ImageBackground
+      source={{
+        uri: `data:image/jpg;base64,${company.profileImage}`,
+      }}
+      style={styles.calloutImage}
+      imageStyle={styles.calloutImageStyle}
+    >
+      <View style={styles.overlay} />
+      <Text style={styles.title}>{company.name}</Text>
+    </ImageBackground>
+    <Text style={styles.subtitle}>{company.category}</Text>
+    <Text style={styles.distance}>{distKm} km</Text>
+  </View>
+);
+
 const styles = StyleSheet.create({
-  container: { flex: 1 },
-  calloutContainer: {
-    width: 150,
-    padding: 6,
-    backgroundColor: "white",
-    borderRadius: 8,
+  container: { flex: 1, backgroundColor: "#000" },
+  // Fix for Android's default callout styling
+  androidCallout: {
+    backgroundColor: "transparent",
+    borderWidth: 0,
+    padding: 0,
+    borderRadius: 0,
+    elevation: 0,
+    shadowOpacity: 0,
+  },
+  callout: {
+    width: 170,
+    padding: 10,
+    backgroundColor: "#2a2a2a",
+    borderRadius: 12,
     alignItems: "center",
-    elevation: 4,
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.5,
+    shadowRadius: 4,
+    elevation: 8,
   },
   calloutImage: {
     width: "100%",
-    height: 70,
-    borderRadius: 8,
+    height: 80,
+    borderRadius: 12,
     overflow: "hidden",
   },
-  calloutImageStyle: { borderRadius: 8 },
-  calloutOverlay: {
+  calloutImageStyle: { borderRadius: 12 },
+  overlay: {
     ...StyleSheet.absoluteFillObject,
     backgroundColor: "rgba(0,0,0,0.3)",
   },
-  calloutTitle: {
+  title: {
     position: "absolute",
-    bottom: 4,
-    left: 6,
-    color: "white",
-    fontWeight: "700",
+    bottom: 6,
+    left: 10,
+    color: "#bb86fc",
+    fontWeight: "bold",
+    fontSize: 14,
   },
-  calloutSubtitle: { marginTop: 4, fontSize: 12, color: "#555" },
-  calloutDistance: {
-    marginTop: 2,
+  subtitle: {
+    marginTop: 6,
+    fontSize: 13,
+    color: "#ddd",
+    textAlign: "center",
+    width: "100%",
+  },
+  distance: {
+    marginTop: 4,
     fontSize: 12,
-    color: "#333",
+    color: "#aaa",
     fontWeight: "600",
   },
 });

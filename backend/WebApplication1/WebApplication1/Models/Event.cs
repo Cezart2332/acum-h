@@ -1,4 +1,7 @@
-﻿namespace WebApplication1.Models;
+﻿using Microsoft.EntityFrameworkCore.Metadata.Internal;
+using System.ComponentModel.DataAnnotations.Schema;
+
+namespace WebApplication1.Models;
 
 public class Event
 {
@@ -9,6 +12,9 @@ public class Event
     public string Tags { get; set; }
     
     public int Likes { get; set; }
+    
+    [ForeignKey("Company")]
     public int CompanyId { get; set; }
+    
     public Company Company { get; set; }
 }

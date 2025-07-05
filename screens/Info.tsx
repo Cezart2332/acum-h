@@ -16,6 +16,7 @@ import type { RouteProp } from "@react-navigation/native";
 import type { RootStackParamList } from "./RootStackParamList";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import BASE_URL from "../config";
 
 type InfoNav = NativeStackNavigationProp<RootStackParamList, "Info">;
 type InfoRoute = RouteProp<RootStackParamList, "Info">;
@@ -61,7 +62,7 @@ const Info: React.FC<Props> = ({ navigation, route }) => {
       if (company.id != null) form.append("id", company.id.toString());
       try {
         console.log("Fetching events for company", company.id);
-        const res = await fetch("http://172.20.10.2:5298/companyevents", {
+        const res = await fetch(`${BASE_URL}/companyevents`, {
           method: "POST",
           body: form,
         });
@@ -83,7 +84,7 @@ const Info: React.FC<Props> = ({ navigation, route }) => {
     (async () => {
       setCheckingMenu(true);
       try {
-        const url = `http://172.20.10.2:5298/companies/${company.id}/menu`;
+        const url = `${BASE_URL}/companies/${company.id}/menu`;
         console.log("Checking menu at", url);
         const res = await fetch(url, { method: "GET" });
         console.log("Menu check status", res.status);
@@ -104,6 +105,11 @@ const Info: React.FC<Props> = ({ navigation, route }) => {
     } catch (error) {
       Alert.alert("Eroare", "Nu s-a putut deschide meniul");
     }
+  };
+
+  // NEW FUNCTION: Redirect to Reservation page
+  const goToReservation = () => {
+    navigation.navigate("Reservation", { company });
   };
 
   const renderEvent = ({ item }: { item: EventData }) => (
@@ -184,6 +190,18 @@ const Info: React.FC<Props> = ({ navigation, route }) => {
           ) : (
             <Text style={styles.loadingText}>Meniu indisponibil</Text>
           )}
+
+          {/* NEW RESERVATION BUTTON */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Rezervări</Text>
+            <TouchableOpacity
+              style={styles.reservationButton}
+              onPress={goToReservation}
+            >
+              <Ionicons name="restaurant" size={24} color="#A78BFA" />
+              <Text style={styles.reservationButtonText}>Rezervă acum</Text>
+            </TouchableOpacity>
+          </View>
 
           {/* Evenimente */}
           <View style={styles.section}>
@@ -299,6 +317,23 @@ const styles = StyleSheet.create({
     marginTop: 8,
   },
   menuButtonText: {
+    color: "#C4B5FD",
+    fontSize: 16,
+    marginLeft: 12,
+    fontWeight: "500",
+  },
+  // NEW RESERVATION BUTTON STYLES
+  reservationButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#2A1A4A",
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#6C3AFF",
+    marginTop: 8,
+  },
+  reservationButtonText: {
     color: "#C4B5FD",
     fontSize: 16,
     marginLeft: 12,

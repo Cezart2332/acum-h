@@ -11,6 +11,7 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import BASE_URL from "../config";
 
 interface EventData {
   id: string;
@@ -50,8 +51,8 @@ export default function SearchScreen() {
     (async () => {
       try {
         const [evtRes, compRes] = await Promise.all([
-          fetch("http://172.20.10.2:5298/events"),
-          fetch("http://172.20.10.2:5298/companies"),
+          fetch(`${BASE_URL}/events`),
+          fetch(`${BASE_URL}/companies`),
         ]);
         const evtData: EventData[] = await evtRes.json();
         const compData: CompanyData[] = await compRes.json();

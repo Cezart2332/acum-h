@@ -15,6 +15,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker";
+import BASE_URL from "../config";
 
 interface UserData {
   id: number;
@@ -86,7 +87,7 @@ const Profile: React.FC = () => {
     form.append("file", { uri, name: filename, type } as any);
 
     try {
-      const res = await fetch("http://172.20.10.2:5298/changepfp", {
+      const res = await fetch(`${BASE_URL}/changepfp`, {
         method: "PUT",
         body: form,
       });

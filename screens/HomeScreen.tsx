@@ -16,6 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "./RootStackParamList";
+import BASE_URL from "../config";
 
 type HomeNav = NativeStackNavigationProp<RootStackParamList, "Home">;
 
@@ -66,7 +67,7 @@ export default function HomeScreen({ navigation }: { navigation: HomeNav }) {
 
   const loadEvents = async () => {
     try {
-      const response = await fetch("http://172.20.10.2:5298/events");
+      const response = await fetch(`${BASE_URL}/events`);
       const data: EventData[] = await response.json();
       setEvents(data);
     } catch (err) {

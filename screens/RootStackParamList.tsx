@@ -26,4 +26,5 @@ export type RootStackParamList = {
   Map: undefined;
   EventScreen: { event: EventData };
   Info: { company: CompanyData };
+  Reservation: { company: CompanyData };
 };

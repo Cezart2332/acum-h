@@ -16,6 +16,7 @@ import { StatusBar } from "expo-status-bar";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "./RootStackParamList";
+import BASE_URL from "../config";
 
 type LoginNav = NativeStackNavigationProp<RootStackParamList, "Login">;
 export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
@@ -40,10 +41,7 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(loginData),
       };
-      const response = await fetch(
-        "http://172.20.10.2:5298/login",
-        loginRequest
-      );
+      const response = await fetch(`${BASE_URL}/login`, loginRequest);
       console.log(response.ok);
       console.log(response.status);
       if (response.status === 401) {

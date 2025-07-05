@@ -127,6 +127,7 @@ class AIRecommender:
             # Step 1: Fetch all companies
             companies = self.fetch_companies()
             if not companies:
+                print("No companies found in API response")
                 return
                 
             self.company_data = companies
@@ -157,14 +158,7 @@ class AIRecommender:
                 timeout=30
             )
             response.raise_for_status()
-            companies = response.json()
-            
-            # Remove profile images to save space
-            for company in companies:
-                if 'profileImage' in company:
-                    del company['profileImage']
-                    
-            return companies
+            return response.json()
         except Exception as e:
             print(f"[fetch_companies] API Error: {e}")
             return []
@@ -291,9 +285,9 @@ class AIRecommender:
                 ids=ids
             )
             
-        except ValueError:  # Menu not found
+        except ValueError as e:  # Menu not found
             self.menu_cache[company_id] = []
-            print(f"Menu not found for company {company_id}")
+            print(f"Menu not found for company {company_id}: {e}")
         except Exception as e:
             print(f"[process_company_menu] Error for {company_id}: {e}")
             self.menu_cache[company_id] = []
@@ -321,15 +315,11 @@ class AIRecommender:
         if re.search(category_keywords, normalized):
             return "category"
         
-        # Price patterns
-        if re.search(r'\b(ieftin|scump|buget|preturi|cost|affordable)\b', normalized):
-            return "price"
-        
         # General restaurant questions
         if any(w in normalized for w in ["deschis", "program", "ore", "contact", "telefon", "adresa", "recomandari", "sugestii"]):
             return "general"
         
-        return "unknown"
+        return "general"
 
     def normalize_query(self, query: str) -> str:
         """Normalize query by removing diacritics and irrelevant words"""
@@ -467,26 +457,6 @@ class AIRecommender:
         
         return matches[:limit]
 
-    def find_by_price(self, price_query: str) -> List[Dict[str, Any]]:
-        """Find restaurants by price range"""
-        normalized = self.remove_diacritics(price_query).lower()
-        
-        # Define price categories (1=cheap, 2=moderate, 3=expensive)
-        price_categories = {
-            "ieftin": lambda c: c.get('price_range', 2) <= 1,
-            "buget": lambda c: c.get('price_range', 2) <= 1,
-            "scump": lambda c: c.get('price_range', 2) >= 3,
-            "premium": lambda c: c.get('price_range', 2) >= 3,
-            "moderat": lambda c: c.get('price_range', 2) == 2
-        }
-        
-        # Find matching price range
-        for term, condition in price_categories.items():
-            if term in normalized:
-                return [c for c in self.company_data if condition(c)]
-        
-        return []
-
     def generate_context(self, query_type: str, query: str) -> str:
         """Generate context for LLM based on query type"""
         normalized = self.normalize_query(query)
@@ -515,31 +485,15 @@ class AIRecommender:
                 for m in matches
             )
         
-        elif query_type == "price":
-            matches = self.find_by_price(normalized)[:5]
-            return "\n".join(
-                f"{m['name']} ({m['address']}): {'💰' * m.get('price_range', 2)}"
-                for m in matches
-            )
+        # General context - using available fields
+        if not self.company_data:
+            return "Nu există restaurante în baza de date."
         
-        # General context
-        top_rated = sorted(
-            self.company_data, 
-            key=lambda c: c.get('rating', 0), 
-            reverse=True
-        )[:3]
-        
-        new_restaurants = sorted(
-            self.company_data,
-            key=lambda c: c.get('created_at', ''),
-            reverse=True
-        )[:2]
-        
-        return (
-            "Top restaurante:\n" +
-            "\n".join(f"- {r['name']} ({r['rating']}⭐)" for r in top_rated) +
-            "\n\nNoutăți:\n" +
-            "\n".join(f"- {r['name']}" for r in new_restaurants)
+        # Use sample of restaurants
+        sample_restaurants = self.company_data[:5]
+        return "Exemple de restaurante:\n" + "\n".join(
+            f"- {r['name']} ({r.get('category', '')}): {r.get('address', '')}"
+            for r in sample_restaurants
         )
 
     def search_menus(self, dish_query: str) -> str:
@@ -596,7 +550,7 @@ class AIRecommender:
                     "options": context
                 })
             
-            elif query_type in ["restaurant", "category", "price"]:
+            elif query_type in ["restaurant", "category"]:
                 chain = self.restaurant_template | self.llm
                 return chain.invoke({
                     "query": query,
@@ -613,23 +567,3 @@ class AIRecommender:
         except Exception as e:
             print(f"Error generating response: {e}")
             return "Am întâmpinat o problemă la procesarea cererii. Vă rugăm reformulați întrebarea."
-
-# Example usage
-if __name__ == "__main__":
-    recommender = AIRecommender(dotnet_api_url="http://localhost:5000")
-    
-    # Test queries
-    print("\nTest 1: Dish query")
-    print(recommender.generate_response("Unde pot găsi cea mai bună pizza?"))
-    
-    print("\nTest 2: Restaurant query")
-    print(recommender.generate_response("Vreau un loc cu atmosferă romantică"))
-    
-    print("\nTest 3: Category query")
-    print(recommender.generate_response("Care sunt cele mai bune cafenele?"))
-    
-    print("\nTest 4: Price query")
-    print(recommender.generate_response("Cunoașteți restaurante ieftine dar bune?"))
-    
-    print("\nTest 5: General query")
-    print(recommender.generate_response("Ce restaurante noi s-au deschis recent?"))

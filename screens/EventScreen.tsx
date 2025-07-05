@@ -13,6 +13,7 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
 import type { RootStackParamList } from "./RootStackParamList";
 import { Ionicons } from "@expo/vector-icons";
+import BASE_URL from "../config";
 
 type EventNav = NativeStackNavigationProp<RootStackParamList, "EventScreen">;
 type EventRoute = RouteProp<RootStackParamList, "EventScreen">;
