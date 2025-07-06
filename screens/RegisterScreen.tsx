@@ -25,12 +25,11 @@ import type { RootStackParamList } from "./RootStackParamList";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import BASE_URL from "../config";
 
-const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+const { width: screenWidth } = Dimensions.get('window');
 
-// Responsive helper functions
-const wp = (percentage: number) => (screenWidth * percentage) / 100;
-const hp = (percentage: number) => (screenHeight * percentage) / 100;
-const normalize = (size: number) => size * PixelRatio.getFontScale();
+// Simplified responsive font scaling
+const fontScale = PixelRatio.getFontScale();
+const getScaledSize = (size: number) => size / fontScale;
 
 type RegisterScreenNavigationProp = NativeStackNavigationProp<
   RootStackParamList,
@@ -60,11 +59,9 @@ export default function RegisterScreen({ navigation }: Props) {
   const [passwordError, setPasswordError] = useState("");
   const [confirmPasswordError, setConfirmPasswordError] = useState("");
 
-  // Enhanced focus management with race condition prevention
+  // Simplified focus management - no complex timeout logic
   type FocusedInput = 'username' | 'firstName' | 'lastName' | 'email' | 'password' | 'confirmPassword' | null;
   const [focusedInput, setFocusedInput] = useState<FocusedInput>(null);
-  const focusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isBlurringRef = useRef(false);
 
   // Input refs for proper focus management
   const usernameRef = useRef<TextInput>(null);
@@ -76,54 +73,20 @@ export default function RegisterScreen({ navigation }: Props) {
 
   // Animation refs
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(hp(5))).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
 
-  // Enhanced focus handlers with race condition prevention
+  // Simplified focus handlers - React Native handles the rest
   const handleFocus = useCallback((inputName: FocusedInput) => {
-    // Clear any pending blur operations
-    if (focusTimeoutRef.current) {
-      clearTimeout(focusTimeoutRef.current);
-      focusTimeoutRef.current = null;
-    }
-
-    // Prevent focus during blur operations
-    if (isBlurringRef.current) {
-      return;
-    }
-
-    // Blur other inputs when one gains focus
-    if (focusedInput && focusedInput !== inputName) {
-      isBlurringRef.current = true;
-      const refs = {
-        username: usernameRef,
-        firstName: firstNameRef,
-        lastName: lastNameRef,
-        email: emailRef,
-        password: passwordRef,
-        confirmPassword: confirmPasswordRef,
-      };
-      refs[focusedInput]?.current?.blur();
-      
-      // Reset blur flag after a short delay
-      setTimeout(() => {
-        isBlurringRef.current = false;
-      }, 50);
-    }
-    
     setFocusedInput(inputName);
-  }, [focusedInput]);
+  }, []);
 
   const handleBlur = useCallback((inputName: FocusedInput) => {
-    // Use timeout to prevent race conditions
-    focusTimeoutRef.current = setTimeout(() => {
-      if (focusedInput === inputName && !isBlurringRef.current) {
-        setFocusedInput(null);
-      }
-    }, 50);
-  }, [focusedInput]);
+    // Only clear if this input was focused
+    setFocusedInput(current => current === inputName ? null : current);
+  }, []);
 
-  // Individual input handlers
+  // Individual input handlers - simplified
   const handleUsernameFocus = useCallback(() => handleFocus('username'), [handleFocus]);
   const handleUsernameBlur = useCallback(() => handleBlur('username'), [handleBlur]);
   const handleFirstNameFocus = useCallback(() => handleFocus('firstName'), [handleFocus]);
@@ -138,15 +101,6 @@ export default function RegisterScreen({ navigation }: Props) {
   const handleConfirmPasswordBlur = useCallback(() => handleBlur('confirmPassword'), [handleBlur]);
 
   const defaultImage = require("../assets/default.jpg");
-
-  // Cleanup timeout on unmount
-  React.useEffect(() => {
-    return () => {
-      if (focusTimeoutRef.current) {
-        clearTimeout(focusTimeoutRef.current);
-      }
-    };
-  }, []);
 
   React.useEffect(() => {
     // Start entrance animations
@@ -243,14 +197,6 @@ export default function RegisterScreen({ navigation }: Props) {
   };
 
   const onRegister = async () => {
-    // Blur all inputs first
-    usernameRef.current?.blur();
-    firstNameRef.current?.blur();
-    lastNameRef.current?.blur();
-    emailRef.current?.blur();
-    passwordRef.current?.blur();
-    confirmPasswordRef.current?.blur();
-
     // Validate all inputs
     const isUsernameValid = validateUsername(username);
     const isFirstNameValid = validateFirstName(firstName);
@@ -328,6 +274,7 @@ export default function RegisterScreen({ navigation }: Props) {
       disabled={loading}
       activeOpacity={0.8}
       style={styles.buttonContainer}
+      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} // Better touch target
     >
       <LinearGradient
         colors={loading ? ['#4A4A4A', '#6A6A6A'] : ['#6C3AFF', '#9B59B6', '#E91E63']}
@@ -361,6 +308,7 @@ export default function RegisterScreen({ navigation }: Props) {
     </TouchableOpacity>
   );
 
+  // Simplified InputField component with direct focus handling
   const InputField = ({ 
     label, 
     value, 
@@ -385,14 +333,18 @@ export default function RegisterScreen({ navigation }: Props) {
   }: any) => (
     <View style={styles.inputContainer}>
       <Text style={styles.inputLabel}>{label}</Text>
-      <View style={[
-        styles.inputWrapper,
-        focused && styles.inputWrapperFocused,
-        error && styles.inputWrapperError
-      ]}>
+      <TouchableOpacity
+        activeOpacity={1}
+        style={[
+          styles.inputWrapper,
+          focused && styles.inputWrapperFocused,
+          error && styles.inputWrapperError
+        ]}
+        onPress={() => inputRef.current?.focus()} // Direct focus on tap
+      >
         <Ionicons
           name={icon}
-          size={wp(5)}
+          size={getScaledSize(20)}
           color={focused ? "#6C3AFF" : error ? "#E91E63" : "#A78BFA"}
           style={styles.inputIcon}
         />
@@ -410,7 +362,6 @@ export default function RegisterScreen({ navigation }: Props) {
           autoComplete={autoComplete}
           textContentType={textContentType}
           returnKeyType={returnKeyType}
-          blurOnSubmit={false}
           enablesReturnKeyAutomatically={true}
           clearButtonMode={secureTextEntry ? "never" : "while-editing"}
           onFocus={onFocus}
@@ -422,15 +373,16 @@ export default function RegisterScreen({ navigation }: Props) {
             onPress={eyePressed}
             style={styles.eyeButton}
             activeOpacity={0.7}
+            hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
           >
             <Ionicons
               name={secureState ? "eye-off-outline" : "eye-outline"}
-              size={wp(5)}
+              size={getScaledSize(20)}
               color={focused ? "#6C3AFF" : "#A78BFA"}
             />
           </TouchableOpacity>
         )}
-      </View>
+      </TouchableOpacity>
       {error ? (
         <Text style={styles.errorText}>{error}</Text>
       ) : null}
@@ -442,7 +394,7 @@ export default function RegisterScreen({ navigation }: Props) {
       <KeyboardAvoidingView
         style={styles.container}
         behavior={Platform.OS === "ios" ? "padding" : "height"}
-        keyboardVerticalOffset={Platform.OS === "ios" ? hp(5) : 0}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 50 : 0}
       >
         <StatusBar barStyle="light-content" backgroundColor="#0F0817" />
         
@@ -451,7 +403,7 @@ export default function RegisterScreen({ navigation }: Props) {
           colors={['#0F0817', '#1A0B2E', '#2D1B69']}
           style={styles.backgroundGradient}
         >
-          {/* Responsive Floating Elements */}
+          {/* Floating Elements - Using Flexbox positioning */}
           <View style={styles.floatingElements}>
             <Animated.View
               style={[
@@ -502,7 +454,7 @@ export default function RegisterScreen({ navigation }: Props) {
                     colors={['#6C3AFF', '#9B59B6']}
                     style={styles.logoContainer}
                   >
-                    <Ionicons name="person-add" size={wp(10)} color="#FFFFFF" />
+                    <Ionicons name="person-add" size={getScaledSize(35)} color="#FFFFFF" />
                   </LinearGradient>
                   <Text style={styles.title}>Înregistrare</Text>
                   <Text style={styles.subtitle}>Creează-ți contul nou!</Text>
@@ -526,10 +478,7 @@ export default function RegisterScreen({ navigation }: Props) {
                     focused={focusedInput === 'username'}
                     inputRef={usernameRef}
                     onFocus={handleUsernameFocus}
-                    onBlur={() => {
-                      handleUsernameBlur();
-                      validateUsername(username);
-                    }}
+                    onBlur={handleUsernameBlur}
                     onSubmitEditing={() => firstNameRef.current?.focus()}
                   />
 
@@ -550,10 +499,7 @@ export default function RegisterScreen({ navigation }: Props) {
                         focused={focusedInput === 'firstName'}
                         inputRef={firstNameRef}
                         onFocus={handleFirstNameFocus}
-                        onBlur={() => {
-                          handleFirstNameBlur();
-                          validateFirstName(firstName);
-                        }}
+                        onBlur={handleFirstNameBlur}
                         onSubmitEditing={() => lastNameRef.current?.focus()}
                       />
                     </View>
@@ -573,10 +519,7 @@ export default function RegisterScreen({ navigation }: Props) {
                         focused={focusedInput === 'lastName'}
                         inputRef={lastNameRef}
                         onFocus={handleLastNameFocus}
-                        onBlur={() => {
-                          handleLastNameBlur();
-                          validateLastName(lastName);
-                        }}
+                        onBlur={handleLastNameBlur}
                         onSubmitEditing={() => emailRef.current?.focus()}
                       />
                     </View>
@@ -599,10 +542,7 @@ export default function RegisterScreen({ navigation }: Props) {
                     focused={focusedInput === 'email'}
                     inputRef={emailRef}
                     onFocus={handleEmailFocus}
-                    onBlur={() => {
-                      handleEmailBlur();
-                      validateEmail(email);
-                    }}
+                    onBlur={handleEmailBlur}
                     onSubmitEditing={() => passwordRef.current?.focus()}
                   />
 
@@ -624,10 +564,7 @@ export default function RegisterScreen({ navigation }: Props) {
                     focused={focusedInput === 'password'}
                     inputRef={passwordRef}
                     onFocus={handlePasswordFocus}
-                    onBlur={() => {
-                      handlePasswordBlur();
-                      validatePassword(password);
-                    }}
+                    onBlur={handlePasswordBlur}
                     onSubmitEditing={() => confirmPasswordRef.current?.focus()}
                     showEye={true}
                     eyePressed={() => setSecure(!secure)}
@@ -652,10 +589,7 @@ export default function RegisterScreen({ navigation }: Props) {
                     inputRef={confirmPasswordRef}
                     returnKeyType="done"
                     onFocus={handleConfirmPasswordFocus}
-                    onBlur={() => {
-                      handleConfirmPasswordBlur();
-                      validateConfirmPassword(confirmPassword);
-                    }}
+                    onBlur={handleConfirmPasswordBlur}
                     onSubmitEditing={onRegister}
                     showEye={true}
                     eyePressed={() => setSecureConfirm(!secureConfirm)}
@@ -665,7 +599,7 @@ export default function RegisterScreen({ navigation }: Props) {
                   {/* Register Button */}
                   <AnimatedButton onPress={onRegister} loading={loading}>
                     <View style={styles.buttonContent}>
-                      <Ionicons name="person-add-outline" size={wp(5)} color="#FFFFFF" />
+                      <Ionicons name="person-add-outline" size={getScaledSize(20)} color="#FFFFFF" />
                       <Text style={styles.buttonText}>Înregistrează-te</Text>
                     </View>
                   </AnimatedButton>
@@ -677,6 +611,7 @@ export default function RegisterScreen({ navigation }: Props) {
                       onPress={() => navigation.navigate("Login")}
                       style={styles.footerButton}
                       activeOpacity={0.8}
+                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
                     >
                       <LinearGradient
                         colors={['#6C3AFF', '#9B59B6']}
@@ -696,6 +631,7 @@ export default function RegisterScreen({ navigation }: Props) {
   );
 }
 
+// Percentage-based responsive styles using Flexbox
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -710,74 +646,78 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
   },
+  // Floating circles using percentage positioning
   floatingCircle1: {
     position: 'absolute',
-    top: hp(5),
-    right: wp(15),
-    width: wp(20),
-    height: wp(20),
-    borderRadius: wp(10),
+    top: "5%",
+    right: "15%",
+    width: screenWidth * 0.2,
+    height: screenWidth * 0.2,
+    borderRadius: screenWidth * 0.1,
     backgroundColor: '#6C3AFF',
+    aspectRatio: 1, // Maintains square shape
   },
   floatingCircle2: {
     position: 'absolute',
-    bottom: hp(15),
-    left: wp(10),
-    width: wp(12),
-    height: wp(12),
-    borderRadius: wp(6),
+    bottom: "15%",
+    left: "10%",
+    width: screenWidth * 0.12,
+    height: screenWidth * 0.12,
+    borderRadius: screenWidth * 0.06,
     backgroundColor: '#9B59B6',
+    aspectRatio: 1, // Maintains square shape
   },
   safeArea: {
     flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: wp(6),
-    paddingVertical: hp(2),
-    minHeight: hp(95),
+    paddingHorizontal: "6%", // Percentage-based padding
+    paddingVertical: "2%",
+    minHeight: "100%",
   },
   content: {
     flex: 1,
     justifyContent: 'center',
-    maxWidth: wp(90),
+    maxWidth: "90%", // Percentage-based max width
     alignSelf: 'center',
   },
   headerSection: {
     alignItems: 'center',
-    marginBottom: hp(4),
+    marginBottom: "6%", // Percentage-based margin
   },
   logoContainer: {
-    width: wp(18),
-    height: wp(18),
-    borderRadius: wp(4.5),
+    width: screenWidth * 0.18,
+    height: screenWidth * 0.18,
+    borderRadius: screenWidth * 0.045,
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: hp(2),
+    marginBottom: "3%",
     shadowColor: '#6C3AFF',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
     shadowRadius: 16,
     elevation: 8,
+    aspectRatio: 1, // Maintains square shape
   },
   title: {
-    fontSize: normalize(28),
+    fontSize: getScaledSize(28),
     fontWeight: '800',
     color: '#FFFFFF',
-    marginBottom: hp(1),
+    marginBottom: "2%",
     letterSpacing: 1,
     textAlign: 'center',
   },
   subtitle: {
-    fontSize: normalize(16),
+    fontSize: getScaledSize(16),
     color: '#A78BFA',
     fontWeight: '500',
     textAlign: 'center',
   },
   formSection: {
     backgroundColor: 'rgba(26, 26, 26, 0.8)',
-    borderRadius: wp(6),
-    padding: wp(6),
+    borderRadius: 24,
+    padding: "6%", // Percentage-based padding
     borderWidth: 1,
     borderColor: 'rgba(108, 58, 255, 0.2)',
     shadowColor: '#000',
@@ -790,31 +730,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 0,
-    gap: wp(2),
+    gap: "3%", // Percentage-based gap
   },
   nameField: {
     flex: 1,
   },
   inputContainer: {
-    marginBottom: hp(2.5),
+    marginBottom: "5%", // Percentage-based margin
   },
   inputLabel: {
-    fontSize: normalize(14),
+    fontSize: getScaledSize(14),
     fontWeight: '600',
     color: '#FFFFFF',
-    marginBottom: hp(1),
-    marginLeft: wp(1),
+    marginBottom: "2%",
+    marginLeft: "1%",
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#1F1F1F',
-    borderRadius: wp(4),
+    borderRadius: 16,
     borderWidth: 2,
     borderColor: '#2A2A2A',
-    paddingHorizontal: wp(4),
-    height: hp(7),
-    minHeight: 50,
+    paddingHorizontal: "4%", // Percentage-based padding
+    minHeight: 56, // Minimum height for accessibility
+    paddingVertical: 12,
   },
   inputWrapperFocused: {
     borderColor: '#6C3AFF',
@@ -828,48 +768,50 @@ const styles = StyleSheet.create({
     borderColor: '#E91E63',
   },
   inputIcon: {
-    marginRight: wp(3),
+    marginRight: "3%", // Percentage-based margin
   },
   textInput: {
     flex: 1,
-    fontSize: normalize(16),
+    fontSize: getScaledSize(16),
     color: '#FFFFFF',
     fontWeight: '500',
-    paddingVertical: hp(1),
+    paddingVertical: 0, // Remove default padding to avoid height issues
+    includeFontPadding: false, // Android-specific: removes extra padding
   },
   eyeButton: {
-    padding: wp(1),
-    borderRadius: wp(2),
+    padding: 8,
+    borderRadius: 8,
+    marginLeft: "2%",
   },
   errorText: {
     color: '#E91E63',
-    fontSize: normalize(12),
-    marginTop: hp(0.5),
-    marginLeft: wp(1),
+    fontSize: getScaledSize(12),
+    marginTop: "1%",
+    marginLeft: "1%",
     fontWeight: '500',
   },
   buttonContainer: {
-    marginTop: hp(1),
-    marginBottom: hp(3),
-    borderRadius: wp(4),
+    marginTop: "2%",
+    marginBottom: "6%",
+    borderRadius: 16,
     overflow: 'hidden',
   },
   buttonGradient: {
-    height: hp(7),
+    minHeight: 56, // Minimum height for accessibility
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: wp(4),
-    minHeight: 50,
+    borderRadius: 16,
+    paddingVertical: 16,
   },
   buttonContent: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   buttonText: {
-    fontSize: normalize(16),
+    fontSize: getScaledSize(16),
     fontWeight: '700',
     color: '#FFFFFF',
-    marginLeft: wp(2),
+    marginLeft: "2%",
     letterSpacing: 0.5,
   },
   loadingContainer: {
@@ -877,32 +819,32 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingDot: {
-    width: wp(2),
-    height: wp(2),
-    borderRadius: wp(1),
+    width: 8,
+    height: 8,
+    borderRadius: 4,
     backgroundColor: '#FFFFFF',
-    marginRight: wp(2),
+    marginRight: 8,
   },
   footer: {
     alignItems: 'center',
   },
   footerText: {
-    fontSize: normalize(14),
+    fontSize: getScaledSize(14),
     color: '#A78BFA',
-    marginBottom: hp(1.5),
+    marginBottom: "3%",
     textAlign: 'center',
   },
   footerButton: {
-    borderRadius: wp(3),
+    borderRadius: 12,
     overflow: 'hidden',
   },
   footerButtonGradient: {
-    paddingHorizontal: wp(6),
-    paddingVertical: hp(1.5),
-    borderRadius: wp(3),
+    paddingHorizontal: "6%", // Percentage-based padding
+    paddingVertical: "3%",
+    borderRadius: 12,
   },
   footerButtonText: {
-    fontSize: normalize(14),
+    fontSize: getScaledSize(14),
     fontWeight: '600',
     color: '#FFFFFF',
     textAlign: 'center',
