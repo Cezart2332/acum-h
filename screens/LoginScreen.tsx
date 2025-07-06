@@ -4,14 +4,13 @@ import {
   TouchableOpacity,
   Text,
   View,
-  TouchableWithoutFeedback,
-  Keyboard,
   TextInput,
   Platform,
   Animated,
   Dimensions,
   StatusBar,
   Alert,
+  KeyboardAvoidingView,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -39,6 +38,10 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
+
+  // Input refs for proper focus management
+  const emailInputRef = useRef<TextInput>(null);
+  const passwordInputRef = useRef<TextInput>(null);
 
   React.useEffect(() => {
     // Start entrance animations
@@ -201,181 +204,196 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
   );
 
   return (
-    <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
-      <View style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#0F0817" />
-        
-        {/* Background Gradient */}
-        <LinearGradient
-          colors={['#0F0817', '#1A0B2E', '#2D1B69']}
-          style={styles.backgroundGradient}
-        >
-          {/* Floating Elements */}
-          <View style={styles.floatingElements}>
-            <Animated.View
-              style={[
-                styles.floatingCircle1,
-                {
-                  opacity: fadeAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, 0.1],
-                  }),
-                },
-              ]}
-            />
-            <Animated.View
-              style={[
-                styles.floatingCircle2,
-                {
-                  opacity: fadeAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [0, 0.15],
-                  }),
-                },
-              ]}
-            />
-          </View>
+    <KeyboardAvoidingView 
+      style={styles.container}
+      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+    >
+      <StatusBar barStyle="light-content" backgroundColor="#0F0817" />
+      
+      {/* Background Gradient */}
+      <LinearGradient
+        colors={['#0F0817', '#1A0B2E', '#2D1B69']}
+        style={styles.backgroundGradient}
+      >
+        {/* Floating Elements */}
+        <View style={styles.floatingElements}>
+          <Animated.View
+            style={[
+              styles.floatingCircle1,
+              {
+                opacity: fadeAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 0.1],
+                }),
+              },
+            ]}
+          />
+          <Animated.View
+            style={[
+              styles.floatingCircle2,
+              {
+                opacity: fadeAnim.interpolate({
+                  inputRange: [0, 1],
+                  outputRange: [0, 0.15],
+                }),
+              },
+            ]}
+          />
+        </View>
 
-          <SafeAreaView style={styles.safeArea}>
-            <Animated.View
-              style={[
-                styles.content,
-                {
-                  opacity: fadeAnim,
-                  transform: [
-                    { translateY: slideAnim },
-                    { scale: scaleAnim },
-                  ],
-                },
-              ]}
-            >
-              {/* Logo/Title Section */}
-              <View style={styles.headerSection}>
-                <LinearGradient
-                  colors={['#6C3AFF', '#9B59B6']}
-                  style={styles.logoContainer}
-                >
-                  <Ionicons name="restaurant" size={40} color="#FFFFFF" />
-                </LinearGradient>
-                <Text style={styles.title}>AcoomH</Text>
-                <Text style={styles.subtitle}>Bun venit înapoi!</Text>
+        <SafeAreaView style={styles.safeArea}>
+          <Animated.View
+            style={[
+              styles.content,
+              {
+                opacity: fadeAnim,
+                transform: [
+                  { translateY: slideAnim },
+                  { scale: scaleAnim },
+                ],
+              },
+            ]}
+          >
+            {/* Logo/Title Section */}
+            <View style={styles.headerSection}>
+              <LinearGradient
+                colors={['#6C3AFF', '#9B59B6']}
+                style={styles.logoContainer}
+              >
+                <Ionicons name="restaurant" size={40} color="#FFFFFF" />
+              </LinearGradient>
+              <Text style={styles.title}>AcoomH</Text>
+              <Text style={styles.subtitle}>Bun venit înapoi!</Text>
+            </View>
+
+            {/* Form Section */}
+            <View style={styles.formSection}>
+              {/* Email Input */}
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Email</Text>
+                <View style={[
+                  styles.inputWrapper,
+                  emailFocused && styles.inputWrapperFocused,
+                  emailError && styles.inputWrapperError
+                ]}>
+                  <Ionicons
+                    name="mail-outline"
+                    size={20}
+                    color={emailFocused ? "#6C3AFF" : emailError ? "#E91E63" : "#A78BFA"}
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    ref={emailInputRef}
+                    value={email}
+                    onChangeText={(text) => {
+                      setEmail(text);
+                      if (emailError) validateEmail(text);
+                    }}
+                    placeholder="Introdu email-ul tău"
+                    placeholderTextColor="#6B7280"
+                    style={styles.textInput}
+                    keyboardType="email-address"
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    autoComplete="email"
+                    textContentType="emailAddress"
+                    returnKeyType="next"
+                    blurOnSubmit={false}
+                    onFocus={() => setEmailFocused(true)}
+                    onBlur={() => {
+                      setEmailFocused(false);
+                      validateEmail(email);
+                    }}
+                    onSubmitEditing={() => {
+                      passwordInputRef.current?.focus();
+                    }}
+                  />
+                </View>
+                {emailError ? (
+                  <Text style={styles.errorText}>{emailError}</Text>
+                ) : null}
               </View>
 
-              {/* Form Section */}
-              <View style={styles.formSection}>
-                {/* Email Input */}
-                <View style={styles.inputContainer}>
-                  <Text style={styles.inputLabel}>Email</Text>
-                  <View style={[
-                    styles.inputWrapper,
-                    emailFocused && styles.inputWrapperFocused,
-                    emailError && styles.inputWrapperError
-                  ]}>
-                    <Ionicons
-                      name="mail-outline"
-                      size={20}
-                      color={emailFocused ? "#6C3AFF" : emailError ? "#E91E63" : "#A78BFA"}
-                      style={styles.inputIcon}
-                    />
-                    <TextInput
-                      value={email}
-                      onChangeText={(text) => {
-                        setEmail(text);
-                        if (emailError) validateEmail(text);
-                      }}
-                      placeholder="Introdu email-ul tău"
-                      placeholderTextColor="#6B7280"
-                      style={styles.textInput}
-                      keyboardType="email-address"
-                      autoCapitalize="none"
-                      autoCorrect={false}
-                      onFocus={() => setEmailFocused(true)}
-                      onBlur={() => {
-                        setEmailFocused(false);
-                        validateEmail(email);
-                      }}
-                    />
-                  </View>
-                  {emailError ? (
-                    <Text style={styles.errorText}>{emailError}</Text>
-                  ) : null}
-                </View>
-
-                {/* Password Input */}
-                <View style={styles.inputContainer}>
-                  <Text style={styles.inputLabel}>Parolă</Text>
-                  <View style={[
-                    styles.inputWrapper,
-                    passwordFocused && styles.inputWrapperFocused,
-                    passwordError && styles.inputWrapperError
-                  ]}>
-                    <Ionicons
-                      name="lock-closed-outline"
-                      size={20}
-                      color={passwordFocused ? "#6C3AFF" : passwordError ? "#E91E63" : "#A78BFA"}
-                      style={styles.inputIcon}
-                    />
-                    <TextInput
-                      value={password}
-                      onChangeText={(text) => {
-                        setPassword(text);
-                        if (passwordError) validatePassword(text);
-                      }}
-                      placeholder="Introdu parola ta"
-                      placeholderTextColor="#6B7280"
-                      style={styles.textInput}
-                      secureTextEntry={secure}
-                      onFocus={() => setPasswordFocused(true)}
-                      onBlur={() => {
-                        setPasswordFocused(false);
-                        validatePassword(password);
-                      }}
-                    />
-                    <TouchableOpacity
-                      onPress={() => setSecure(!secure)}
-                      style={styles.eyeButton}
-                    >
-                      <Ionicons
-                        name={secure ? "eye-off-outline" : "eye-outline"}
-                        size={20}
-                        color={passwordFocused ? "#6C3AFF" : "#A78BFA"}
-                      />
-                    </TouchableOpacity>
-                  </View>
-                  {passwordError ? (
-                    <Text style={styles.errorText}>{passwordError}</Text>
-                  ) : null}
-                </View>
-
-                {/* Login Button */}
-                <AnimatedButton onPress={onLogin} loading={loading}>
-                  <View style={styles.buttonContent}>
-                    <Ionicons name="log-in-outline" size={20} color="#FFFFFF" />
-                    <Text style={styles.buttonText}>Conectează-te</Text>
-                  </View>
-                </AnimatedButton>
-
-                {/* Footer */}
-                <View style={styles.footer}>
-                  <Text style={styles.footerText}>Nu ai cont încă?</Text>
-                  <TouchableOpacity 
-                    onPress={() => navigation.navigate("Register")}
-                    style={styles.footerButton}
+              {/* Password Input */}
+              <View style={styles.inputContainer}>
+                <Text style={styles.inputLabel}>Parolă</Text>
+                <View style={[
+                  styles.inputWrapper,
+                  passwordFocused && styles.inputWrapperFocused,
+                  passwordError && styles.inputWrapperError
+                ]}>
+                  <Ionicons
+                    name="lock-closed-outline"
+                    size={20}
+                    color={passwordFocused ? "#6C3AFF" : passwordError ? "#E91E63" : "#A78BFA"}
+                    style={styles.inputIcon}
+                  />
+                  <TextInput
+                    ref={passwordInputRef}
+                    value={password}
+                    onChangeText={(text) => {
+                      setPassword(text);
+                      if (passwordError) validatePassword(text);
+                    }}
+                    placeholder="Introdu parola ta"
+                    placeholderTextColor="#6B7280"
+                    style={styles.textInput}
+                    secureTextEntry={secure}
+                    autoComplete="password"
+                    textContentType="password"
+                    returnKeyType="done"
+                    onFocus={() => setPasswordFocused(true)}
+                    onBlur={() => {
+                      setPasswordFocused(false);
+                      validatePassword(password);
+                    }}
+                    onSubmitEditing={onLogin}
+                  />
+                  <TouchableOpacity
+                    onPress={() => setSecure(!secure)}
+                    style={styles.eyeButton}
                   >
-                    <LinearGradient
-                      colors={['#6C3AFF', '#9B59B6']}
-                      style={styles.footerButtonGradient}
-                    >
-                      <Text style={styles.footerButtonText}>Înregistrează-te</Text>
-                    </LinearGradient>
+                    <Ionicons
+                      name={secure ? "eye-off-outline" : "eye-outline"}
+                      size={20}
+                      color={passwordFocused ? "#6C3AFF" : "#A78BFA"}
+                    />
                   </TouchableOpacity>
                 </View>
+                {passwordError ? (
+                  <Text style={styles.errorText}>{passwordError}</Text>
+                ) : null}
               </View>
-            </Animated.View>
-          </SafeAreaView>
-        </LinearGradient>
-      </View>
-    </TouchableWithoutFeedback>
+
+              {/* Login Button */}
+              <AnimatedButton onPress={onLogin} loading={loading}>
+                <View style={styles.buttonContent}>
+                  <Ionicons name="log-in-outline" size={20} color="#FFFFFF" />
+                  <Text style={styles.buttonText}>Conectează-te</Text>
+                </View>
+              </AnimatedButton>
+
+              {/* Footer */}
+              <View style={styles.footer}>
+                <Text style={styles.footerText}>Nu ai cont încă?</Text>
+                <TouchableOpacity 
+                  onPress={() => navigation.navigate("Register")}
+                  style={styles.footerButton}
+                >
+                  <LinearGradient
+                    colors={['#6C3AFF', '#9B59B6']}
+                    style={styles.footerButtonGradient}
+                  >
+                    <Text style={styles.footerButtonText}>Înregistrează-te</Text>
+                  </LinearGradient>
+                </TouchableOpacity>
+              </View>
+            </View>
+          </Animated.View>
+        </SafeAreaView>
+      </LinearGradient>
+    </KeyboardAvoidingView>
   );
 }
 
