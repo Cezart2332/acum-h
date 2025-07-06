@@ -62,7 +62,9 @@ const AnimatedButton = React.memo(
         <Animated.View style={{ transform: [{ scale: scaleValue }] }}>
           <LinearGradient
             colors={
-              loading ? ["#4A4A4A", "#6A6A6A"] : ["#6C3AFF", "#9B59B6", "#E91E63"]
+              loading
+                ? ["#4A4A4A", "#6A6A6A"]
+                : ["#6C3AFF", "#9B59B6", "#E91E63"]
             }
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
@@ -104,9 +106,9 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
   const [loading, setLoading] = useState(false);
   const [emailError, setEmailError] = useState("");
   const [passwordError, setPasswordError] = useState("");
-  
+
   // Simplified focus management
-  type FocusedInput = 'email' | 'password' | null;
+  type FocusedInput = "email" | "password" | null;
   const [focusedInput, setFocusedInput] = useState<FocusedInput>(null);
 
   // Animation refs
@@ -124,14 +126,23 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
   }, []);
 
   const handleBlur = useCallback((inputName: FocusedInput) => {
-    setFocusedInput(current => current === inputName ? null : current);
+    setFocusedInput((current) => (current === inputName ? null : current));
   }, []);
 
   // Individual input handlers
-  const handleEmailFocus = useCallback(() => handleFocus('email'), [handleFocus]);
-  const handleEmailBlur = useCallback(() => handleBlur('email'), [handleBlur]);
-  const handlePasswordFocus = useCallback(() => handleFocus('password'), [handleFocus]);
-  const handlePasswordBlur = useCallback(() => handleBlur('password'), [handleBlur]);
+  const handleEmailFocus = useCallback(
+    () => handleFocus("email"),
+    [handleFocus]
+  );
+  const handleEmailBlur = useCallback(() => handleBlur("email"), [handleBlur]);
+  const handlePasswordFocus = useCallback(
+    () => handleFocus("password"),
+    [handleFocus]
+  );
+  const handlePasswordBlur = useCallback(
+    () => handleBlur("password"),
+    [handleBlur]
+  );
 
   React.useEffect(() => {
     // Start entrance animations
@@ -322,7 +333,11 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
                   colors={["#6C3AFF", "#9B59B6"]}
                   style={styles.logoContainer}
                 >
-                  <Ionicons name="restaurant" size={getScaledSize(45)} color="#FFFFFF" />
+                  <Ionicons
+                    name="restaurant"
+                    size={getScaledSize(45)}
+                    color="#FFFFFF"
+                  />
                 </LinearGradient>
                 <Text style={styles.title}>AcoomH</Text>
                 <Text style={styles.subtitle}>Bun venit înapoi!</Text>
@@ -337,7 +352,7 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
                     activeOpacity={1}
                     style={[
                       styles.inputWrapper,
-                      focusedInput === 'email' && styles.inputWrapperFocused,
+                      focusedInput === "email" && styles.inputWrapperFocused,
                       emailError && styles.inputWrapperError,
                     ]}
                     onPress={() => emailInputRef.current?.focus()}
@@ -346,7 +361,7 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
                       name="mail-outline"
                       size={getScaledSize(22)}
                       color={
-                        focusedInput === 'email'
+                        focusedInput === "email"
                           ? "#6C3AFF"
                           : emailError
                           ? "#E91E63"
@@ -391,7 +406,7 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
                     activeOpacity={1}
                     style={[
                       styles.inputWrapper,
-                      focusedInput === 'password' && styles.inputWrapperFocused,
+                      focusedInput === "password" && styles.inputWrapperFocused,
                       passwordError && styles.inputWrapperError,
                     ]}
                     onPress={() => passwordInputRef.current?.focus()}
@@ -400,7 +415,7 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
                       name="lock-closed-outline"
                       size={getScaledSize(22)}
                       color={
-                        focusedInput === 'password'
+                        focusedInput === "password"
                           ? "#6C3AFF"
                           : passwordError
                           ? "#E91E63"
@@ -436,7 +451,9 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
                       <Ionicons
                         name={secure ? "eye-off-outline" : "eye-outline"}
                         size={getScaledSize(22)}
-                        color={focusedInput === 'password' ? "#6C3AFF" : "#A78BFA"}
+                        color={
+                          focusedInput === "password" ? "#6C3AFF" : "#A78BFA"
+                        }
                       />
                     </TouchableOpacity>
                   </TouchableOpacity>
@@ -452,7 +469,11 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
                   fadeAnim={fadeAnim}
                 >
                   <View style={styles.buttonContent}>
-                    <Ionicons name="log-in-outline" size={getScaledSize(22)} color="#FFFFFF" />
+                    <Ionicons
+                      name="log-in-outline"
+                      size={getScaledSize(22)}
+                      color="#FFFFFF"
+                    />
                     <Text style={styles.buttonText}>Conectează-te</Text>
                   </View>
                 </AnimatedButton>
@@ -527,7 +548,7 @@ const styles = StyleSheet.create({
     flexGrow: 1,
     paddingHorizontal: "5%",
     paddingVertical: "3%",
-    justifyContent: 'center',
+    justifyContent: "center",
     minHeight: "100%",
   },
   content: {
@@ -535,7 +556,7 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     width: "90%", // Enhanced width
     maxWidth: 500, // Maximum width constraint
-    alignSelf: 'center',
+    alignSelf: "center",
   },
   headerSection: {
     alignItems: "center",
@@ -561,7 +582,7 @@ const styles = StyleSheet.create({
     color: "#FFFFFF",
     marginBottom: "2%",
     letterSpacing: 1.5,
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowColor: "rgba(0, 0, 0, 0.3)",
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
   },
@@ -569,7 +590,7 @@ const styles = StyleSheet.create({
     fontSize: getScaledSize(18), // Larger subtitle
     color: "#A78BFA",
     fontWeight: "600", // Bolder weight
-    textAlign: 'center',
+    textAlign: "center",
   },
   formSection: {
     backgroundColor: "rgba(255, 255, 255, 0.08)", // Lighter background
@@ -582,7 +603,6 @@ const styles = StyleSheet.create({
     shadowOpacity: 0.4,
     shadowRadius: 50,
     elevation: 15,
-    backdropFilter: 'blur(10px)', // Modern glass effect
   },
   inputContainer: {
     marginBottom: 20, // Consistent 20px spacing
@@ -690,7 +710,7 @@ const styles = StyleSheet.create({
     fontSize: getScaledSize(16), // Larger footer text
     color: "#A78BFA",
     marginBottom: 15,
-    textAlign: 'center',
+    textAlign: "center",
     fontWeight: "500",
   },
   footerButton: {
@@ -706,6 +726,6 @@ const styles = StyleSheet.create({
     fontSize: getScaledSize(16), // Larger button text
     fontWeight: "700", // Bolder weight
     color: "#FFFFFF",
-    textAlign: 'center',
+    textAlign: "center",
   },
 });

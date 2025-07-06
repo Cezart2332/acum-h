@@ -25,7 +25,7 @@ import type { RootStackParamList } from "./RootStackParamList";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import BASE_URL from "../config";
 
-const { width: screenWidth } = Dimensions.get('window');
+const { width: screenWidth } = Dimensions.get("window");
 
 // Enhanced responsive font scaling
 const fontScale = PixelRatio.getFontScale();
@@ -60,7 +60,14 @@ export default function RegisterScreen({ navigation }: Props) {
   const [confirmPasswordError, setConfirmPasswordError] = useState("");
 
   // Simplified focus management
-  type FocusedInput = 'username' | 'firstName' | 'lastName' | 'email' | 'password' | 'confirmPassword' | null;
+  type FocusedInput =
+    | "username"
+    | "firstName"
+    | "lastName"
+    | "email"
+    | "password"
+    | "confirmPassword"
+    | null;
   const [focusedInput, setFocusedInput] = useState<FocusedInput>(null);
 
   // Input refs for proper focus management
@@ -82,22 +89,55 @@ export default function RegisterScreen({ navigation }: Props) {
   }, []);
 
   const handleBlur = useCallback((inputName: FocusedInput) => {
-    setFocusedInput(current => current === inputName ? null : current);
+    setFocusedInput((current) => (current === inputName ? null : current));
   }, []);
 
   // Individual input handlers
-  const handleUsernameFocus = useCallback(() => handleFocus('username'), [handleFocus]);
-  const handleUsernameBlur = useCallback(() => handleBlur('username'), [handleBlur]);
-  const handleFirstNameFocus = useCallback(() => handleFocus('firstName'), [handleFocus]);
-  const handleFirstNameBlur = useCallback(() => handleBlur('firstName'), [handleBlur]);
-  const handleLastNameFocus = useCallback(() => handleFocus('lastName'), [handleFocus]);
-  const handleLastNameBlur = useCallback(() => handleBlur('lastName'), [handleBlur]);
-  const handleEmailFocus = useCallback(() => handleFocus('email'), [handleFocus]);
-  const handleEmailBlur = useCallback(() => handleBlur('email'), [handleBlur]);
-  const handlePasswordFocus = useCallback(() => handleFocus('password'), [handleFocus]);
-  const handlePasswordBlur = useCallback(() => handleBlur('password'), [handleBlur]);
-  const handleConfirmPasswordFocus = useCallback(() => handleFocus('confirmPassword'), [handleFocus]);
-  const handleConfirmPasswordBlur = useCallback(() => handleBlur('confirmPassword'), [handleBlur]);
+  const handleUsernameFocus = useCallback(
+    () => handleFocus("username"),
+    [handleFocus]
+  );
+  const handleUsernameBlur = useCallback(
+    () => handleBlur("username"),
+    [handleBlur]
+  );
+  const handleFirstNameFocus = useCallback(
+    () => handleFocus("firstName"),
+    [handleFocus]
+  );
+  const handleFirstNameBlur = useCallback(
+    () => handleBlur("firstName"),
+    [handleBlur]
+  );
+  const handleLastNameFocus = useCallback(
+    () => handleFocus("lastName"),
+    [handleFocus]
+  );
+  const handleLastNameBlur = useCallback(
+    () => handleBlur("lastName"),
+    [handleBlur]
+  );
+  const handleEmailFocus = useCallback(
+    () => handleFocus("email"),
+    [handleFocus]
+  );
+  const handleEmailBlur = useCallback(() => handleBlur("email"), [handleBlur]);
+  const handlePasswordFocus = useCallback(
+    () => handleFocus("password"),
+    [handleFocus]
+  );
+  const handlePasswordBlur = useCallback(
+    () => handleBlur("password"),
+    [handleBlur]
+  );
+  const handleConfirmPasswordFocus = useCallback(
+    () => handleFocus("confirmPassword"),
+    [handleFocus]
+  );
+  const handleConfirmPasswordBlur = useCallback(
+    () => handleBlur("confirmPassword"),
+    [handleBlur]
+  );
 
   const defaultImage = require("../assets/default.jpg");
 
@@ -130,7 +170,9 @@ export default function RegisterScreen({ navigation }: Props) {
       return false;
     }
     if (username.length < 3) {
-      setUsernameError("Numele de utilizator trebuie să aibă cel puțin 3 caractere");
+      setUsernameError(
+        "Numele de utilizator trebuie să aibă cel puțin 3 caractere"
+      );
       return false;
     }
     setUsernameError("");
@@ -204,12 +246,26 @@ export default function RegisterScreen({ navigation }: Props) {
     const isPasswordValid = validatePassword(password);
     const isConfirmPasswordValid = validateConfirmPassword(confirmPassword);
 
-    if (!isUsernameValid || !isFirstNameValid || !isLastNameValid || 
-        !isEmailValid || !isPasswordValid || !isConfirmPasswordValid) {
+    if (
+      !isUsernameValid ||
+      !isFirstNameValid ||
+      !isLastNameValid ||
+      !isEmailValid ||
+      !isPasswordValid ||
+      !isConfirmPasswordValid
+    ) {
       // Shake animation for errors
       Animated.sequence([
-        Animated.timing(scaleAnim, { toValue: 1.05, duration: 100, useNativeDriver: true }),
-        Animated.timing(scaleAnim, { toValue: 1, duration: 100, useNativeDriver: true }),
+        Animated.timing(scaleAnim, {
+          toValue: 1.05,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 1,
+          duration: 100,
+          useNativeDriver: true,
+        }),
       ]).start();
       return;
     }
@@ -237,7 +293,7 @@ export default function RegisterScreen({ navigation }: Props) {
       };
 
       const response = await fetch(`${BASE_URL}/users`, registerRequest);
-      
+
       if (!response.ok) {
         throw new Error(`Server error: ${response.status}`);
       }
@@ -254,7 +310,6 @@ export default function RegisterScreen({ navigation }: Props) {
       }).start(() => {
         navigation.replace("Home");
       });
-
     } catch (error) {
       console.error("Register error:", error);
       Alert.alert(
@@ -297,7 +352,11 @@ export default function RegisterScreen({ navigation }: Props) {
       >
         <Animated.View style={{ transform: [{ scale: scaleValue }] }}>
           <LinearGradient
-            colors={loading ? ['#4A4A4A', '#6A6A6A'] : ['#6C3AFF', '#9B59B6', '#E91E63']}
+            colors={
+              loading
+                ? ["#4A4A4A", "#6A6A6A"]
+                : ["#6C3AFF", "#9B59B6", "#E91E63"]
+            }
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.buttonGradient}
@@ -331,14 +390,14 @@ export default function RegisterScreen({ navigation }: Props) {
   };
 
   // Enhanced InputField component with better styling
-  const InputField = ({ 
-    label, 
-    value, 
-    onChangeText, 
-    placeholder, 
-    icon, 
-    secureTextEntry = false, 
-    keyboardType = "default", 
+  const InputField = ({
+    label,
+    value,
+    onChangeText,
+    placeholder,
+    icon,
+    secureTextEntry = false,
+    keyboardType = "default",
     autoCapitalize = "words",
     error,
     focused,
@@ -360,7 +419,7 @@ export default function RegisterScreen({ navigation }: Props) {
         style={[
           styles.inputWrapper,
           focused && styles.inputWrapperFocused,
-          error && styles.inputWrapperError
+          error && styles.inputWrapperError,
         ]}
         onPress={() => inputRef.current?.focus()}
       >
@@ -405,9 +464,7 @@ export default function RegisterScreen({ navigation }: Props) {
           </TouchableOpacity>
         )}
       </TouchableOpacity>
-      {error ? (
-        <Text style={styles.errorText}>{error}</Text>
-      ) : null}
+      {error ? <Text style={styles.errorText}>{error}</Text> : null}
     </View>
   );
 
@@ -419,10 +476,10 @@ export default function RegisterScreen({ navigation }: Props) {
         keyboardVerticalOffset={Platform.OS === "ios" ? 50 : 0}
       >
         <StatusBar barStyle="light-content" backgroundColor="#0F0817" />
-        
+
         {/* Background Gradient */}
         <LinearGradient
-          colors={['#0F0817', '#1A0B2E', '#2D1B69']}
+          colors={["#0F0817", "#1A0B2E", "#2D1B69"]}
           style={styles.backgroundGradient}
         >
           {/* Floating Elements */}
@@ -452,7 +509,7 @@ export default function RegisterScreen({ navigation }: Props) {
           </View>
 
           <SafeAreaView style={styles.safeArea}>
-            <ScrollView 
+            <ScrollView
               contentContainerStyle={styles.scrollContent}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
@@ -473,10 +530,14 @@ export default function RegisterScreen({ navigation }: Props) {
                 {/* Logo/Title Section */}
                 <View style={styles.headerSection}>
                   <LinearGradient
-                    colors={['#6C3AFF', '#9B59B6']}
+                    colors={["#6C3AFF", "#9B59B6"]}
                     style={styles.logoContainer}
                   >
-                    <Ionicons name="person-add" size={getScaledSize(40)} color="#FFFFFF" />
+                    <Ionicons
+                      name="person-add"
+                      size={getScaledSize(40)}
+                      color="#FFFFFF"
+                    />
                   </LinearGradient>
                   <Text style={styles.title}>Înregistrare</Text>
                   <Text style={styles.subtitle}>Creează-ți contul nou!</Text>
@@ -497,7 +558,7 @@ export default function RegisterScreen({ navigation }: Props) {
                     autoComplete="username"
                     textContentType="username"
                     error={usernameError}
-                    focused={focusedInput === 'username'}
+                    focused={focusedInput === "username"}
                     inputRef={usernameRef}
                     onFocus={handleUsernameFocus}
                     onBlur={handleUsernameBlur}
@@ -518,7 +579,7 @@ export default function RegisterScreen({ navigation }: Props) {
                         autoComplete="given-name"
                         textContentType="givenName"
                         error={firstNameError}
-                        focused={focusedInput === 'firstName'}
+                        focused={focusedInput === "firstName"}
                         inputRef={firstNameRef}
                         onFocus={handleFirstNameFocus}
                         onBlur={handleFirstNameBlur}
@@ -538,7 +599,7 @@ export default function RegisterScreen({ navigation }: Props) {
                         autoComplete="family-name"
                         textContentType="familyName"
                         error={lastNameError}
-                        focused={focusedInput === 'lastName'}
+                        focused={focusedInput === "lastName"}
                         inputRef={lastNameRef}
                         onFocus={handleLastNameFocus}
                         onBlur={handleLastNameBlur}
@@ -561,7 +622,7 @@ export default function RegisterScreen({ navigation }: Props) {
                     autoComplete="email"
                     textContentType="emailAddress"
                     error={emailError}
-                    focused={focusedInput === 'email'}
+                    focused={focusedInput === "email"}
                     inputRef={emailRef}
                     onFocus={handleEmailFocus}
                     onBlur={handleEmailBlur}
@@ -574,7 +635,8 @@ export default function RegisterScreen({ navigation }: Props) {
                     onChangeText={(text: string) => {
                       setPassword(text);
                       if (passwordError) validatePassword(text);
-                      if (confirmPassword && confirmPasswordError) validateConfirmPassword(confirmPassword);
+                      if (confirmPassword && confirmPasswordError)
+                        validateConfirmPassword(confirmPassword);
                     }}
                     placeholder="Introdu parola ta"
                     icon="lock-closed-outline"
@@ -583,7 +645,7 @@ export default function RegisterScreen({ navigation }: Props) {
                     autoComplete="new-password"
                     textContentType="newPassword"
                     error={passwordError}
-                    focused={focusedInput === 'password'}
+                    focused={focusedInput === "password"}
                     inputRef={passwordRef}
                     onFocus={handlePasswordFocus}
                     onBlur={handlePasswordBlur}
@@ -607,7 +669,7 @@ export default function RegisterScreen({ navigation }: Props) {
                     autoComplete="new-password"
                     textContentType="newPassword"
                     error={confirmPasswordError}
-                    focused={focusedInput === 'confirmPassword'}
+                    focused={focusedInput === "confirmPassword"}
                     inputRef={confirmPasswordRef}
                     returnKeyType="done"
                     onFocus={handleConfirmPasswordFocus}
@@ -621,7 +683,11 @@ export default function RegisterScreen({ navigation }: Props) {
                   {/* Enhanced Register Button */}
                   <AnimatedButton onPress={onRegister} loading={loading}>
                     <View style={styles.buttonContent}>
-                      <Ionicons name="person-add-outline" size={getScaledSize(22)} color="#FFFFFF" />
+                      <Ionicons
+                        name="person-add-outline"
+                        size={getScaledSize(22)}
+                        color="#FFFFFF"
+                      />
                       <Text style={styles.buttonText}>Înregistrează-te</Text>
                     </View>
                   </AnimatedButton>
@@ -629,17 +695,19 @@ export default function RegisterScreen({ navigation }: Props) {
                   {/* Enhanced Footer */}
                   <View style={styles.footer}>
                     <Text style={styles.footerText}>Ai deja cont?</Text>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       onPress={() => navigation.navigate("Login")}
                       style={styles.footerButton}
                       activeOpacity={0.8}
                       hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                     >
                       <LinearGradient
-                        colors={['#6C3AFF', '#9B59B6']}
+                        colors={["#6C3AFF", "#9B59B6"]}
                         style={styles.footerButtonGradient}
                       >
-                        <Text style={styles.footerButtonText}>Conectează-te</Text>
+                        <Text style={styles.footerButtonText}>
+                          Conectează-te
+                        </Text>
                       </LinearGradient>
                     </TouchableOpacity>
                   </View>
@@ -662,30 +730,30 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   floatingElements: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
   },
   floatingCircle1: {
-    position: 'absolute',
+    position: "absolute",
     top: "5%",
     right: "15%",
     width: screenWidth * 0.2,
     height: screenWidth * 0.2,
     borderRadius: screenWidth * 0.1,
-    backgroundColor: '#6C3AFF',
+    backgroundColor: "#6C3AFF",
     aspectRatio: 1,
   },
   floatingCircle2: {
-    position: 'absolute',
+    position: "absolute",
     bottom: "15%",
     left: "10%",
     width: screenWidth * 0.12,
     height: screenWidth * 0.12,
     borderRadius: screenWidth * 0.06,
-    backgroundColor: '#9B59B6',
+    backgroundColor: "#9B59B6",
     aspectRatio: 1,
   },
   safeArea: {
@@ -699,23 +767,23 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
     width: "90%", // Enhanced width
     maxWidth: 500, // Maximum width constraint
-    alignSelf: 'center',
+    alignSelf: "center",
   },
   headerSection: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: "8%", // Increased spacing
   },
   logoContainer: {
     width: screenWidth * 0.2, // Slightly larger
     height: screenWidth * 0.2,
     borderRadius: screenWidth * 0.05,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: "4%",
-    shadowColor: '#6C3AFF',
+    shadowColor: "#6C3AFF",
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.4,
     shadowRadius: 20,
@@ -724,37 +792,36 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: getScaledSize(32), // Larger title
-    fontWeight: '800', // Bolder weight
-    color: '#FFFFFF',
+    fontWeight: "800", // Bolder weight
+    color: "#FFFFFF",
     marginBottom: "2%",
     letterSpacing: 1.2,
-    textAlign: 'center',
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textAlign: "center",
+    textShadowColor: "rgba(0, 0, 0, 0.3)",
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
   },
   subtitle: {
     fontSize: getScaledSize(18), // Larger subtitle
-    color: '#A78BFA',
-    fontWeight: '600', // Bolder weight
-    textAlign: 'center',
+    color: "#A78BFA",
+    fontWeight: "600", // Bolder weight
+    textAlign: "center",
   },
   formSection: {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)', // Lighter background
+    backgroundColor: "rgba(255, 255, 255, 0.08)", // Lighter background
     borderRadius: 28, // Larger border radius
     padding: 25, // Increased padding (20-25px)
     borderWidth: 1,
-    borderColor: 'rgba(108, 58, 255, 0.3)',
-    shadowColor: '#000',
+    borderColor: "rgba(108, 58, 255, 0.3)",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 25 },
     shadowOpacity: 0.4,
     shadowRadius: 50,
     elevation: 15,
-    backdropFilter: 'blur(10px)', // Modern glass effect
   },
   nameRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     marginBottom: 0,
     gap: 15, // Enhanced gap
   },
@@ -766,34 +833,34 @@ const styles = StyleSheet.create({
   },
   inputLabel: {
     fontSize: getScaledSize(16), // Larger label
-    fontWeight: '700', // Bolder weight
-    color: '#FFFFFF',
+    fontWeight: "700", // Bolder weight
+    color: "#FFFFFF",
     marginBottom: 8,
     marginLeft: 16, // 16px horizontal margin
   },
   inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)', // Lighter background
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.1)", // Lighter background
     borderRadius: 18, // Larger border radius
     borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
+    borderColor: "rgba(255, 255, 255, 0.15)",
     paddingHorizontal: 16, // 16px horizontal margin
     height: 60, // 60px height
     paddingVertical: 10, // 10px vertical padding
   },
   inputWrapperFocused: {
-    borderColor: '#6C3AFF',
-    backgroundColor: 'rgba(108, 58, 255, 0.1)',
-    shadowColor: '#6C3AFF',
+    borderColor: "#6C3AFF",
+    backgroundColor: "rgba(108, 58, 255, 0.1)",
+    shadowColor: "#6C3AFF",
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.4,
     shadowRadius: 12,
     elevation: 6,
   },
   inputWrapperError: {
-    borderColor: '#E91E63',
-    backgroundColor: 'rgba(233, 30, 99, 0.1)',
+    borderColor: "#E91E63",
+    backgroundColor: "rgba(233, 30, 99, 0.1)",
   },
   inputIcon: {
     marginRight: 12,
@@ -801,8 +868,8 @@ const styles = StyleSheet.create({
   textInput: {
     flex: 1,
     fontSize: getScaledSize(17), // Larger font
-    color: '#FFFFFF',
-    fontWeight: '500',
+    color: "#FFFFFF",
+    fontWeight: "500",
     paddingVertical: 0,
     includeFontPadding: false,
   },
@@ -812,67 +879,67 @@ const styles = StyleSheet.create({
     marginLeft: 8,
   },
   errorText: {
-    color: '#E91E63',
+    color: "#E91E63",
     fontSize: getScaledSize(13), // Larger error text
     marginTop: 8,
     marginLeft: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   buttonContainer: {
     marginTop: 20, // 20px spacing
     marginBottom: 25,
     borderRadius: 18,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   buttonGradient: {
     height: 60, // 60px button height
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     borderRadius: 18,
-    shadowColor: '#6C3AFF',
+    shadowColor: "#6C3AFF",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
     shadowRadius: 15,
     elevation: 8,
   },
   buttonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
   },
   buttonText: {
     fontSize: getScaledSize(18), // 18px font size
-    fontWeight: '700',
-    color: '#FFFFFF',
+    fontWeight: "700",
+    color: "#FFFFFF",
     marginLeft: 10,
     letterSpacing: 0.8,
   },
   loadingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
   },
   loadingDot: {
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     marginRight: 10,
   },
   footer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 20, // Additional spacing
   },
   footerText: {
     fontSize: getScaledSize(16), // Larger footer text
-    color: '#A78BFA',
+    color: "#A78BFA",
     marginBottom: 15,
-    textAlign: 'center',
-    fontWeight: '500',
+    textAlign: "center",
+    fontWeight: "500",
   },
   footerButton: {
     borderRadius: 15,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   footerButtonGradient: {
     paddingHorizontal: 25,
@@ -881,8 +948,8 @@ const styles = StyleSheet.create({
   },
   footerButtonText: {
     fontSize: getScaledSize(16), // Larger button text
-    fontWeight: '700', // Bolder weight
-    color: '#FFFFFF',
-    textAlign: 'center',
+    fontWeight: "700", // Bolder weight
+    color: "#FFFFFF",
+    textAlign: "center",
   },
 });
