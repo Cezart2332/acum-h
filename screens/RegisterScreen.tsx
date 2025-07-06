@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useCallback } from "react";
 import { Image } from "react-native";
 import {
   StyleSheet,
@@ -14,6 +14,8 @@ import {
   StatusBar,
   Alert,
   ScrollView,
+  KeyboardAvoidingView,
+  PixelRatio,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
@@ -23,7 +25,12 @@ import type { RootStackParamList } from "./RootStackParamList";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import BASE_URL from "../config";
 
-const { width, height } = Dimensions.get('window');
+const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+
+// Responsive helper functions
+const wp = (percentage: number) => (screenWidth * percentage) / 100;
+const hp = (percentage: number) => (screenHeight * percentage) / 100;
+const normalize = (size: number) => size * PixelRatio.getFontScale();
 
 type RegisterScreenNavigationProp = NativeStackNavigationProp<
   RootStackParamList,
@@ -53,9 +60,11 @@ export default function RegisterScreen({ navigation }: Props) {
   const [passwordError, setPasswordError] = useState("");
   const [confirmPasswordError, setConfirmPasswordError] = useState("");
 
-  // Focus management - only one input can be focused at a time
+  // Enhanced focus management with race condition prevention
   type FocusedInput = 'username' | 'firstName' | 'lastName' | 'email' | 'password' | 'confirmPassword' | null;
   const [focusedInput, setFocusedInput] = useState<FocusedInput>(null);
+  const focusTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const isBlurringRef = useRef(false);
 
   // Input refs for proper focus management
   const usernameRef = useRef<TextInput>(null);
@@ -67,13 +76,25 @@ export default function RegisterScreen({ navigation }: Props) {
 
   // Animation refs
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(50)).current;
+  const slideAnim = useRef(new Animated.Value(hp(5))).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
 
-  // Stable focus handlers to prevent re-renders
-  const handleFocus = React.useCallback((inputName: FocusedInput) => {
+  // Enhanced focus handlers with race condition prevention
+  const handleFocus = useCallback((inputName: FocusedInput) => {
+    // Clear any pending blur operations
+    if (focusTimeoutRef.current) {
+      clearTimeout(focusTimeoutRef.current);
+      focusTimeoutRef.current = null;
+    }
+
+    // Prevent focus during blur operations
+    if (isBlurringRef.current) {
+      return;
+    }
+
     // Blur other inputs when one gains focus
     if (focusedInput && focusedInput !== inputName) {
+      isBlurringRef.current = true;
       const refs = {
         username: usernameRef,
         firstName: firstNameRef,
@@ -83,32 +104,49 @@ export default function RegisterScreen({ navigation }: Props) {
         confirmPassword: confirmPasswordRef,
       };
       refs[focusedInput]?.current?.blur();
+      
+      // Reset blur flag after a short delay
+      setTimeout(() => {
+        isBlurringRef.current = false;
+      }, 50);
     }
+    
     setFocusedInput(inputName);
   }, [focusedInput]);
 
-  const handleBlur = React.useCallback((inputName: FocusedInput) => {
-    // Only clear focus state if this input was actually focused
-    if (focusedInput === inputName) {
-      setFocusedInput(null);
-    }
+  const handleBlur = useCallback((inputName: FocusedInput) => {
+    // Use timeout to prevent race conditions
+    focusTimeoutRef.current = setTimeout(() => {
+      if (focusedInput === inputName && !isBlurringRef.current) {
+        setFocusedInput(null);
+      }
+    }, 50);
   }, [focusedInput]);
 
   // Individual input handlers
-  const handleUsernameFocus = React.useCallback(() => handleFocus('username'), [handleFocus]);
-  const handleUsernameBlur = React.useCallback(() => handleBlur('username'), [handleBlur]);
-  const handleFirstNameFocus = React.useCallback(() => handleFocus('firstName'), [handleFocus]);
-  const handleFirstNameBlur = React.useCallback(() => handleBlur('firstName'), [handleBlur]);
-  const handleLastNameFocus = React.useCallback(() => handleFocus('lastName'), [handleFocus]);
-  const handleLastNameBlur = React.useCallback(() => handleBlur('lastName'), [handleBlur]);
-  const handleEmailFocus = React.useCallback(() => handleFocus('email'), [handleFocus]);
-  const handleEmailBlur = React.useCallback(() => handleBlur('email'), [handleBlur]);
-  const handlePasswordFocus = React.useCallback(() => handleFocus('password'), [handleFocus]);
-  const handlePasswordBlur = React.useCallback(() => handleBlur('password'), [handleBlur]);
-  const handleConfirmPasswordFocus = React.useCallback(() => handleFocus('confirmPassword'), [handleFocus]);
-  const handleConfirmPasswordBlur = React.useCallback(() => handleBlur('confirmPassword'), [handleBlur]);
+  const handleUsernameFocus = useCallback(() => handleFocus('username'), [handleFocus]);
+  const handleUsernameBlur = useCallback(() => handleBlur('username'), [handleBlur]);
+  const handleFirstNameFocus = useCallback(() => handleFocus('firstName'), [handleFocus]);
+  const handleFirstNameBlur = useCallback(() => handleBlur('firstName'), [handleBlur]);
+  const handleLastNameFocus = useCallback(() => handleFocus('lastName'), [handleFocus]);
+  const handleLastNameBlur = useCallback(() => handleBlur('lastName'), [handleBlur]);
+  const handleEmailFocus = useCallback(() => handleFocus('email'), [handleFocus]);
+  const handleEmailBlur = useCallback(() => handleBlur('email'), [handleBlur]);
+  const handlePasswordFocus = useCallback(() => handleFocus('password'), [handleFocus]);
+  const handlePasswordBlur = useCallback(() => handleBlur('password'), [handleBlur]);
+  const handleConfirmPasswordFocus = useCallback(() => handleFocus('confirmPassword'), [handleFocus]);
+  const handleConfirmPasswordBlur = useCallback(() => handleBlur('confirmPassword'), [handleBlur]);
 
   const defaultImage = require("../assets/default.jpg");
+
+  // Cleanup timeout on unmount
+  React.useEffect(() => {
+    return () => {
+      if (focusTimeoutRef.current) {
+        clearTimeout(focusTimeoutRef.current);
+      }
+    };
+  }, []);
 
   React.useEffect(() => {
     // Start entrance animations
@@ -205,6 +243,14 @@ export default function RegisterScreen({ navigation }: Props) {
   };
 
   const onRegister = async () => {
+    // Blur all inputs first
+    usernameRef.current?.blur();
+    firstNameRef.current?.blur();
+    lastNameRef.current?.blur();
+    emailRef.current?.blur();
+    passwordRef.current?.blur();
+    confirmPasswordRef.current?.blur();
+
     // Validate all inputs
     const isUsernameValid = validateUsername(username);
     const isFirstNameValid = validateFirstName(firstName);
@@ -333,7 +379,9 @@ export default function RegisterScreen({ navigation }: Props) {
     secureState,
     inputRef,
     returnKeyType = "next",
-    onSubmitEditing
+    onSubmitEditing,
+    autoComplete = "off",
+    textContentType = "none",
   }: any) => (
     <View style={styles.inputContainer}>
       <Text style={styles.inputLabel}>{label}</Text>
@@ -344,7 +392,7 @@ export default function RegisterScreen({ navigation }: Props) {
       ]}>
         <Ionicons
           name={icon}
-          size={20}
+          size={wp(5)}
           color={focused ? "#6C3AFF" : error ? "#E91E63" : "#A78BFA"}
           style={styles.inputIcon}
         />
@@ -359,8 +407,12 @@ export default function RegisterScreen({ navigation }: Props) {
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
           autoCorrect={false}
+          autoComplete={autoComplete}
+          textContentType={textContentType}
           returnKeyType={returnKeyType}
           blurOnSubmit={false}
+          enablesReturnKeyAutomatically={true}
+          clearButtonMode={secureTextEntry ? "never" : "while-editing"}
           onFocus={onFocus}
           onBlur={onBlur}
           onSubmitEditing={onSubmitEditing}
@@ -369,10 +421,11 @@ export default function RegisterScreen({ navigation }: Props) {
           <TouchableOpacity
             onPress={eyePressed}
             style={styles.eyeButton}
+            activeOpacity={0.7}
           >
             <Ionicons
               name={secureState ? "eye-off-outline" : "eye-outline"}
-              size={20}
+              size={wp(5)}
               color={focused ? "#6C3AFF" : "#A78BFA"}
             />
           </TouchableOpacity>
@@ -386,7 +439,11 @@ export default function RegisterScreen({ navigation }: Props) {
 
   return (
     <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
-      <View style={styles.container}>
+      <KeyboardAvoidingView
+        style={styles.container}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? hp(5) : 0}
+      >
         <StatusBar barStyle="light-content" backgroundColor="#0F0817" />
         
         {/* Background Gradient */}
@@ -394,7 +451,7 @@ export default function RegisterScreen({ navigation }: Props) {
           colors={['#0F0817', '#1A0B2E', '#2D1B69']}
           style={styles.backgroundGradient}
         >
-          {/* Floating Elements */}
+          {/* Responsive Floating Elements */}
           <View style={styles.floatingElements}>
             <Animated.View
               style={[
@@ -425,6 +482,7 @@ export default function RegisterScreen({ navigation }: Props) {
               contentContainerStyle={styles.scrollContent}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
+              bounces={false}
             >
               <Animated.View
                 style={[
@@ -444,7 +502,7 @@ export default function RegisterScreen({ navigation }: Props) {
                     colors={['#6C3AFF', '#9B59B6']}
                     style={styles.logoContainer}
                   >
-                    <Ionicons name="person-add" size={40} color="#FFFFFF" />
+                    <Ionicons name="person-add" size={wp(10)} color="#FFFFFF" />
                   </LinearGradient>
                   <Text style={styles.title}>Înregistrare</Text>
                   <Text style={styles.subtitle}>Creează-ți contul nou!</Text>
@@ -462,6 +520,8 @@ export default function RegisterScreen({ navigation }: Props) {
                     placeholder="Introdu numele de utilizator"
                     icon="person-outline"
                     autoCapitalize="none"
+                    autoComplete="username"
+                    textContentType="username"
                     error={usernameError}
                     focused={focusedInput === 'username'}
                     inputRef={usernameRef}
@@ -484,6 +544,8 @@ export default function RegisterScreen({ navigation }: Props) {
                         }}
                         placeholder="Prenumele tău"
                         icon="person-outline"
+                        autoComplete="given-name"
+                        textContentType="givenName"
                         error={firstNameError}
                         focused={focusedInput === 'firstName'}
                         inputRef={firstNameRef}
@@ -505,6 +567,8 @@ export default function RegisterScreen({ navigation }: Props) {
                         }}
                         placeholder="Numele tău"
                         icon="person-outline"
+                        autoComplete="family-name"
+                        textContentType="familyName"
                         error={lastNameError}
                         focused={focusedInput === 'lastName'}
                         inputRef={lastNameRef}
@@ -529,6 +593,8 @@ export default function RegisterScreen({ navigation }: Props) {
                     icon="mail-outline"
                     keyboardType="email-address"
                     autoCapitalize="none"
+                    autoComplete="email"
+                    textContentType="emailAddress"
                     error={emailError}
                     focused={focusedInput === 'email'}
                     inputRef={emailRef}
@@ -552,6 +618,8 @@ export default function RegisterScreen({ navigation }: Props) {
                     icon="lock-closed-outline"
                     secureTextEntry={secure}
                     autoCapitalize="none"
+                    autoComplete="new-password"
+                    textContentType="newPassword"
                     error={passwordError}
                     focused={focusedInput === 'password'}
                     inputRef={passwordRef}
@@ -577,6 +645,8 @@ export default function RegisterScreen({ navigation }: Props) {
                     icon="lock-closed-outline"
                     secureTextEntry={secureConfirm}
                     autoCapitalize="none"
+                    autoComplete="new-password"
+                    textContentType="newPassword"
                     error={confirmPasswordError}
                     focused={focusedInput === 'confirmPassword'}
                     inputRef={confirmPasswordRef}
@@ -595,7 +665,7 @@ export default function RegisterScreen({ navigation }: Props) {
                   {/* Register Button */}
                   <AnimatedButton onPress={onRegister} loading={loading}>
                     <View style={styles.buttonContent}>
-                      <Ionicons name="person-add-outline" size={20} color="#FFFFFF" />
+                      <Ionicons name="person-add-outline" size={wp(5)} color="#FFFFFF" />
                       <Text style={styles.buttonText}>Înregistrează-te</Text>
                     </View>
                   </AnimatedButton>
@@ -606,6 +676,7 @@ export default function RegisterScreen({ navigation }: Props) {
                     <TouchableOpacity 
                       onPress={() => navigation.navigate("Login")}
                       style={styles.footerButton}
+                      activeOpacity={0.8}
                     >
                       <LinearGradient
                         colors={['#6C3AFF', '#9B59B6']}
@@ -620,7 +691,7 @@ export default function RegisterScreen({ navigation }: Props) {
             </ScrollView>
           </SafeAreaView>
         </LinearGradient>
-      </View>
+      </KeyboardAvoidingView>
     </TouchableWithoutFeedback>
   );
 }
@@ -641,20 +712,20 @@ const styles = StyleSheet.create({
   },
   floatingCircle1: {
     position: 'absolute',
-    top: height * 0.05,
-    right: width * 0.15,
-    width: 100,
-    height: 100,
-    borderRadius: 50,
+    top: hp(5),
+    right: wp(15),
+    width: wp(20),
+    height: wp(20),
+    borderRadius: wp(10),
     backgroundColor: '#6C3AFF',
   },
   floatingCircle2: {
     position: 'absolute',
-    bottom: height * 0.15,
-    left: width * 0.1,
-    width: 60,
-    height: 60,
-    borderRadius: 30,
+    bottom: hp(15),
+    left: wp(10),
+    width: wp(12),
+    height: wp(12),
+    borderRadius: wp(6),
     backgroundColor: '#9B59B6',
   },
   safeArea: {
@@ -662,24 +733,27 @@ const styles = StyleSheet.create({
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: 24,
-    paddingVertical: 20,
+    paddingHorizontal: wp(6),
+    paddingVertical: hp(2),
+    minHeight: hp(95),
   },
   content: {
     flex: 1,
     justifyContent: 'center',
+    maxWidth: wp(90),
+    alignSelf: 'center',
   },
   headerSection: {
     alignItems: 'center',
-    marginBottom: 32,
+    marginBottom: hp(4),
   },
   logoContainer: {
-    width: 70,
-    height: 70,
-    borderRadius: 18,
+    width: wp(18),
+    height: wp(18),
+    borderRadius: wp(4.5),
     justifyContent: 'center',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: hp(2),
     shadowColor: '#6C3AFF',
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
@@ -687,21 +761,23 @@ const styles = StyleSheet.create({
     elevation: 8,
   },
   title: {
-    fontSize: 28,
+    fontSize: normalize(28),
     fontWeight: '800',
     color: '#FFFFFF',
-    marginBottom: 8,
+    marginBottom: hp(1),
     letterSpacing: 1,
+    textAlign: 'center',
   },
   subtitle: {
-    fontSize: 16,
+    fontSize: normalize(16),
     color: '#A78BFA',
     fontWeight: '500',
+    textAlign: 'center',
   },
   formSection: {
     backgroundColor: 'rgba(26, 26, 26, 0.8)',
-    borderRadius: 24,
-    padding: 24,
+    borderRadius: wp(6),
+    padding: wp(6),
     borderWidth: 1,
     borderColor: 'rgba(108, 58, 255, 0.2)',
     shadowColor: '#000',
@@ -714,30 +790,31 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginBottom: 0,
+    gap: wp(2),
   },
   nameField: {
     flex: 1,
-    marginHorizontal: 4,
   },
   inputContainer: {
-    marginBottom: 20,
+    marginBottom: hp(2.5),
   },
   inputLabel: {
-    fontSize: 14,
+    fontSize: normalize(14),
     fontWeight: '600',
     color: '#FFFFFF',
-    marginBottom: 8,
-    marginLeft: 4,
+    marginBottom: hp(1),
+    marginLeft: wp(1),
   },
   inputWrapper: {
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#1F1F1F',
-    borderRadius: 16,
+    borderRadius: wp(4),
     borderWidth: 2,
     borderColor: '#2A2A2A',
-    paddingHorizontal: 16,
-    height: 56,
+    paddingHorizontal: wp(4),
+    height: hp(7),
+    minHeight: 50,
   },
   inputWrapperFocused: {
     borderColor: '#6C3AFF',
@@ -751,45 +828,48 @@ const styles = StyleSheet.create({
     borderColor: '#E91E63',
   },
   inputIcon: {
-    marginRight: 12,
+    marginRight: wp(3),
   },
   textInput: {
     flex: 1,
-    fontSize: 16,
+    fontSize: normalize(16),
     color: '#FFFFFF',
     fontWeight: '500',
+    paddingVertical: hp(1),
   },
   eyeButton: {
-    padding: 4,
+    padding: wp(1),
+    borderRadius: wp(2),
   },
   errorText: {
     color: '#E91E63',
-    fontSize: 12,
-    marginTop: 4,
-    marginLeft: 4,
+    fontSize: normalize(12),
+    marginTop: hp(0.5),
+    marginLeft: wp(1),
     fontWeight: '500',
   },
   buttonContainer: {
-    marginTop: 8,
-    marginBottom: 24,
-    borderRadius: 16,
+    marginTop: hp(1),
+    marginBottom: hp(3),
+    borderRadius: wp(4),
     overflow: 'hidden',
   },
   buttonGradient: {
-    height: 56,
+    height: hp(7),
     justifyContent: 'center',
     alignItems: 'center',
-    borderRadius: 16,
+    borderRadius: wp(4),
+    minHeight: 50,
   },
   buttonContent: {
     flexDirection: 'row',
     alignItems: 'center',
   },
   buttonText: {
-    fontSize: 16,
+    fontSize: normalize(16),
     fontWeight: '700',
     color: '#FFFFFF',
-    marginLeft: 8,
+    marginLeft: wp(2),
     letterSpacing: 0.5,
   },
   loadingContainer: {
@@ -797,32 +877,34 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   loadingDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: wp(2),
+    height: wp(2),
+    borderRadius: wp(1),
     backgroundColor: '#FFFFFF',
-    marginRight: 8,
+    marginRight: wp(2),
   },
   footer: {
     alignItems: 'center',
   },
   footerText: {
-    fontSize: 14,
+    fontSize: normalize(14),
     color: '#A78BFA',
-    marginBottom: 12,
+    marginBottom: hp(1.5),
+    textAlign: 'center',
   },
   footerButton: {
-    borderRadius: 12,
+    borderRadius: wp(3),
     overflow: 'hidden',
   },
   footerButtonGradient: {
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 12,
+    paddingHorizontal: wp(6),
+    paddingVertical: hp(1.5),
+    borderRadius: wp(3),
   },
   footerButtonText: {
-    fontSize: 14,
+    fontSize: normalize(14),
     fontWeight: '600',
     color: '#FFFFFF',
+    textAlign: 'center',
   },
 });
