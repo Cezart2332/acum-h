@@ -4,17 +4,26 @@ import time
 import re
 import requests
 from typing import List, Dict, Any, Optional
-import openai
 import logging
 from datetime import datetime, timedelta
 from dataclasses import dataclass
 from threading import Lock
 import unicodedata
-import redis
-from sentence_transformers import SentenceTransformer
-import numpy as np
-from sklearn.metrics.pairwise import cosine_similarity
-import base64
+try:
+    import redis
+    REDIS_AVAILABLE = True
+except ImportError:
+    REDIS_AVAILABLE = False
+    print("Redis not available - running without caching")
+
+try:
+    from sentence_transformers import SentenceTransformer
+    import numpy as np
+    from sklearn.metrics.pairwise import cosine_similarity
+    ML_AVAILABLE = True
+except ImportError:
+    ML_AVAILABLE = False
+    print("ML libraries not available - using keyword search only")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -46,24 +55,22 @@ class Event:
     company: str
     company_id: int
 
-class EnhancedAIRecommenderBackend:
+class EnhancedAIRecommenderBackendSimple:
     def __init__(
         self,
         backend_url: str,
         redis_config: Optional[Dict[str, Any]] = None,
-        openai_api_key: Optional[str] = None,
         embedding_model: str = "all-MiniLM-L6-v2",
         cache_ttl: int = 3600,
         max_results: int = 10,
         request_timeout: int = 30
     ):
         """
-        Enhanced AI Recommender with C# Backend integration
+        Simplified AI Recommender with C# Backend integration (no OpenAI required)
         
         Args:
             backend_url: URL of the C# backend API
             redis_config: Redis configuration for caching
-            openai_api_key: OpenAI API key for GPT responses
             embedding_model: Sentence transformer model for embeddings
             cache_ttl: Cache time-to-live in seconds
             max_results: Maximum results to return
@@ -77,7 +84,7 @@ class EnhancedAIRecommenderBackend:
         
         # Initialize Redis cache
         self.redis_client = None
-        if redis_config:
+        if redis_config and REDIS_AVAILABLE:
             try:
                 self.redis_client = redis.Redis(**redis_config)
                 self.redis_client.ping()
@@ -85,21 +92,17 @@ class EnhancedAIRecommenderBackend:
             except Exception as e:
                 logger.warning(f"Redis connection failed: {e}")
         
-        # Initialize OpenAI
-        if openai_api_key:
-            openai.api_key = openai_api_key
-            self.use_openai = True
+        # Initialize embedding model (optional)
+        self.embedding_model = None
+        if ML_AVAILABLE:
+            try:
+                self.embedding_model = SentenceTransformer(embedding_model)
+                logger.info(f"Loaded embedding model: {embedding_model}")
+            except Exception as e:
+                logger.warning(f"Failed to load embedding model: {e}")
+                logger.info("Will use keyword search only")
         else:
-            self.use_openai = False
-            logger.info("OpenAI API key not provided, using rule-based responses")
-        
-        # Initialize embedding model
-        try:
-            self.embedding_model = SentenceTransformer(embedding_model)
-            logger.info(f"Loaded embedding model: {embedding_model}")
-        except Exception as e:
-            logger.error(f"Failed to load embedding model: {e}")
-            self.embedding_model = None
+            logger.info("ML libraries not available - using keyword search only")
         
         # Cache for embeddings and data
         self.embeddings_cache = {}
@@ -118,7 +121,7 @@ class EnhancedAIRecommenderBackend:
         # Initialize data
         self.refresh_data()
         
-        logger.info("Enhanced AI Recommender (Backend) initialized successfully")
+        logger.info("Enhanced AI Recommender (Backend, Simplified) initialized successfully")
     
     def make_request(self, endpoint: str, method: str = 'GET', data: Optional[Dict] = None) -> Optional[Dict]:
         """Make HTTP request to C# backend"""
@@ -149,7 +152,7 @@ class EnhancedAIRecommenderBackend:
     def get_cache_key(self, prefix: str, query: str) -> str:
         """Generate cache key"""
         normalized_query = self.normalize_text(query)
-        return f"ai_recommender_backend:{prefix}:{hash(normalized_query)}"
+        return f"ai_recommender_backend_simple:{prefix}:{hash(normalized_query)}"
     
     def get_from_cache(self, key: str) -> Optional[Any]:
         """Get data from Redis cache"""
@@ -239,8 +242,9 @@ class EnhancedAIRecommenderBackend:
                 
                 self.data_cache['last_updated'] = datetime.now()
                 
-                # Update embeddings cache
-                self.update_embeddings_cache()
+                # Update embeddings cache if ML is available
+                if ML_AVAILABLE and self.embedding_model:
+                    self.update_embeddings_cache()
                 
                 logger.info(f"Data refreshed from backend: {len(self.data_cache['restaurants'])} restaurants, "
                            f"{len(self.data_cache['events'])} events")
@@ -250,7 +254,7 @@ class EnhancedAIRecommenderBackend:
     
     def update_embeddings_cache(self):
         """Update embeddings cache for semantic search"""
-        if not self.embedding_model:
+        if not ML_AVAILABLE or not self.embedding_model:
             return
         
         try:
@@ -360,8 +364,8 @@ class EnhancedAIRecommenderBackend:
         return 'general'
     
     def semantic_search(self, query: str, search_type: str, limit: int = 5) -> List[Dict[str, Any]]:
-        """Perform semantic search using embeddings"""
-        if not self.embedding_model or search_type not in self.embeddings_cache:
+        """Perform semantic search using embeddings (if available)"""
+        if not ML_AVAILABLE or not self.embedding_model or search_type not in self.embeddings_cache:
             return []
         
         try:
@@ -448,15 +452,15 @@ class EnhancedAIRecommenderBackend:
         }
         
         try:
-            # Semantic search
-            if self.embedding_model:
+            # Semantic search (if available)
+            if ML_AVAILABLE and self.embedding_model:
                 semantic_restaurants = self.semantic_search(query, 'restaurants', self.max_results)
                 semantic_events = self.semantic_search(query, 'events', self.max_results)
                 
                 all_results['restaurants'].extend(semantic_restaurants)
                 all_results['events'].extend(semantic_events)
             
-            # Keyword search as fallback
+            # Keyword search (always available)
             keyword_restaurants = self.keyword_search(query, 'restaurants', self.max_results)
             keyword_events = self.keyword_search(query, 'events', self.max_results)
             
@@ -483,68 +487,8 @@ class EnhancedAIRecommenderBackend:
         
         return all_results
     
-    def generate_natural_response(self, query: str, intent: str, search_results: Dict[str, List]) -> str:
-        """Generate natural language response"""
-        
-        # Check cache first
-        cache_key = self.get_cache_key("response", f"{intent}:{query}")
-        cached_response = self.get_from_cache(cache_key)
-        if cached_response:
-            return cached_response
-        
-        try:
-            if self.use_openai:
-                response = self.generate_openai_response(query, intent, search_results)
-            else:
-                response = self.generate_rule_based_response(query, intent, search_results)
-            
-            # Cache the response
-            self.set_cache(cache_key, response, ttl=1800)  # 30 minutes
-            return response
-            
-        except Exception as e:
-            logger.error(f"Response generation failed: {e}")
-            return "Îmi pare rău, am întâmpinat o problemă tehnică. Te rog să încerci din nou."
-    
-    def generate_openai_response(self, query: str, intent: str, search_results: Dict[str, List]) -> str:
-        """Generate response using OpenAI GPT"""
-        try:
-            # Prepare context
-            context = self.prepare_context(search_results)
-            
-            # Create prompt
-            prompt = f"""
-            Ești un asistent AI pentru recomandări de restaurante și evenimente în limba română.
-            Răspunde în mod natural și prietenos la întrebarea utilizatorului.
-            
-            Întrebare: {query}
-            Intent: {intent}
-            
-            Informații disponibile:
-            {context}
-            
-            Răspunde în română, fiind util și prietenos. Dacă nu găsești informații relevante, 
-            spune-i utilizatorului că nu ai găsit nimic potrivit și sugerează să încerce o căutare diferită.
-            """
-            
-            response = openai.ChatCompletion.create(
-                model="gpt-3.5-turbo",
-                messages=[
-                    {"role": "system", "content": "Ești un asistent AI prietenos pentru recomandări în română."},
-                    {"role": "user", "content": prompt}
-                ],
-                max_tokens=500,
-                temperature=0.7
-            )
-            
-            return response.choices[0].message.content.strip()
-            
-        except Exception as e:
-            logger.error(f"OpenAI response generation failed: {e}")
-            return self.generate_rule_based_response(query, intent, search_results)
-    
     def generate_rule_based_response(self, query: str, intent: str, search_results: Dict[str, List]) -> str:
-        """Generate rule-based response"""
+        """Generate rule-based response (no OpenAI needed)"""
         try:
             restaurants = search_results.get('restaurants', [])
             events = search_results.get('events', [])
@@ -623,34 +567,6 @@ class EnhancedAIRecommenderBackend:
             logger.error(f"Rule-based response generation failed: {e}")
             return "Îmi pare rău, am întâmpinat o problemă în generarea răspunsului."
     
-    def prepare_context(self, search_results: Dict[str, List]) -> str:
-        """Prepare context for OpenAI from search results"""
-        context = ""
-        
-        restaurants = search_results.get('restaurants', [])
-        events = search_results.get('events', [])
-        
-        if restaurants:
-            context += "RESTAURANTE:\n"
-            for result in restaurants[:3]:
-                restaurant = result['item']
-                context += f"- {restaurant.name} ({restaurant.category})\n"
-                context += f"  Adresa: {restaurant.address}\n"
-                context += f"  Descriere: {restaurant.description}\n"
-                context += f"  Tags: {', '.join(restaurant.tags)}\n\n"
-        
-        if events:
-            context += "EVENIMENTE:\n"
-            for result in events[:3]:
-                event = result['item']
-                context += f"- {event.title}\n"
-                context += f"  Organizator: {event.company}\n"
-                context += f"  Descriere: {event.description}\n"
-                context += f"  Tags: {', '.join(event.tags)}\n"
-                context += f"  Like-uri: {event.likes}\n\n"
-        
-        return context
-    
     def get_chat_response(self, query: str, user_id: Optional[str] = None) -> Dict[str, Any]:
         """Get complete chat response"""
         try:
@@ -662,8 +578,8 @@ class EnhancedAIRecommenderBackend:
             # Search for relevant data
             search_results = self.search_all(query)
             
-            # Generate natural response
-            response_text = self.generate_natural_response(query, intent, search_results)
+            # Generate response (rule-based only)
+            response_text = self.generate_rule_based_response(query, intent, search_results)
             
             # Calculate response time
             response_time = time.time() - start_time
@@ -706,7 +622,9 @@ class EnhancedAIRecommenderBackend:
                     'response_time': response_time,
                     'timestamp': datetime.now().isoformat(),
                     'user_id': user_id,
-                    'data_freshness': self.data_cache['last_updated'].isoformat() if self.data_cache['last_updated'] else None
+                    'data_freshness': self.data_cache['last_updated'].isoformat() if self.data_cache['last_updated'] else None,
+                    'ml_enabled': ML_AVAILABLE and self.embedding_model is not None,
+                    'cache_enabled': self.redis_client is not None
                 }
             }
             
@@ -733,8 +651,8 @@ class EnhancedAIRecommenderBackend:
             # Test backend connection
             backend_status = "healthy"
             try:
-                health_response = self.make_request('/health')
-                if not health_response:
+                companies_response = self.make_request('/companies')
+                if not companies_response:
                     backend_status = "unhealthy"
             except:
                 backend_status = "unhealthy"
@@ -753,9 +671,10 @@ class EnhancedAIRecommenderBackend:
                     'last_updated': self.data_cache['last_updated'].isoformat() if self.data_cache['last_updated'] else None,
                     'data_age_seconds': data_age
                 },
-                'embedding_model': self.embedding_model is not None,
-                'openai_enabled': self.use_openai,
+                'embedding_model': ML_AVAILABLE and self.embedding_model is not None,
+                'openai_enabled': False,  # Always False in simplified version
                 'redis_cache': self.redis_client is not None,
+                'ml_available': ML_AVAILABLE,
                 'timestamp': datetime.now().isoformat()
             }
             

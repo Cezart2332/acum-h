@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback, useMemo } from "react";
 import {
   View,
   StyleSheet,
@@ -11,6 +11,7 @@ import {
   Animated,
   Dimensions,
   StatusBar,
+  RefreshControl,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -23,6 +24,8 @@ interface EventData {
   description?: string;
   photo: string;
   tags?: string[];
+  company?: string;
+  likes?: number;
 }
 
 interface CompanyData {
@@ -35,6 +38,8 @@ interface CompanyData {
   profileImage?: string;
   description?: string;
   tags?: string[];
+  latitude?: number;
+  longitude?: number;
 }
 
 // Unified interface for section list items
@@ -46,6 +51,8 @@ interface SearchItem {
   type: 'event' | 'restaurant';
   address?: string;
   tags?: string[];
+  rating?: number;
+  likes?: number;
   originalData: EventData | CompanyData;
 }
 
@@ -61,16 +68,41 @@ export default function SearchScreen({ navigation }: { navigation?: any }) {
   const [events, setEvents] = useState<EventData[]>([]);
   const [restaurants, setRestaurants] = useState<CompanyData[]>([]);
   const [dataLoading, setDataLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const fadeAnim = new Animated.Value(0);
   const scaleAnim = new Animated.Value(0.95);
 
-  useEffect(() => {
-    // Start animations immediately
+  // Memoized filter functions for better performance
+  const filteredEvents = useMemo(() => {
+    if (!query.trim()) return events.slice(0, 10); // Show first 10 when no query
+    
+    return events.filter((e) =>
+      e.title?.toLowerCase().includes(query.toLowerCase()) ||
+      (e.description && e.description.toLowerCase().includes(query.toLowerCase())) ||
+      (e.company && e.company.toLowerCase().includes(query.toLowerCase())) ||
+      (e.tags && e.tags.some(tag => tag.toLowerCase().includes(query.toLowerCase())))
+    );
+  }, [events, query]);
+
+  const filteredRestaurants = useMemo(() => {
+    if (!query.trim()) return restaurants.slice(0, 10); // Show first 10 when no query
+    
+    return restaurants.filter((r) =>
+      (r.name && r.name.toLowerCase().includes(query.toLowerCase())) ||
+      (r.category && r.category.toLowerCase().includes(query.toLowerCase())) ||
+      (r.address && r.address.toLowerCase().includes(query.toLowerCase())) ||
+      (r.description && r.description.toLowerCase().includes(query.toLowerCase())) ||
+      (r.tags && r.tags.some(tag => tag.toLowerCase().includes(query.toLowerCase())))
+    );
+  }, [restaurants, query]);
+
+  const startAnimations = useCallback(() => {
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
-        duration: 800,
+        duration: 600,
         useNativeDriver: true,
       }),
       Animated.spring(scaleAnim, {
@@ -80,115 +112,166 @@ export default function SearchScreen({ navigation }: { navigation?: any }) {
         useNativeDriver: true,
       }),
     ]).start();
+  }, [fadeAnim, scaleAnim]);
 
-    // Load data in background with timeout
-    const fetchData = async () => {
-      try {
-        // Set a timeout to prevent infinite loading
-        const timeoutPromise = new Promise((_, reject) =>
-          setTimeout(() => reject(new Error('Request timeout')), 10000)
-        );
+  const fetchData = useCallback(async (showRefreshing = false) => {
+    try {
+      if (showRefreshing) setRefreshing(true);
+      else setDataLoading(true);
+      setError(null);
 
-        const fetchPromise = Promise.all([
-          fetch(`${BASE_URL}/events`).then(res => res.ok ? res.json() : []),
-          fetch(`${BASE_URL}/companies`).then(res => res.ok ? res.json() : []),
-        ]);
+      console.log('Fetching data from:', BASE_URL);
 
-        const [eventsData, companiesData] = await Promise.race([
-          fetchPromise,
-          timeoutPromise
-        ]) as [EventData[], CompanyData[]];
-        
-        setEvents(eventsData || []);
-        setRestaurants(companiesData || []);
-      } catch (err) {
-        console.warn("Fetching data failed:", err);
-        // Set empty arrays so search still works
-        setEvents([]);
-        setRestaurants([]);
-      } finally {
-        setDataLoading(false);
+      // Add timeout for better error handling
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 15000);
+
+      const fetchOptions = {
+        signal: controller.signal,
+        headers: {
+          'Accept': 'application/json',
+          'Content-Type': 'application/json',
+        },
+      };
+
+      // Fetch both endpoints with error handling
+      const [eventsResponse, companiesResponse] = await Promise.allSettled([
+        fetch(`${BASE_URL}/events`, fetchOptions),
+        fetch(`${BASE_URL}/companies`, fetchOptions),
+      ]);
+
+      clearTimeout(timeoutId);
+
+      // Process events
+      let eventsData: EventData[] = [];
+      if (eventsResponse.status === 'fulfilled' && eventsResponse.value.ok) {
+        try {
+          eventsData = await eventsResponse.value.json();
+          console.log('Events loaded:', eventsData.length);
+        } catch (e) {
+          console.warn('Events JSON parse error:', e);
+        }
+      } else {
+        console.warn('Events fetch failed:', eventsResponse.status === 'rejected' ? eventsResponse.reason : eventsResponse.value.status);
       }
-    };
 
-    fetchData();
+      // Process companies
+      let companiesData: CompanyData[] = [];
+      if (companiesResponse.status === 'fulfilled' && companiesResponse.value.ok) {
+        try {
+          companiesData = await companiesResponse.value.json();
+          console.log('Companies loaded:', companiesData.length);
+        } catch (e) {
+          console.warn('Companies JSON parse error:', e);
+        }
+      } else {
+        console.warn('Companies fetch failed:', companiesResponse.status === 'rejected' ? companiesResponse.reason : companiesResponse.value.status);
+      }
+
+      // Ensure data is arrays
+      setEvents(Array.isArray(eventsData) ? eventsData : []);
+      setRestaurants(Array.isArray(companiesData) ? companiesData : []);
+
+      if (eventsData.length === 0 && companiesData.length === 0) {
+        setError("Nu s-au putut încărca datele. Verifică conexiunea.");
+      }
+
+    } catch (err) {
+      console.error("Fetch error:", err);
+      setError("Eroare de conectare. Te rog să încerci din nou.");
+      setEvents([]);
+      setRestaurants([]);
+    } finally {
+      setDataLoading(false);
+      setRefreshing(false);
+    }
   }, []);
 
-  // Convert data to unified format
-  const convertEventsToSearchItems = (events: EventData[]): SearchItem[] => {
+  useEffect(() => {
+    startAnimations();
+    fetchData();
+  }, [startAnimations, fetchData]);
+
+  // Convert data to unified format with better error handling
+  const convertEventsToSearchItems = useCallback((events: EventData[]): SearchItem[] => {
     return events.map(event => ({
-      id: event.id,
-      title: event.title,
-      subtitle: event.description,
-      image: event.photo,
+      id: event.id || `event-${Math.random()}`,
+      title: event.title || 'Eveniment fără titlu',
+      subtitle: event.description || event.company || '',
+      image: event.photo || '',
       type: 'event' as const,
-      tags: event.tags,
+      tags: event.tags || [],
+      likes: event.likes || 0,
       originalData: event,
     }));
-  };
+  }, []);
 
-  const convertRestaurantsToSearchItems = (restaurants: CompanyData[]): SearchItem[] => {
+  const convertRestaurantsToSearchItems = useCallback((restaurants: CompanyData[]): SearchItem[] => {
     return restaurants.map(restaurant => ({
-      id: restaurant.id?.toString() || '',
-      title: restaurant.name || '',
-      subtitle: restaurant.category,
+      id: restaurant.id?.toString() || `restaurant-${Math.random()}`,
+      title: restaurant.name || 'Restaurant fără nume',
+      subtitle: restaurant.category || restaurant.description || '',
       image: restaurant.profileImage || '',
       type: 'restaurant' as const,
       address: restaurant.address,
-      tags: restaurant.tags,
+      tags: restaurant.tags || [],
+      rating: 4.5, // Default rating since it's not in the backend
       originalData: restaurant,
     }));
-  };
+  }, []);
 
-  const filteredEvents = events.filter((e) =>
-    e.title.toLowerCase().includes(query.toLowerCase()) ||
-    (e.description && e.description.toLowerCase().includes(query.toLowerCase()))
-  );
-
-  const filteredRestaurants = restaurants.filter((r) =>
-    (r.name && r.name.toLowerCase().includes(query.toLowerCase())) ||
-    (r.category && r.category.toLowerCase().includes(query.toLowerCase())) ||
-    (r.address && r.address.toLowerCase().includes(query.toLowerCase())) ||
-    (r.tags && r.tags.some(tag => tag.toLowerCase().includes(query.toLowerCase())))
-  );
-
-  const handleItemPress = (item: SearchItem) => {
+  const handleItemPress = useCallback((item: SearchItem) => {
     if (!navigation) {
       console.warn("Navigation not available");
       return;
     }
     
-    if (item.type === 'event') {
-      navigation.navigate("EventScreen", { event: item.originalData });
-    } else {
-      navigation.navigate("Info", { company: item.originalData });
+    try {
+      if (item.type === 'event') {
+        navigation.navigate("EventScreen", { event: item.originalData });
+      } else {
+        navigation.navigate("Info", { company: item.originalData });
+      }
+    } catch (error) {
+      console.error("Navigation error:", error);
     }
-  };
+  }, [navigation]);
 
-  const sections: SearchSection[] = [
-    { 
-      title: "Evenimente", 
-      data: convertEventsToSearchItems(filteredEvents)
-    },
-    { 
-      title: "Restaurante", 
-      data: convertRestaurantsToSearchItems(filteredRestaurants)
-    },
-  ];
+  const sections: SearchSection[] = useMemo(() => {
+    const eventItems = convertEventsToSearchItems(filteredEvents);
+    const restaurantItems = convertRestaurantsToSearchItems(filteredRestaurants);
+
+    return [
+      { 
+        title: "Evenimente", 
+        data: eventItems
+      },
+      { 
+        title: "Restaurante", 
+        data: restaurantItems
+      },
+    ].filter(section => section.data.length > 0); // Only show sections with data
+  }, [filteredEvents, filteredRestaurants, convertEventsToSearchItems, convertRestaurantsToSearchItems]);
 
   const EmptyResults = () => (
     <Animated.View style={[styles.emptyContainer, { opacity: fadeAnim }]}>
       <LinearGradient
-        colors={['#6C3AFF20', '#9B59B620']}
+        colors={['rgba(108, 58, 255, 0.1)', 'rgba(155, 89, 182, 0.1)']}
         style={styles.emptyGradient}
       >
-        <Ionicons name="search-outline" size={64} color="#6C3AFF" />
+        <Ionicons 
+          name={dataLoading ? "hourglass-outline" : error ? "warning-outline" : "search-outline"} 
+          size={64} 
+          color="#6C3AFF" 
+        />
         <Text style={styles.emptyTitle}>
           {dataLoading ? "Încărcăm datele..." : 
+           error ? "Eroare de conectare" :
            query ? "Nu am găsit rezultate" : "Începe să cauți"}
         </Text>
         <Text style={styles.emptySubtitle}>
           {dataLoading ? "Te rugăm să aștepți..." :
+           error ? error :
            query ? "Încearcă să cauți cu alți termeni" : 
            "Caută evenimente sau restaurante"}
         </Text>
@@ -199,17 +282,134 @@ export default function SearchScreen({ navigation }: { navigation?: any }) {
             style={{ marginTop: 20 }}
           />
         )}
+        {error && (
+          <TouchableOpacity
+            style={styles.retryButton}
+            onPress={() => fetchData()}
+          >
+            <Text style={styles.retryButtonText}>Încearcă din nou</Text>
+          </TouchableOpacity>
+        )}
       </LinearGradient>
     </Animated.View>
   );
 
-  const hasResults = filteredEvents.length > 0 || filteredRestaurants.length > 0;
+  const renderItem = useCallback(({ item }: { item: SearchItem }) => (
+    <Animated.View
+      style={[
+        styles.cardWrapper,
+        {
+          opacity: fadeAnim,
+          transform: [{
+            translateY: fadeAnim.interpolate({
+              inputRange: [0, 1],
+              outputRange: [50, 0],
+            }),
+          }],
+        },
+      ]}
+    >
+      <TouchableOpacity
+        style={styles.card}
+        onPress={() => handleItemPress(item)}
+        activeOpacity={0.8}
+      >
+        <View style={styles.cardImageContainer}>
+          {item.image ? (
+            <Image
+              source={{
+                uri: item.image.startsWith('data:') ? item.image : `data:image/jpg;base64,${item.image}`,
+              }}
+              style={styles.cardImage}
+              defaultSource={require('../assets/default.jpg')}
+              onError={() => {
+                console.log('Image load error for:', item.title);
+              }}
+            />
+          ) : (
+            <View style={styles.cardImagePlaceholder}>
+              <Ionicons 
+                name={item.type === 'event' ? "calendar" : "restaurant"} 
+                size={32} 
+                color="#6C3AFF" 
+              />
+            </View>
+          )}
+          <LinearGradient
+            colors={['transparent', 'rgba(15,8,23,0.8)']}
+            style={styles.cardImageOverlay}
+          />
+        </View>
+        
+        <View style={styles.cardContent}>
+          <Text style={styles.cardTitle} numberOfLines={2}>
+            {item.title}
+          </Text>
+          
+          {item.subtitle && (
+            <Text style={styles.cardSubtitle} numberOfLines={2}>
+              {item.subtitle}
+            </Text>
+          )}
+
+          {item.type === 'restaurant' && item.address && (
+            <View style={styles.addressContainer}>
+              <Ionicons name="location-outline" size={14} color="#A78BFA" />
+              <Text style={styles.addressText} numberOfLines={1}>
+                {item.address}
+              </Text>
+            </View>
+          )}
+
+          {item.type === 'event' && item.likes !== undefined && (
+            <View style={styles.likesContainer}>
+              <Ionicons name="heart-outline" size={14} color="#FF6B9D" />
+              <Text style={styles.likesText}>
+                {item.likes} like{item.likes !== 1 ? '-uri' : ''}
+              </Text>
+            </View>
+          )}
+
+          {item.tags && item.tags.length > 0 && (
+            <View style={styles.tagsContainer}>
+              {item.tags.slice(0, 2).map((tag, tagIndex) => (
+                <View key={tagIndex} style={styles.tag}>
+                  <Text style={styles.tagText}>{tag}</Text>
+                </View>
+              ))}
+              {item.tags.length > 2 && (
+                <Text style={styles.moreTagsText}>
+                  +{item.tags.length - 2}
+                </Text>
+              )}
+            </View>
+          )}
+        </View>
+
+        <View style={styles.cardAction}>
+          <LinearGradient
+            colors={['#6C3AFF', '#9B59B6']}
+            style={styles.actionButton}
+          >
+            <Ionicons 
+              name={item.type === 'event' ? "calendar" : "restaurant"} 
+              size={20} 
+              color="#FFFFFF" 
+            />
+          </LinearGradient>
+        </View>
+      </TouchableOpacity>
+    </Animated.View>
+  ), [fadeAnim, handleItemPress]);
+
+  const hasResults = sections.length > 0 && sections.some(section => section.data.length > 0);
+  const totalResults = sections.reduce((sum, section) => sum + section.data.length, 0);
 
   return (
     <SafeAreaView style={styles.container}>
       <StatusBar barStyle="light-content" backgroundColor="#0F0817" />
       
-      {/* Header with gradient - ALWAYS VISIBLE */}
+      {/* Header with gradient */}
       <LinearGradient
         colors={['#0F0817', '#1A1A1A']}
         style={styles.headerGradient}
@@ -240,6 +440,7 @@ export default function SearchScreen({ navigation }: { navigation?: any }) {
               onChangeText={setQuery}
               onFocus={() => setSearchFocused(true)}
               onBlur={() => setSearchFocused(false)}
+              returnKeyType="search"
             />
             {query.length > 0 && (
               <TouchableOpacity
@@ -251,10 +452,10 @@ export default function SearchScreen({ navigation }: { navigation?: any }) {
             )}
           </View>
           
-          {query.length > 0 && (
+          {(query.length > 0 || hasResults) && (
             <View style={styles.resultsInfo}>
               <Text style={styles.resultsCount}>
-                {filteredEvents.length + filteredRestaurants.length} rezultate găsite
+                {totalResults} rezultate găsite
               </Text>
               {dataLoading && (
                 <ActivityIndicator size="small" color="#A78BFA" style={{ marginLeft: 10 }} />
@@ -272,118 +473,35 @@ export default function SearchScreen({ navigation }: { navigation?: any }) {
           <SectionList<SearchItem>
             sections={sections}
             keyExtractor={(item, idx) => `${item.id}-${idx}`}
-            renderSectionHeader={({ section: { title, data } }) =>
-              data.length > 0 ? (
-                <View style={styles.sectionHeaderContainer}>
-                  <LinearGradient
-                    colors={['#6C3AFF', '#9B59B6']}
-                    start={{ x: 0, y: 0 }}
-                    end={{ x: 1, y: 0 }}
-                    style={styles.sectionHeaderGradient}
-                  >
-                    <Text style={styles.sectionHeader}>{title}</Text>
-                    <Text style={styles.sectionCount}>{data.length}</Text>
-                  </LinearGradient>
-                </View>
-              ) : null
-            }
-            renderItem={({ item }) => (
-              <Animated.View
-                style={[
-                  styles.cardWrapper,
-                  {
-                    opacity: fadeAnim,
-                    transform: [{
-                      translateY: fadeAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [50, 0],
-                      }),
-                    }],
-                  },
-                ]}
-              >
-                <TouchableOpacity
-                  style={styles.card}
-                  onPress={() => handleItemPress(item)}
-                  activeOpacity={0.8}
+            renderSectionHeader={({ section: { title, data } }) => (
+              <View style={styles.sectionHeaderContainer}>
+                <LinearGradient
+                  colors={['#6C3AFF', '#9B59B6']}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.sectionHeaderGradient}
                 >
-                  <View style={styles.cardImageContainer}>
-                    {item.image ? (
-                      <Image
-                        source={{
-                          uri: `data:image/jpg;base64,${item.image}`,
-                        }}
-                        style={styles.cardImage}
-                        defaultSource={require('../assets/default.jpg')}
-                      />
-                    ) : (
-                      <View style={styles.cardImagePlaceholder}>
-                        <Ionicons 
-                          name={item.type === 'event' ? "calendar" : "restaurant"} 
-                          size={32} 
-                          color="#6C3AFF" 
-                        />
-                      </View>
-                    )}
-                    <LinearGradient
-                      colors={['transparent', 'rgba(15,8,23,0.8)']}
-                      style={styles.cardImageOverlay}
-                    />
-                  </View>
-                  
-                  <View style={styles.cardContent}>
-                    <Text style={styles.cardTitle} numberOfLines={2}>
-                      {item.title}
-                    </Text>
-                    
-                    <Text style={styles.cardSubtitle} numberOfLines={2}>
-                      {item.subtitle}
-                    </Text>
-
-                    {item.type === 'restaurant' && item.address && (
-                      <View style={styles.addressContainer}>
-                        <Ionicons name="location-outline" size={14} color="#A78BFA" />
-                        <Text style={styles.addressText} numberOfLines={1}>
-                          {item.address}
-                        </Text>
-                      </View>
-                    )}
-
-                    {item.type === 'restaurant' && item.tags && item.tags.length > 0 && (
-                      <View style={styles.tagsContainer}>
-                        {item.tags.slice(0, 2).map((tag, tagIndex) => (
-                          <View key={tagIndex} style={styles.tag}>
-                            <Text style={styles.tagText}>{tag}</Text>
-                          </View>
-                        ))}
-                        {item.tags.length > 2 && (
-                          <Text style={styles.moreTagsText}>
-                            +{item.tags.length - 2}
-                          </Text>
-                        )}
-                      </View>
-                    )}
-                  </View>
-
-                  <View style={styles.cardAction}>
-                    <LinearGradient
-                      colors={['#6C3AFF', '#9B59B6']}
-                      style={styles.actionButton}
-                    >
-                      <Ionicons 
-                        name={item.type === 'event' ? "calendar" : "restaurant"} 
-                        size={20} 
-                        color="#FFFFFF" 
-                      />
-                    </LinearGradient>
-                  </View>
-                </TouchableOpacity>
-              </Animated.View>
+                  <Text style={styles.sectionHeader}>{title}</Text>
+                  <Text style={styles.sectionCount}>{data.length}</Text>
+                </LinearGradient>
+              </View>
             )}
+            renderItem={renderItem}
             contentContainerStyle={styles.listContent}
             ItemSeparatorComponent={() => <View style={styles.separator} />}
             showsVerticalScrollIndicator={false}
             stickySectionHeadersEnabled={false}
+            refreshControl={
+              <RefreshControl
+                refreshing={refreshing}
+                onRefresh={() => fetchData(true)}
+                colors={['#6C3AFF']}
+                tintColor="#6C3AFF"
+              />
+            }
+            initialNumToRender={10}
+            maxToRenderPerBatch={5}
+            windowSize={10}
           />
         </Animated.View>
       )}
@@ -468,6 +586,18 @@ const styles = StyleSheet.create({
     color: "#A78BFA",
     textAlign: "center",
     lineHeight: 24,
+  },
+  retryButton: {
+    marginTop: 20,
+    backgroundColor: "#6C3AFF",
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+  },
+  retryButtonText: {
+    color: "#FFFFFF",
+    fontSize: 16,
+    fontWeight: "600",
   },
   listContainer: {
     flex: 1,
@@ -571,6 +701,16 @@ const styles = StyleSheet.create({
     fontSize: 12,
     color: "#C4B5FD",
     flex: 1,
+  },
+  likesContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginTop: 8,
+  },
+  likesText: {
+    marginLeft: 4,
+    fontSize: 12,
+    color: "#FF6B9D",
   },
   tagsContainer: {
     flexDirection: "row",
