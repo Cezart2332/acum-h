@@ -577,8 +577,8 @@ const styles = StyleSheet.create({
     aspectRatio: 1,
   },
   title: {
-    fontSize: getScaledSize(36), // Larger title
-    fontWeight: "800", // Bolder weight
+    fontSize: getScaledSize(36), // Larger title (24-28px -> 36px)
+    fontWeight: "800", // Bolder weight (700-800)
     color: "#FFFFFF",
     marginBottom: "2%",
     letterSpacing: 1.5,
@@ -593,7 +593,7 @@ const styles = StyleSheet.create({
     textAlign: "center",
   },
   formSection: {
-    backgroundColor: "rgba(255, 255, 255, 0.08)", // Lighter background
+    backgroundColor: "rgba(255, 255, 255, 0.08)", // Lighter background for glass morphism
     borderRadius: 28, // Larger border radius
     padding: 25, // Increased padding (20-25px)
     borderWidth: 1,
@@ -605,11 +605,11 @@ const styles = StyleSheet.create({
     elevation: 15,
   },
   inputContainer: {
-    marginBottom: 20, // Consistent 20px spacing
+    marginBottom: 20, // Consistent 20px spacing between sections
   },
   inputLabel: {
     fontSize: getScaledSize(16), // Larger label
-    fontWeight: "700", // Bolder weight
+    fontWeight: "700", // Bolder weight (700-800)
     color: "#FFFFFF",
     marginBottom: 8,
     marginLeft: 16, // 16px horizontal margin
@@ -650,7 +650,7 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   eyeButton: {
-    padding: 12, // Larger touch target
+    padding: 12, // Larger touch target (48x48px minimum)
     borderRadius: 10,
     marginLeft: 8,
   },
@@ -724,7 +724,7 @@ const styles = StyleSheet.create({
   },
   footerButtonText: {
     fontSize: getScaledSize(16), // Larger button text
-    fontWeight: "700", // Bolder weight
+    fontWeight: "700", // Bolder weight (700-800)
     color: "#FFFFFF",
     textAlign: "center",
   },

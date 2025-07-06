@@ -569,12 +569,12 @@ export default function SearchScreen({ navigation }: { navigation: any }) {
             <Ionicons 
               name="search-outline" 
               size={24} 
-              color={searchFocused ? "#6C3AFF" : "#A78BFA"} 
+              color={searchFocused ? "#6C3AFF" : "#6B7280"} 
             />
             <TextInput
               style={styles.input}
               placeholder="Caută evenimente sau restaurante..."
-              placeholderTextColor="#666"
+              placeholderTextColor="#6B7280"
               value={query}
               onChangeText={setQuery}
               onFocus={() => setSearchFocused(true)}
@@ -586,7 +586,7 @@ export default function SearchScreen({ navigation }: { navigation: any }) {
                 onPress={() => setQuery("")}
                 style={styles.clearButton}
               >
-                <Ionicons name="close-circle" size={20} color="#A78BFA" />
+                <Ionicons name="close-circle" size={20} color="#6B7280" />
               </TouchableOpacity>
             )}
           </View>
@@ -676,29 +676,32 @@ const styles = StyleSheet.create({
   },
   searchBox: {
     flexDirection: "row",
-    backgroundColor: "#1A1A1A",
+    backgroundColor: "#FFFFFF",
     borderRadius: 16,
     paddingHorizontal: 16,
     alignItems: "center",
     borderWidth: 2,
-    borderColor: "#2A1A4A",
+    borderColor: "#E5E7EB",
     shadowColor: "#6C3AFF",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
     elevation: 4,
+    height: 60,
   },
   searchBoxFocused: {
     borderColor: "#6C3AFF",
     shadowOpacity: 0.3,
+    backgroundColor: "#FFFFFF",
   },
   input: {
     flex: 1,
-    height: 52,
+    height: 60,
     marginLeft: 12,
     fontSize: 16,
-    color: "#FFFFFF",
+    color: "#1F2937",
     fontWeight: "500",
+    paddingVertical: 0,
   },
   clearButton: {
     padding: 4,
@@ -915,14 +918,16 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     padding: 12,
-    backgroundColor: "#1A1A1A",
+    backgroundColor: "#FEF3C7",
     borderTopWidth: 1,
-    borderColor: "#2A1A4A",
+    borderColor: "#F59E0B",
+    borderRadius: 8,
+    marginTop: 8,
   },
   warningText: {
     marginLeft: 8,
     fontSize: 14,
-    color: "#F59E0B",
-    fontWeight: "500",
+    color: "#92400E",
+    fontWeight: "600",
   },
 });
