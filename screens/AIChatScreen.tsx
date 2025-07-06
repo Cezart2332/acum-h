@@ -23,6 +23,9 @@ import { AI_BASE_URL } from '../config';
 
 const { width, height } = Dimensions.get('window');
 
+// Tab bar height constant (adjust based on your tab bar design)
+const TAB_BAR_HEIGHT = Platform.OS === 'ios' ? 90 : 70;
+
 interface Message {
   id: string;
   text: string;
@@ -163,7 +166,7 @@ const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     // Add welcome message with system info
     const welcomeMessage: Message = {
       id: 'welcome',
-      text: 'Bună ziua! 👋 Sunt asistentul tău AI pentru restaurante și evenimente cu suport îmbunătățit pentru backend-ul C#. Cu ce te pot ajuta astăzi?',
+      text: 'Salut! 👋 Mă bucur să te văd! Sunt aici să te ajut să găsești cele mai bune restaurante și evenimente din oraș. Cu ce te pot ajuta?',
       isUser: false,
       timestamp: new Date(),
       intent: 'greeting'
@@ -182,12 +185,12 @@ const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       console.warn('Failed to load suggestions:', error);
       // Fallback suggestions
       setSuggestions([
-        { id: 1, text: 'Salut! Cum te cheamă?', category: 'greeting', icon: '👋' },
-        { id: 2, text: 'Recomanzi-mi un restaurant italian', category: 'restaurant', icon: '🍝' },
-        { id: 3, text: 'Vreau să mănânc pizza', category: 'food', icon: '🍕' },
-        { id: 4, text: 'Ce evenimente sunt în weekend?', category: 'events', icon: '🎉' },
-        { id: 5, text: 'Ce companii sunt în zona mea?', category: 'location', icon: '🏢' },
-        { id: 6, text: 'Arată-mi meniul pentru restaurantul X', category: 'menu', icon: '📋' },
+        { id: 1, text: 'Ce restaurante bune sunt în centru?', category: 'restaurant', icon: '🍽️' },
+        { id: 2, text: 'Arată-mi evenimente din weekend', category: 'events', icon: '�' },
+        { id: 3, text: 'Vreau pizza bună și ieftină', category: 'food', icon: '🍕' },
+        { id: 4, text: 'Ce concerte sunt în oraș?', category: 'events', icon: '�' },
+        { id: 5, text: 'Restaurant românesc traditional', category: 'restaurant', icon: '�' },
+        { id: 6, text: 'Unde pot să mănânc sushi?', category: 'food', icon: '🍣' },
       ]);
     }
   };
@@ -348,7 +351,7 @@ const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         const company = data.company;
         Alert.alert(
           company.name,
-          `Descriere: ${company.description}\nCategorie: ${company.category}\nAdresă: ${company.address}\nContact: ${company.contact}\nCUI: ${company.cui}\nLatitudine: ${company.latitude}\nLongitudine: ${company.longitude}\n\nEvenimente active: ${company.events?.length || 0}`
+          `Descriere: ${company.description}\nCategorie: ${company.category}\nAdresă: ${company.address}\nContact: ${company.email}\nCUI: ${company.cui}\nLatitudine: ${company.latitude}\nLongitudine: ${company.longitude}`
         );
       }
     } catch (error) {
@@ -524,7 +527,7 @@ const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             message.isUser ? styles.userMessageBubble : styles.aiMessageBubble,
             {
               backgroundColor: message.isUser
-                ? theme.colors.primary
+                ? theme.colors.accent
                 : message.error
                 ? theme.colors.error
                 : theme.colors.surface,
@@ -576,7 +579,7 @@ const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       case 'food_search': return '🍕';
       case 'event_search': return '🎉';
       case 'recommendation': return '⭐';
-      case 'price_inquiry': return '💰';
+      case 'help': return '�';
       case 'location_search': return '📍';
       default: return '💬';
     }
@@ -604,7 +607,7 @@ const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const renderSystemStatus = () => {
     if (!systemHealth && !connectionError) return null;
 
-    const isHealthy = systemHealth?.status === 'healthy' && systemHealth?.ai_system?.backend_connection === 'healthy';
+    const isHealthy = systemHealth?.status === 'healthy';
     const statusColor = isHealthy ? theme.colors.success : connectionError ? theme.colors.error : theme.colors.warning;
 
     return (
@@ -612,7 +615,7 @@ const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         <View style={styles.statusIndicator}>
           <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
           <Text style={[styles.statusText, { color: statusColor }]}>
-            {isHealthy ? 'AI Backend activ' : connectionError ? 'Problemă de conexiune' : 'Status necunoscut'}
+            {isHealthy ? 'Smart AI activ' : connectionError ? 'Problemă de conexiune' : 'Status necunoscut'}
           </Text>
         </View>
         {systemHealth?.ai_system?.data_cache && (
@@ -634,19 +637,12 @@ const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         style={styles.header}
       >
         <View style={styles.headerContent}>
-          <TouchableOpacity
-            style={styles.backButton}
-            onPress={() => navigation.goBack()}
-          >
-            <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
-          </TouchableOpacity>
-          
           <View style={styles.headerInfo}>
             <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-              AI Assistant (Backend)
+              Smart AI Assistant
             </Text>
             <Text style={[styles.headerSubtitle, { color: theme.colors.textSecondary }]}>
-              {isTyping ? 'Se gândește...' : connectionError ? 'Offline' : 'Online'}
+              {isTyping ? 'Se gândește...' : connectionError ? 'Offline' : 'Online și inteligent'}
             </Text>
           </View>
           
@@ -672,15 +668,16 @@ const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         {renderSystemStatus()}
       </LinearGradient>
 
-      {/* Chat Messages */}
+      {/* Chat Container with proper tab spacing */}
       <KeyboardAvoidingView
         style={styles.chatContainer}
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
+        keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
       >
         <ScrollView
           ref={scrollViewRef}
           style={styles.messagesContainer}
-          contentContainerStyle={styles.messagesContent}
+          contentContainerStyle={[styles.messagesContent, { paddingBottom: TAB_BAR_HEIGHT + 20 }]}
           showsVerticalScrollIndicator={false}
         >
           {messages.map(renderMessage)}
@@ -707,13 +704,13 @@ const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           </Animated.View>
         )}
 
-        {/* Input Area */}
-        <View style={[styles.inputContainer, { backgroundColor: theme.colors.surface }]}>
+        {/* Input Area with tab spacing */}
+        <View style={[styles.inputContainer, { backgroundColor: theme.colors.surface, marginBottom: TAB_BAR_HEIGHT }]}>
           <View style={[styles.inputWrapper, { backgroundColor: theme.colors.surface }]}>
             <TextInput
               ref={inputRef}
               style={[styles.textInput, { color: theme.colors.text }]}
-              placeholder="Scrie un mesaj..."
+              placeholder="Întreabă-mă orice despre restaurante și evenimente..."
               placeholderTextColor={theme.colors.textSecondary}
               value={inputText}
               onChangeText={setInputText}
@@ -762,11 +759,6 @@ const styles = StyleSheet.create({
     alignItems: 'center',
     paddingHorizontal: 16,
     paddingTop: 8,
-  },
-  backButton: {
-    padding: 8,
-    borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
   },
   headerInfo: {
     flex: 1,
