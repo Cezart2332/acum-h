@@ -75,8 +75,10 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
   const [loading, setLoading] = useState(false);
   const [emailError, setEmailError] = useState("");
   const [passwordError, setPasswordError] = useState("");
-  const [emailFocused, setEmailFocused] = useState(false);
-  const [passwordFocused, setPasswordFocused] = useState(false);
+  
+  // Focus management - only one input can be focused at a time
+  type FocusedInput = 'email' | 'password' | null;
+  const [focusedInput, setFocusedInput] = useState<FocusedInput>(null);
 
   // Animation refs
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -86,6 +88,32 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
   // Input refs for proper focus management
   const emailInputRef = useRef<TextInput>(null);
   const passwordInputRef = useRef<TextInput>(null);
+
+  // Stable focus handlers to prevent re-renders
+  const handleFocus = React.useCallback((inputName: FocusedInput) => {
+    // Blur other inputs when one gains focus
+    if (focusedInput && focusedInput !== inputName) {
+      if (focusedInput === 'email' && emailInputRef.current) {
+        emailInputRef.current.blur();
+      } else if (focusedInput === 'password' && passwordInputRef.current) {
+        passwordInputRef.current.blur();
+      }
+    }
+    setFocusedInput(inputName);
+  }, [focusedInput]);
+
+  const handleBlur = React.useCallback((inputName: FocusedInput) => {
+    // Only clear focus state if this input was actually focused
+    if (focusedInput === inputName) {
+      setFocusedInput(null);
+    }
+  }, [focusedInput]);
+
+  // Individual input handlers
+  const handleEmailFocus = React.useCallback(() => handleFocus('email'), [handleFocus]);
+  const handleEmailBlur = React.useCallback(() => handleBlur('email'), [handleBlur]);
+  const handlePasswordFocus = React.useCallback(() => handleFocus('password'), [handleFocus]);
+  const handlePasswordBlur = React.useCallback(() => handleBlur('password'), [handleBlur]);
 
   React.useEffect(() => {
     // Start entrance animations
@@ -288,7 +316,7 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
                 <View
                   style={[
                     styles.inputWrapper,
-                    emailFocused && styles.inputWrapperFocused,
+                    focusedInput === 'email' && styles.inputWrapperFocused,
                     emailError && styles.inputWrapperError,
                   ]}
                 >
@@ -296,7 +324,7 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
                     name="mail-outline"
                     size={20}
                     color={
-                      emailFocused
+                      focusedInput === 'email'
                         ? "#6C3AFF"
                         : emailError
                         ? "#E91E63"
@@ -321,9 +349,9 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
                     textContentType="emailAddress"
                     returnKeyType="next"
                     blurOnSubmit={false}
-                    onFocus={() => setEmailFocused(true)}
+                    onFocus={handleEmailFocus}
                     onBlur={() => {
-                      setEmailFocused(false);
+                      handleEmailBlur();
                       validateEmail(email);
                     }}
                     onSubmitEditing={() => {
@@ -342,7 +370,7 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
                 <View
                   style={[
                     styles.inputWrapper,
-                    passwordFocused && styles.inputWrapperFocused,
+                    focusedInput === 'password' && styles.inputWrapperFocused,
                     passwordError && styles.inputWrapperError,
                   ]}
                 >
@@ -350,7 +378,7 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
                     name="lock-closed-outline"
                     size={20}
                     color={
-                      passwordFocused
+                      focusedInput === 'password'
                         ? "#6C3AFF"
                         : passwordError
                         ? "#E91E63"
@@ -372,9 +400,9 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
                     autoComplete="password"
                     textContentType="password"
                     returnKeyType="done"
-                    onFocus={() => setPasswordFocused(true)}
+                    onFocus={handlePasswordFocus}
                     onBlur={() => {
-                      setPasswordFocused(false);
+                      handlePasswordBlur();
                       validatePassword(password);
                     }}
                     onSubmitEditing={onLogin}
@@ -386,7 +414,7 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
                     <Ionicons
                       name={secure ? "eye-off-outline" : "eye-outline"}
                       size={20}
-                      color={passwordFocused ? "#6C3AFF" : "#A78BFA"}
+                      color={focusedInput === 'password' ? "#6C3AFF" : "#A78BFA"}
                     />
                   </TouchableOpacity>
                 </View>

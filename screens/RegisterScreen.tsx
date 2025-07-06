@@ -53,18 +53,60 @@ export default function RegisterScreen({ navigation }: Props) {
   const [passwordError, setPasswordError] = useState("");
   const [confirmPasswordError, setConfirmPasswordError] = useState("");
 
-  // Focus states
-  const [usernameFocused, setUsernameFocused] = useState(false);
-  const [firstNameFocused, setFirstNameFocused] = useState(false);
-  const [lastNameFocused, setLastNameFocused] = useState(false);
-  const [emailFocused, setEmailFocused] = useState(false);
-  const [passwordFocused, setPasswordFocused] = useState(false);
-  const [confirmPasswordFocused, setConfirmPasswordFocused] = useState(false);
+  // Focus management - only one input can be focused at a time
+  type FocusedInput = 'username' | 'firstName' | 'lastName' | 'email' | 'password' | 'confirmPassword' | null;
+  const [focusedInput, setFocusedInput] = useState<FocusedInput>(null);
+
+  // Input refs for proper focus management
+  const usernameRef = useRef<TextInput>(null);
+  const firstNameRef = useRef<TextInput>(null);
+  const lastNameRef = useRef<TextInput>(null);
+  const emailRef = useRef<TextInput>(null);
+  const passwordRef = useRef<TextInput>(null);
+  const confirmPasswordRef = useRef<TextInput>(null);
 
   // Animation refs
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
   const scaleAnim = useRef(new Animated.Value(0.9)).current;
+
+  // Stable focus handlers to prevent re-renders
+  const handleFocus = React.useCallback((inputName: FocusedInput) => {
+    // Blur other inputs when one gains focus
+    if (focusedInput && focusedInput !== inputName) {
+      const refs = {
+        username: usernameRef,
+        firstName: firstNameRef,
+        lastName: lastNameRef,
+        email: emailRef,
+        password: passwordRef,
+        confirmPassword: confirmPasswordRef,
+      };
+      refs[focusedInput]?.current?.blur();
+    }
+    setFocusedInput(inputName);
+  }, [focusedInput]);
+
+  const handleBlur = React.useCallback((inputName: FocusedInput) => {
+    // Only clear focus state if this input was actually focused
+    if (focusedInput === inputName) {
+      setFocusedInput(null);
+    }
+  }, [focusedInput]);
+
+  // Individual input handlers
+  const handleUsernameFocus = React.useCallback(() => handleFocus('username'), [handleFocus]);
+  const handleUsernameBlur = React.useCallback(() => handleBlur('username'), [handleBlur]);
+  const handleFirstNameFocus = React.useCallback(() => handleFocus('firstName'), [handleFocus]);
+  const handleFirstNameBlur = React.useCallback(() => handleBlur('firstName'), [handleBlur]);
+  const handleLastNameFocus = React.useCallback(() => handleFocus('lastName'), [handleFocus]);
+  const handleLastNameBlur = React.useCallback(() => handleBlur('lastName'), [handleBlur]);
+  const handleEmailFocus = React.useCallback(() => handleFocus('email'), [handleFocus]);
+  const handleEmailBlur = React.useCallback(() => handleBlur('email'), [handleBlur]);
+  const handlePasswordFocus = React.useCallback(() => handleFocus('password'), [handleFocus]);
+  const handlePasswordBlur = React.useCallback(() => handleBlur('password'), [handleBlur]);
+  const handleConfirmPasswordFocus = React.useCallback(() => handleFocus('confirmPassword'), [handleFocus]);
+  const handleConfirmPasswordBlur = React.useCallback(() => handleBlur('confirmPassword'), [handleBlur]);
 
   const defaultImage = require("../assets/default.jpg");
 
@@ -288,7 +330,10 @@ export default function RegisterScreen({ navigation }: Props) {
     onBlur,
     showEye = false,
     eyePressed,
-    secureState
+    secureState,
+    inputRef,
+    returnKeyType = "next",
+    onSubmitEditing
   }: any) => (
     <View style={styles.inputContainer}>
       <Text style={styles.inputLabel}>{label}</Text>
@@ -304,6 +349,7 @@ export default function RegisterScreen({ navigation }: Props) {
           style={styles.inputIcon}
         />
         <TextInput
+          ref={inputRef}
           value={value}
           onChangeText={onChangeText}
           placeholder={placeholder}
@@ -313,8 +359,11 @@ export default function RegisterScreen({ navigation }: Props) {
           keyboardType={keyboardType}
           autoCapitalize={autoCapitalize}
           autoCorrect={false}
+          returnKeyType={returnKeyType}
+          blurOnSubmit={false}
           onFocus={onFocus}
           onBlur={onBlur}
+          onSubmitEditing={onSubmitEditing}
         />
         {showEye && (
           <TouchableOpacity
@@ -414,12 +463,14 @@ export default function RegisterScreen({ navigation }: Props) {
                     icon="person-outline"
                     autoCapitalize="none"
                     error={usernameError}
-                    focused={usernameFocused}
-                    onFocus={() => setUsernameFocused(true)}
+                    focused={focusedInput === 'username'}
+                    inputRef={usernameRef}
+                    onFocus={handleUsernameFocus}
                     onBlur={() => {
-                      setUsernameFocused(false);
+                      handleUsernameBlur();
                       validateUsername(username);
                     }}
+                    onSubmitEditing={() => firstNameRef.current?.focus()}
                   />
 
                   <View style={styles.nameRow}>
@@ -434,12 +485,14 @@ export default function RegisterScreen({ navigation }: Props) {
                         placeholder="Prenumele tău"
                         icon="person-outline"
                         error={firstNameError}
-                        focused={firstNameFocused}
-                        onFocus={() => setFirstNameFocused(true)}
+                        focused={focusedInput === 'firstName'}
+                        inputRef={firstNameRef}
+                        onFocus={handleFirstNameFocus}
                         onBlur={() => {
-                          setFirstNameFocused(false);
+                          handleFirstNameBlur();
                           validateFirstName(firstName);
                         }}
+                        onSubmitEditing={() => lastNameRef.current?.focus()}
                       />
                     </View>
                     <View style={styles.nameField}>
@@ -453,12 +506,14 @@ export default function RegisterScreen({ navigation }: Props) {
                         placeholder="Numele tău"
                         icon="person-outline"
                         error={lastNameError}
-                        focused={lastNameFocused}
-                        onFocus={() => setLastNameFocused(true)}
+                        focused={focusedInput === 'lastName'}
+                        inputRef={lastNameRef}
+                        onFocus={handleLastNameFocus}
                         onBlur={() => {
-                          setLastNameFocused(false);
+                          handleLastNameBlur();
                           validateLastName(lastName);
                         }}
+                        onSubmitEditing={() => emailRef.current?.focus()}
                       />
                     </View>
                   </View>
@@ -475,12 +530,14 @@ export default function RegisterScreen({ navigation }: Props) {
                     keyboardType="email-address"
                     autoCapitalize="none"
                     error={emailError}
-                    focused={emailFocused}
-                    onFocus={() => setEmailFocused(true)}
+                    focused={focusedInput === 'email'}
+                    inputRef={emailRef}
+                    onFocus={handleEmailFocus}
                     onBlur={() => {
-                      setEmailFocused(false);
+                      handleEmailBlur();
                       validateEmail(email);
                     }}
+                    onSubmitEditing={() => passwordRef.current?.focus()}
                   />
 
                   <InputField
@@ -496,12 +553,14 @@ export default function RegisterScreen({ navigation }: Props) {
                     secureTextEntry={secure}
                     autoCapitalize="none"
                     error={passwordError}
-                    focused={passwordFocused}
-                    onFocus={() => setPasswordFocused(true)}
+                    focused={focusedInput === 'password'}
+                    inputRef={passwordRef}
+                    onFocus={handlePasswordFocus}
                     onBlur={() => {
-                      setPasswordFocused(false);
+                      handlePasswordBlur();
                       validatePassword(password);
                     }}
+                    onSubmitEditing={() => confirmPasswordRef.current?.focus()}
                     showEye={true}
                     eyePressed={() => setSecure(!secure)}
                     secureState={secure}
@@ -519,12 +578,15 @@ export default function RegisterScreen({ navigation }: Props) {
                     secureTextEntry={secureConfirm}
                     autoCapitalize="none"
                     error={confirmPasswordError}
-                    focused={confirmPasswordFocused}
-                    onFocus={() => setConfirmPasswordFocused(true)}
+                    focused={focusedInput === 'confirmPassword'}
+                    inputRef={confirmPasswordRef}
+                    returnKeyType="done"
+                    onFocus={handleConfirmPasswordFocus}
                     onBlur={() => {
-                      setConfirmPasswordFocused(false);
+                      handleConfirmPasswordBlur();
                       validateConfirmPassword(confirmPassword);
                     }}
+                    onSubmitEditing={onRegister}
                     showEye={true}
                     eyePressed={() => setSecureConfirm(!secureConfirm)}
                     secureState={secureConfirm}
