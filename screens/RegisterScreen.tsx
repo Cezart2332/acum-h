@@ -41,55 +41,55 @@ type Props = {
 };
 
 // Enhanced AnimatedButton with press animation
-const AnimatedButton = React.memo(
-  ({ onPress, children, loading }: any) => {
-    const scaleValue = useRef(new Animated.Value(1)).current;
+const AnimatedButton = React.memo(({ onPress, children, loading }: any) => {
+  const scaleValue = useRef(new Animated.Value(1)).current;
 
-    const handlePressIn = () => {
-      Animated.spring(scaleValue, {
-        toValue: 0.98,
-        useNativeDriver: true,
-      }).start();
-    };
+  const handlePressIn = () => {
+    Animated.spring(scaleValue, {
+      toValue: 0.98,
+      useNativeDriver: true,
+    }).start();
+  };
 
-    const handlePressOut = () => {
-      Animated.spring(scaleValue, {
-        toValue: 1,
-        useNativeDriver: true,
-      }).start();
-    };
+  const handlePressOut = () => {
+    Animated.spring(scaleValue, {
+      toValue: 1,
+      useNativeDriver: true,
+    }).start();
+  };
 
-    return (
-      <TouchableOpacity
-        onPress={onPress}
-        onPressIn={handlePressIn}
-        onPressOut={handlePressOut}
-        disabled={loading}
-        activeOpacity={0.9}
-        style={styles.buttonContainer}
-        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
-      >
-        <Animated.View style={{ transform: [{ scale: scaleValue }] }}>
-          <LinearGradient
-            colors={loading ? ['#4A4A4A', '#6A6A6A'] : ['#6C3AFF', '#9B59B6', '#E91E63']}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 1 }}
-            style={styles.buttonGradient}
-          >
-            {loading ? (
-              <View style={styles.loadingContainer}>
-                <View style={styles.loadingDot} />
-                <Text style={styles.buttonText}>Se încarcă...</Text>
-              </View>
-            ) : (
-              children
-            )}
-          </LinearGradient>
-        </Animated.View>
-      </TouchableOpacity>
-    );
-  }
-);
+  return (
+    <TouchableOpacity
+      onPress={onPress}
+      onPressIn={handlePressIn}
+      onPressOut={handlePressOut}
+      disabled={loading}
+      activeOpacity={0.9}
+      style={styles.buttonContainer}
+      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
+    >
+      <Animated.View style={{ transform: [{ scale: scaleValue }] }}>
+        <LinearGradient
+          colors={
+            loading ? ["#4A4A4A", "#6A6A6A"] : ["#6C3AFF", "#9B59B6", "#E91E63"]
+          }
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.buttonGradient}
+        >
+          {loading ? (
+            <View style={styles.loadingContainer}>
+              <View style={styles.loadingDot} />
+              <Text style={styles.buttonText}>Se încarcă...</Text>
+            </View>
+          ) : (
+            children
+          )}
+        </LinearGradient>
+      </Animated.View>
+    </TouchableOpacity>
+  );
+});
 
 export default function RegisterScreen({ navigation }: Props) {
   const [username, setUsername] = useState("");
@@ -113,7 +113,14 @@ export default function RegisterScreen({ navigation }: Props) {
   const [confirmPasswordError, setConfirmPasswordError] = useState("");
 
   // Simplified focus management - like LoginScreen
-  type FocusedInput = 'username' | 'firstName' | 'lastName' | 'email' | 'password' | 'confirmPassword' | null;
+  type FocusedInput =
+    | "username"
+    | "firstName"
+    | "lastName"
+    | "email"
+    | "password"
+    | "confirmPassword"
+    | null;
   const [focusedInput, setFocusedInput] = useState<FocusedInput>(null);
 
   // Input refs for proper focus management
@@ -135,28 +142,61 @@ export default function RegisterScreen({ navigation }: Props) {
   }, []);
 
   const handleBlur = useCallback((inputName: FocusedInput) => {
-    setFocusedInput(current => current === inputName ? null : current);
+    setFocusedInput((current) => (current === inputName ? null : current));
   }, []);
 
   // Individual input handlers
-  const handleUsernameFocus = useCallback(() => handleFocus('username'), [handleFocus]);
-  const handleUsernameBlur = useCallback(() => handleBlur('username'), [handleBlur]);
-  const handleFirstNameFocus = useCallback(() => handleFocus('firstName'), [handleFocus]);
-  const handleFirstNameBlur = useCallback(() => handleBlur('firstName'), [handleBlur]);
-  const handleLastNameFocus = useCallback(() => handleFocus('lastName'), [handleFocus]);
-  const handleLastNameBlur = useCallback(() => handleBlur('lastName'), [handleBlur]);
-  const handleEmailFocus = useCallback(() => handleFocus('email'), [handleFocus]);
-  const handleEmailBlur = useCallback(() => handleBlur('email'), [handleBlur]);
-  const handlePasswordFocus = useCallback(() => handleFocus('password'), [handleFocus]);
-  const handlePasswordBlur = useCallback(() => handleBlur('password'), [handleBlur]);
-  const handleConfirmPasswordFocus = useCallback(() => handleFocus('confirmPassword'), [handleFocus]);
-  const handleConfirmPasswordBlur = useCallback(() => handleBlur('confirmPassword'), [handleBlur]);
+  const handleUsernameFocus = useCallback(
+    () => handleFocus("username"),
+    [handleFocus]
+  );
+  const handleUsernameBlur = useCallback(
+    () => handleBlur("username"),
+    [handleBlur]
+  );
+  const handleFirstNameFocus = useCallback(
+    () => handleFocus("firstName"),
+    [handleFocus]
+  );
+  const handleFirstNameBlur = useCallback(
+    () => handleBlur("firstName"),
+    [handleBlur]
+  );
+  const handleLastNameFocus = useCallback(
+    () => handleFocus("lastName"),
+    [handleFocus]
+  );
+  const handleLastNameBlur = useCallback(
+    () => handleBlur("lastName"),
+    [handleBlur]
+  );
+  const handleEmailFocus = useCallback(
+    () => handleFocus("email"),
+    [handleFocus]
+  );
+  const handleEmailBlur = useCallback(() => handleBlur("email"), [handleBlur]);
+  const handlePasswordFocus = useCallback(
+    () => handleFocus("password"),
+    [handleFocus]
+  );
+  const handlePasswordBlur = useCallback(
+    () => handleBlur("password"),
+    [handleBlur]
+  );
+  const handleConfirmPasswordFocus = useCallback(
+    () => handleFocus("confirmPassword"),
+    [handleFocus]
+  );
+  const handleConfirmPasswordBlur = useCallback(
+    () => handleBlur("confirmPassword"),
+    [handleBlur]
+  );
 
   const defaultImage = require("../assets/default.jpg");
 
   React.useEffect(() => {
     setIsMounted(true);
-    
+
     // Start entrance animations
     Animated.parallel([
       Animated.timing(fadeAnim, {
@@ -190,7 +230,9 @@ export default function RegisterScreen({ navigation }: Props) {
       return false;
     }
     if (username.length < 3) {
-      setUsernameError("Numele de utilizator trebuie să aibă cel puțin 3 caractere");
+      setUsernameError(
+        "Numele de utilizator trebuie să aibă cel puțin 3 caractere"
+      );
       return false;
     }
     setUsernameError("");
@@ -258,7 +300,7 @@ export default function RegisterScreen({ navigation }: Props) {
   const onRegister = async () => {
     // CRITICAL: Don't proceed if component unmounted
     if (!isMounted) return;
-    
+
     // Validate all inputs
     const isUsernameValid = validateUsername(username);
     const isFirstNameValid = validateFirstName(firstName);
@@ -267,13 +309,27 @@ export default function RegisterScreen({ navigation }: Props) {
     const isPasswordValid = validatePassword(password);
     const isConfirmPasswordValid = validateConfirmPassword(confirmPassword);
 
-    if (!isUsernameValid || !isFirstNameValid || !isLastNameValid || 
-        !isEmailValid || !isPasswordValid || !isConfirmPasswordValid) {
+    if (
+      !isUsernameValid ||
+      !isFirstNameValid ||
+      !isLastNameValid ||
+      !isEmailValid ||
+      !isPasswordValid ||
+      !isConfirmPasswordValid
+    ) {
       // Shake animation for errors
       if (isMounted) {
         Animated.sequence([
-          Animated.timing(scaleAnim, { toValue: 1.05, duration: 100, useNativeDriver: true }),
-          Animated.timing(scaleAnim, { toValue: 1, duration: 100, useNativeDriver: true }),
+          Animated.timing(scaleAnim, {
+            toValue: 1.05,
+            duration: 100,
+            useNativeDriver: true,
+          }),
+          Animated.timing(scaleAnim, {
+            toValue: 1,
+            duration: 100,
+            useNativeDriver: true,
+          }),
         ]).start();
       }
       return;
@@ -302,7 +358,7 @@ export default function RegisterScreen({ navigation }: Props) {
       };
 
       const response = await fetch(`${BASE_URL}/users`, registerRequest);
-      
+
       if (!response.ok) {
         throw new Error(`Server error: ${response.status}`);
       }
@@ -323,10 +379,9 @@ export default function RegisterScreen({ navigation }: Props) {
           }
         });
       }
-
     } catch (error) {
       if (!isMounted) return; // Don't show alerts on unmounted component
-      
+
       console.error("Register error:", error);
       Alert.alert(
         "Eroare la înregistrare",
@@ -349,10 +404,10 @@ export default function RegisterScreen({ navigation }: Props) {
         keyboardVerticalOffset={Platform.OS === "ios" ? 50 : 0}
       >
         <StatusBar barStyle="light-content" backgroundColor="#0F0817" />
-        
+
         {/* Background Gradient */}
         <LinearGradient
-          colors={['#0F0817', '#1A0B2E', '#2D1B69']}
+          colors={["#0F0817", "#1A0B2E", "#2D1B69"]}
           style={styles.backgroundGradient}
         >
           {/* Floating Elements */}
@@ -382,7 +437,7 @@ export default function RegisterScreen({ navigation }: Props) {
           </View>
 
           <SafeAreaView style={styles.safeArea}>
-            <ScrollView 
+            <ScrollView
               contentContainerStyle={styles.scrollContent}
               showsVerticalScrollIndicator={false}
               keyboardShouldPersistTaps="handled"
@@ -403,10 +458,14 @@ export default function RegisterScreen({ navigation }: Props) {
                 {/* Logo/Title Section */}
                 <View style={styles.headerSection}>
                   <LinearGradient
-                    colors={['#6C3AFF', '#9B59B6']}
+                    colors={["#6C3AFF", "#9B59B6"]}
                     style={styles.logoContainer}
                   >
-                    <Ionicons name="person-add" size={getScaledSize(45)} color="#FFFFFF" />
+                    <Ionicons
+                      name="person-add"
+                      size={getScaledSize(45)}
+                      color="#FFFFFF"
+                    />
                   </LinearGradient>
                   <Text style={styles.title}>Înregistrare</Text>
                   <Text style={styles.subtitle}>Creează-ți contul nou!</Text>
@@ -421,7 +480,8 @@ export default function RegisterScreen({ navigation }: Props) {
                       activeOpacity={1}
                       style={[
                         styles.inputWrapper,
-                        focusedInput === 'username' && styles.inputWrapperFocused,
+                        focusedInput === "username" &&
+                          styles.inputWrapperFocused,
                         usernameError && styles.inputWrapperError,
                       ]}
                       onPress={() => usernameRef.current?.focus()}
@@ -433,7 +493,7 @@ export default function RegisterScreen({ navigation }: Props) {
                         name="person-outline"
                         size={getScaledSize(22)}
                         color={
-                          focusedInput === 'username'
+                          focusedInput === "username"
                             ? "#6C3AFF"
                             : usernameError
                             ? "#E91E63"
@@ -476,7 +536,8 @@ export default function RegisterScreen({ navigation }: Props) {
                         activeOpacity={1}
                         style={[
                           styles.inputWrapper,
-                          focusedInput === 'firstName' && styles.inputWrapperFocused,
+                          focusedInput === "firstName" &&
+                            styles.inputWrapperFocused,
                           firstNameError && styles.inputWrapperError,
                         ]}
                         onPress={() => firstNameRef.current?.focus()}
@@ -487,7 +548,7 @@ export default function RegisterScreen({ navigation }: Props) {
                           name="person-outline"
                           size={getScaledSize(22)}
                           color={
-                            focusedInput === 'firstName'
+                            focusedInput === "firstName"
                               ? "#6C3AFF"
                               : firstNameError
                               ? "#E91E63"
@@ -528,7 +589,8 @@ export default function RegisterScreen({ navigation }: Props) {
                         activeOpacity={1}
                         style={[
                           styles.inputWrapper,
-                          focusedInput === 'lastName' && styles.inputWrapperFocused,
+                          focusedInput === "lastName" &&
+                            styles.inputWrapperFocused,
                           lastNameError && styles.inputWrapperError,
                         ]}
                         onPress={() => lastNameRef.current?.focus()}
@@ -539,7 +601,7 @@ export default function RegisterScreen({ navigation }: Props) {
                           name="person-outline"
                           size={getScaledSize(22)}
                           color={
-                            focusedInput === 'lastName'
+                            focusedInput === "lastName"
                               ? "#6C3AFF"
                               : lastNameError
                               ? "#E91E63"
@@ -582,7 +644,7 @@ export default function RegisterScreen({ navigation }: Props) {
                       activeOpacity={1}
                       style={[
                         styles.inputWrapper,
-                        focusedInput === 'email' && styles.inputWrapperFocused,
+                        focusedInput === "email" && styles.inputWrapperFocused,
                         emailError && styles.inputWrapperError,
                       ]}
                       onPress={() => emailRef.current?.focus()}
@@ -593,7 +655,7 @@ export default function RegisterScreen({ navigation }: Props) {
                         name="mail-outline"
                         size={getScaledSize(22)}
                         color={
-                          focusedInput === 'email'
+                          focusedInput === "email"
                             ? "#6C3AFF"
                             : emailError
                             ? "#E91E63"
@@ -636,7 +698,8 @@ export default function RegisterScreen({ navigation }: Props) {
                       activeOpacity={1}
                       style={[
                         styles.inputWrapper,
-                        focusedInput === 'password' && styles.inputWrapperFocused,
+                        focusedInput === "password" &&
+                          styles.inputWrapperFocused,
                         passwordError && styles.inputWrapperError,
                       ]}
                       onPress={() => passwordRef.current?.focus()}
@@ -648,7 +711,7 @@ export default function RegisterScreen({ navigation }: Props) {
                         name="lock-closed-outline"
                         size={getScaledSize(22)}
                         color={
-                          focusedInput === 'password'
+                          focusedInput === "password"
                             ? "#6C3AFF"
                             : passwordError
                             ? "#E91E63"
@@ -662,7 +725,8 @@ export default function RegisterScreen({ navigation }: Props) {
                         onChangeText={(text) => {
                           setPassword(text);
                           if (passwordError) validatePassword(text);
-                          if (confirmPassword && confirmPasswordError) validateConfirmPassword(confirmPassword);
+                          if (confirmPassword && confirmPasswordError)
+                            validateConfirmPassword(confirmPassword);
                         }}
                         placeholder="Introdu parola ta"
                         placeholderTextColor="#6B7280"
@@ -676,7 +740,9 @@ export default function RegisterScreen({ navigation }: Props) {
                         enablesReturnKeyAutomatically={true}
                         onFocus={handlePasswordFocus}
                         onBlur={handlePasswordBlur}
-                        onSubmitEditing={() => confirmPasswordRef.current?.focus()}
+                        onSubmitEditing={() =>
+                          confirmPasswordRef.current?.focus()
+                        }
                       />
                       <TouchableOpacity
                         onPress={() => setSecure(!secure)}
@@ -689,7 +755,9 @@ export default function RegisterScreen({ navigation }: Props) {
                         <Ionicons
                           name={secure ? "eye-off-outline" : "eye-outline"}
                           size={getScaledSize(22)}
-                          color={focusedInput === 'password' ? "#6C3AFF" : "#A78BFA"}
+                          color={
+                            focusedInput === "password" ? "#6C3AFF" : "#A78BFA"
+                          }
                         />
                       </TouchableOpacity>
                     </TouchableOpacity>
@@ -705,7 +773,8 @@ export default function RegisterScreen({ navigation }: Props) {
                       activeOpacity={1}
                       style={[
                         styles.inputWrapper,
-                        focusedInput === 'confirmPassword' && styles.inputWrapperFocused,
+                        focusedInput === "confirmPassword" &&
+                          styles.inputWrapperFocused,
                         confirmPasswordError && styles.inputWrapperError,
                       ]}
                       onPress={() => confirmPasswordRef.current?.focus()}
@@ -716,7 +785,7 @@ export default function RegisterScreen({ navigation }: Props) {
                         name="lock-closed-outline"
                         size={getScaledSize(22)}
                         color={
-                          focusedInput === 'confirmPassword'
+                          focusedInput === "confirmPassword"
                             ? "#6C3AFF"
                             : confirmPasswordError
                             ? "#E91E63"
@@ -729,7 +798,8 @@ export default function RegisterScreen({ navigation }: Props) {
                         value={confirmPassword}
                         onChangeText={(text) => {
                           setConfirmPassword(text);
-                          if (confirmPasswordError) validateConfirmPassword(text);
+                          if (confirmPasswordError)
+                            validateConfirmPassword(text);
                         }}
                         placeholder="Confirmă parola"
                         placeholderTextColor="#6B7280"
@@ -754,21 +824,33 @@ export default function RegisterScreen({ navigation }: Props) {
                         delayPressOut={0}
                       >
                         <Ionicons
-                          name={secureConfirm ? "eye-off-outline" : "eye-outline"}
+                          name={
+                            secureConfirm ? "eye-off-outline" : "eye-outline"
+                          }
                           size={getScaledSize(22)}
-                          color={focusedInput === 'confirmPassword' ? "#6C3AFF" : "#A78BFA"}
+                          color={
+                            focusedInput === "confirmPassword"
+                              ? "#6C3AFF"
+                              : "#A78BFA"
+                          }
                         />
                       </TouchableOpacity>
                     </TouchableOpacity>
                     {confirmPasswordError ? (
-                      <Text style={styles.errorText}>{confirmPasswordError}</Text>
+                      <Text style={styles.errorText}>
+                        {confirmPasswordError}
+                      </Text>
                     ) : null}
                   </View>
 
                   {/* Enhanced Register Button */}
                   <AnimatedButton onPress={onRegister} loading={loading}>
                     <View style={styles.buttonContent}>
-                      <Ionicons name="person-add-outline" size={getScaledSize(22)} color="#FFFFFF" />
+                      <Ionicons
+                        name="person-add-outline"
+                        size={getScaledSize(22)}
+                        color="#FFFFFF"
+                      />
                       <Text style={styles.buttonText}>Înregistrează-te</Text>
                     </View>
                   </AnimatedButton>
@@ -776,17 +858,19 @@ export default function RegisterScreen({ navigation }: Props) {
                   {/* Enhanced Footer */}
                   <View style={styles.footer}>
                     <Text style={styles.footerText}>Ai deja cont?</Text>
-                    <TouchableOpacity 
+                    <TouchableOpacity
                       onPress={() => navigation.navigate("Login")}
                       style={styles.footerButton}
                       activeOpacity={0.8}
                       hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                     >
                       <LinearGradient
-                        colors={['#6C3AFF', '#9B59B6']}
+                        colors={["#6C3AFF", "#9B59B6"]}
                         style={styles.footerButtonGradient}
                       >
-                        <Text style={styles.footerButtonText}>Conectează-te</Text>
+                        <Text style={styles.footerButtonText}>
+                          Conectează-te
+                        </Text>
                       </LinearGradient>
                     </TouchableOpacity>
                   </View>
@@ -809,30 +893,30 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   floatingElements: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
   },
   floatingCircle1: {
-    position: 'absolute',
+    position: "absolute",
     top: "5%",
     right: "15%",
     width: screenWidth * 0.2,
     height: screenWidth * 0.2,
     borderRadius: screenWidth * 0.1,
-    backgroundColor: '#6C3AFF',
+    backgroundColor: "#6C3AFF",
     aspectRatio: 1,
   },
   floatingCircle2: {
-    position: 'absolute',
+    position: "absolute",
     bottom: "15%",
     left: "10%",
     width: screenWidth * 0.12,
     height: screenWidth * 0.12,
     borderRadius: screenWidth * 0.06,
-    backgroundColor: '#9B59B6',
+    backgroundColor: "#9B59B6",
     aspectRatio: 1,
   },
   safeArea: {
@@ -846,23 +930,23 @@ const styles = StyleSheet.create({
   },
   content: {
     flex: 1,
-    justifyContent: 'center',
+    justifyContent: "center",
     width: "90%", // Enhanced width to 90%
     maxWidth: 500, // Maximum width constraint of 500px
-    alignSelf: 'center',
+    alignSelf: "center",
   },
   headerSection: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: "8%", // Increased spacing
   },
   logoContainer: {
     width: screenWidth * 0.22, // Slightly larger
     height: screenWidth * 0.22,
     borderRadius: screenWidth * 0.055,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: "4%",
-    shadowColor: '#6C3AFF',
+    shadowColor: "#6C3AFF",
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.4,
     shadowRadius: 20,
@@ -871,37 +955,37 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: getScaledSize(36), // Larger title (24-28px -> 36px)
-    fontWeight: '800', // Bolder weight (700-800)
-    color: '#FFFFFF',
+    fontWeight: "800", // Bolder weight (700-800)
+    color: "#FFFFFF",
     marginBottom: "2%",
     letterSpacing: 1.2,
-    textAlign: 'center',
-    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textAlign: "center",
+    textShadowColor: "rgba(0, 0, 0, 0.3)",
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
   },
   subtitle: {
     fontSize: getScaledSize(18), // Larger subtitle
-    color: '#A78BFA',
-    fontWeight: '600', // Bolder weight
-    textAlign: 'center',
+    color: "#A78BFA",
+    fontWeight: "600", // Bolder weight
+    textAlign: "center",
   },
   formSection: {
-    backgroundColor: 'rgba(255, 255, 255, 0.08)', // Lighter background for glass morphism
+    backgroundColor: "rgba(255, 255, 255, 0.08)", // Lighter background for glass morphism
     borderRadius: 28, // Larger border radius
     padding: 25, // Increased padding (20-25px)
     borderWidth: 1,
-    borderColor: 'rgba(108, 58, 255, 0.3)',
-    shadowColor: '#000',
+    borderColor: "rgba(108, 58, 255, 0.3)",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 25 },
     shadowOpacity: 0.4,
     shadowRadius: 50,
     elevation: 15,
-    backdropFilter: 'blur(10px)', // Modern glass effect
+    // backdropFilter: 'blur(10px)', // Modern glass effect
   },
   nameRow: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    justifyContent: "space-between",
     marginBottom: 0,
     gap: 15, // Enhanced gap
   },
@@ -913,34 +997,34 @@ const styles = StyleSheet.create({
   },
   inputLabel: {
     fontSize: getScaledSize(16), // Larger label
-    fontWeight: '700', // Bolder weight (700-800)
-    color: '#FFFFFF',
+    fontWeight: "700", // Bolder weight (700-800)
+    color: "#FFFFFF",
     marginBottom: 8,
     marginLeft: 16, // 16px horizontal margin
   },
   inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: 'rgba(255, 255, 255, 0.1)', // Lighter background
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "rgba(255, 255, 255, 0.1)", // Lighter background
     borderRadius: 18, // Larger border radius
     borderWidth: 2,
-    borderColor: 'rgba(255, 255, 255, 0.15)',
+    borderColor: "rgba(255, 255, 255, 0.15)",
     paddingHorizontal: 16, // 16px horizontal margin
     height: 60, // 60px height
     paddingVertical: 10, // 10px vertical padding
   },
   inputWrapperFocused: {
-    borderColor: '#6C3AFF',
-    backgroundColor: 'rgba(108, 58, 255, 0.1)',
-    shadowColor: '#6C3AFF',
+    borderColor: "#6C3AFF",
+    backgroundColor: "rgba(108, 58, 255, 0.1)",
+    shadowColor: "#6C3AFF",
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.4,
     shadowRadius: 12,
     elevation: 6,
   },
   inputWrapperError: {
-    borderColor: '#E91E63',
-    backgroundColor: 'rgba(233, 30, 99, 0.1)',
+    borderColor: "#E91E63",
+    backgroundColor: "rgba(233, 30, 99, 0.1)",
   },
   inputIcon: {
     marginRight: 12,
@@ -948,95 +1032,82 @@ const styles = StyleSheet.create({
   textInput: {
     flex: 1,
     fontSize: getScaledSize(17), // Larger font
-    color: '#FFFFFF',
-    fontWeight: '500',
+    color: "#FFFFFF",
+    fontWeight: "500",
     paddingVertical: 0,
     includeFontPadding: false,
   },
   eyeButton: {
-<<<<<<< HEAD
-    // CRITICAL: Enhanced touch target for password visibility button
-    minWidth: 48, // Ensure minimum 48px width
-    minHeight: 48, // Ensure minimum 48px height
-    padding: 12, // 12px padding gives us 24px + 12px + 12px = 48px total
-    borderRadius: 12, // Rounded touch area
-    marginLeft: 4, // Reduced margin to prevent overflow
-    justifyContent: 'center', // Center the icon vertically
-    alignItems: 'center', // Center the icon horizontally
-    // CRITICAL: Visual debugging (remove in production)
-    // backgroundColor: 'rgba(255, 0, 0, 0.1)', // Uncomment to see touch area
-=======
     minWidth: 48,
     minHeight: 48,
     padding: 12,
     borderRadius: 12,
     marginLeft: 4,
-    justifyContent: 'center',
-    alignItems: 'center',
->>>>>>> a814cc5 (Fix critical performance and UX issues in SearchScreen and RegisterScreen)
+    justifyContent: "center",
+    alignItems: "center",
   },
   errorText: {
-    color: '#E91E63',
+    color: "#E91E63",
     fontSize: getScaledSize(13), // Larger error text
     marginTop: 8,
     marginLeft: 16,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   buttonContainer: {
     marginTop: 20, // 20px spacing
     marginBottom: 25,
     borderRadius: 18,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   buttonGradient: {
     height: 60, // 60px button height
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     borderRadius: 18,
-    shadowColor: '#6C3AFF',
+    shadowColor: "#6C3AFF",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
     shadowRadius: 15,
     elevation: 8,
   },
   buttonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
   },
   buttonText: {
     fontSize: getScaledSize(18), // 18px font size
-    fontWeight: '700',
-    color: '#FFFFFF',
+    fontWeight: "700",
+    color: "#FFFFFF",
     marginLeft: 10,
     letterSpacing: 0.8,
   },
   loadingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
   },
   loadingDot: {
     width: 10,
     height: 10,
     borderRadius: 5,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     marginRight: 10,
   },
   footer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginTop: 20, // Additional spacing
   },
   footerText: {
     fontSize: getScaledSize(16), // Larger footer text
-    color: '#A78BFA',
+    color: "#A78BFA",
     marginBottom: 15,
-    textAlign: 'center',
-    fontWeight: '500',
+    textAlign: "center",
+    fontWeight: "500",
   },
   footerButton: {
     borderRadius: 15,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   footerButtonGradient: {
     paddingHorizontal: 25,
@@ -1045,8 +1116,8 @@ const styles = StyleSheet.create({
   },
   footerButtonText: {
     fontSize: getScaledSize(16), // Larger button text
-    fontWeight: '700', // Bolder weight (700-800)
-    color: '#FFFFFF',
-    textAlign: 'center',
+    fontWeight: "700", // Bolder weight (700-800)
+    color: "#FFFFFF",
+    textAlign: "center",
   },
 });
