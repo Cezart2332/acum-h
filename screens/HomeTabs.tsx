@@ -21,6 +21,7 @@ import HomeScreen from "./HomeScreen";
 import SearchScreen from "./SearchScreen";
 import SettingsScreen from "./SettingsScreen";
 import MapsScreen from "./MapsScreen";
+import AIChatScreen from "./AIChatScreen";
 
 const Tab = createBottomTabNavigator();
 const { width } = Dimensions.get("window");
@@ -28,6 +29,7 @@ const { width } = Dimensions.get("window");
 const iconMap: Record<string, string> = {
   Main: "home-outline",
   Search: "search-outline",
+  AIChat: "chatbubble-ellipses-outline",
   Settings: "settings-outline",
   Map: "map-outline",
 };
@@ -97,6 +99,7 @@ export default function HomeTabs() {
       >
         <Tab.Screen name="Main" component={HomeScreen} />
         <Tab.Screen name="Search" component={SearchScreen} />
+        <Tab.Screen name="AIChat" component={AIChatScreen} />
         <Tab.Screen name="Settings" component={SettingsScreen} />
         <Tab.Screen name="Map" component={MapsScreen} />
       </Tab.Navigator>
