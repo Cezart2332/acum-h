@@ -20,9 +20,53 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "./RootStackParamList";
 import BASE_URL from "../config";
 
-const { width, height } = Dimensions.get('window');
+const { width, height } = Dimensions.get("window");
 
 type LoginNav = NativeStackNavigationProp<RootStackParamList, "Login">;
+
+// Moved AnimatedButton outside the component and memoized it
+const AnimatedButton = React.memo(
+  ({ onPress, children, loading, fadeAnim }: any) => (
+    <TouchableOpacity
+      onPress={onPress}
+      disabled={loading}
+      activeOpacity={0.8}
+      style={styles.buttonContainer}
+    >
+      <LinearGradient
+        colors={
+          loading ? ["#4A4A4A", "#6A6A6A"] : ["#6C3AFF", "#9B59B6", "#E91E63"]
+        }
+        start={{ x: 0, y: 0 }}
+        end={{ x: 1, y: 1 }}
+        style={styles.buttonGradient}
+      >
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <Animated.View
+              style={[
+                styles.loadingDot,
+                {
+                  transform: [
+                    {
+                      scale: fadeAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.8, 1.2],
+                      }),
+                    },
+                  ],
+                },
+              ]}
+            />
+            <Text style={styles.buttonText}>Se încarcă...</Text>
+          </View>
+        ) : (
+          children
+        )}
+      </LinearGradient>
+    </TouchableOpacity>
+  )
+);
 
 export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
   const [email, setEmail] = useState("");
@@ -100,8 +144,16 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
     if (!isEmailValid || !isPasswordValid) {
       // Shake animation for errors
       Animated.sequence([
-        Animated.timing(scaleAnim, { toValue: 1.05, duration: 100, useNativeDriver: true }),
-        Animated.timing(scaleAnim, { toValue: 1, duration: 100, useNativeDriver: true }),
+        Animated.timing(scaleAnim, {
+          toValue: 1.05,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 1,
+          duration: 100,
+          useNativeDriver: true,
+        }),
       ]).start();
       return;
     }
@@ -116,15 +168,15 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
 
       const loginRequest = {
         method: "POST",
-        headers: { 
+        headers: {
           "Content-Type": "application/json",
-          "Accept": "application/json",
+          Accept: "application/json",
         },
         body: JSON.stringify(loginData),
       };
 
       const response = await fetch(`${BASE_URL}/login`, loginRequest);
-      
+
       if (response.status === 401) {
         Alert.alert(
           "Eroare de autentificare",
@@ -151,7 +203,6 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
       }).start(() => {
         navigation.replace("Home");
       });
-
     } catch (error) {
       console.error("Login error:", error);
       Alert.alert(
@@ -164,56 +215,21 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
     }
   };
 
-  const AnimatedButton = ({ onPress, children, loading }: any) => (
-    <TouchableOpacity
-      onPress={onPress}
-      disabled={loading}
-      activeOpacity={0.8}
-      style={styles.buttonContainer}
-    >
-      <LinearGradient
-        colors={loading ? ['#4A4A4A', '#6A6A6A'] : ['#6C3AFF', '#9B59B6', '#E91E63']}
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.buttonGradient}
-      >
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <Animated.View
-              style={[
-                styles.loadingDot,
-                {
-                  transform: [
-                    {
-                      scale: fadeAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0.8, 1.2],
-                      }),
-                    },
-                  ],
-                },
-              ]}
-            />
-            <Text style={styles.buttonText}>Se încarcă...</Text>
-          </View>
-        ) : (
-          children
-        )}
-      </LinearGradient>
-    </TouchableOpacity>
-  );
+  // Calculate keyboard offset for iOS
+  const keyboardVerticalOffset =
+    Platform.OS === "ios" ? (StatusBar.currentHeight || 0) + 10 : 0;
 
   return (
-    <KeyboardAvoidingView 
+    <KeyboardAvoidingView
       style={styles.container}
-      behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-      keyboardVerticalOffset={Platform.OS === 'ios' ? 0 : 20}
+      behavior={Platform.OS === "ios" ? "padding" : "height"}
+      keyboardVerticalOffset={keyboardVerticalOffset}
     >
       <StatusBar barStyle="light-content" backgroundColor="#0F0817" />
-      
+
       {/* Background Gradient */}
       <LinearGradient
-        colors={['#0F0817', '#1A0B2E', '#2D1B69']}
+        colors={["#0F0817", "#1A0B2E", "#2D1B69"]}
         style={styles.backgroundGradient}
       >
         {/* Floating Elements */}
@@ -248,17 +264,14 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
               styles.content,
               {
                 opacity: fadeAnim,
-                transform: [
-                  { translateY: slideAnim },
-                  { scale: scaleAnim },
-                ],
+                transform: [{ translateY: slideAnim }, { scale: scaleAnim }],
               },
             ]}
           >
             {/* Logo/Title Section */}
             <View style={styles.headerSection}>
               <LinearGradient
-                colors={['#6C3AFF', '#9B59B6']}
+                colors={["#6C3AFF", "#9B59B6"]}
                 style={styles.logoContainer}
               >
                 <Ionicons name="restaurant" size={40} color="#FFFFFF" />
@@ -272,15 +285,23 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
               {/* Email Input */}
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Email</Text>
-                <View style={[
-                  styles.inputWrapper,
-                  emailFocused && styles.inputWrapperFocused,
-                  emailError && styles.inputWrapperError
-                ]}>
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    emailFocused && styles.inputWrapperFocused,
+                    emailError && styles.inputWrapperError,
+                  ]}
+                >
                   <Ionicons
                     name="mail-outline"
                     size={20}
-                    color={emailFocused ? "#6C3AFF" : emailError ? "#E91E63" : "#A78BFA"}
+                    color={
+                      emailFocused
+                        ? "#6C3AFF"
+                        : emailError
+                        ? "#E91E63"
+                        : "#A78BFA"
+                    }
                     style={styles.inputIcon}
                   />
                   <TextInput
@@ -318,15 +339,23 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
               {/* Password Input */}
               <View style={styles.inputContainer}>
                 <Text style={styles.inputLabel}>Parolă</Text>
-                <View style={[
-                  styles.inputWrapper,
-                  passwordFocused && styles.inputWrapperFocused,
-                  passwordError && styles.inputWrapperError
-                ]}>
+                <View
+                  style={[
+                    styles.inputWrapper,
+                    passwordFocused && styles.inputWrapperFocused,
+                    passwordError && styles.inputWrapperError,
+                  ]}
+                >
                   <Ionicons
                     name="lock-closed-outline"
                     size={20}
-                    color={passwordFocused ? "#6C3AFF" : passwordError ? "#E91E63" : "#A78BFA"}
+                    color={
+                      passwordFocused
+                        ? "#6C3AFF"
+                        : passwordError
+                        ? "#E91E63"
+                        : "#A78BFA"
+                    }
                     style={styles.inputIcon}
                   />
                   <TextInput
@@ -367,7 +396,11 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
               </View>
 
               {/* Login Button */}
-              <AnimatedButton onPress={onLogin} loading={loading}>
+              <AnimatedButton
+                onPress={onLogin}
+                loading={loading}
+                fadeAnim={fadeAnim}
+              >
                 <View style={styles.buttonContent}>
                   <Ionicons name="log-in-outline" size={20} color="#FFFFFF" />
                   <Text style={styles.buttonText}>Conectează-te</Text>
@@ -377,15 +410,17 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
               {/* Footer */}
               <View style={styles.footer}>
                 <Text style={styles.footerText}>Nu ai cont încă?</Text>
-                <TouchableOpacity 
+                <TouchableOpacity
                   onPress={() => navigation.navigate("Register")}
                   style={styles.footerButton}
                 >
                   <LinearGradient
-                    colors={['#6C3AFF', '#9B59B6']}
+                    colors={["#6C3AFF", "#9B59B6"]}
                     style={styles.footerButtonGradient}
                   >
-                    <Text style={styles.footerButtonText}>Înregistrează-te</Text>
+                    <Text style={styles.footerButtonText}>
+                      Înregistrează-te
+                    </Text>
                   </LinearGradient>
                 </TouchableOpacity>
               </View>
@@ -405,29 +440,29 @@ const styles = StyleSheet.create({
     flex: 1,
   },
   floatingElements: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
   },
   floatingCircle1: {
-    position: 'absolute',
+    position: "absolute",
     top: height * 0.1,
     right: width * 0.1,
     width: 120,
     height: 120,
     borderRadius: 60,
-    backgroundColor: '#6C3AFF',
+    backgroundColor: "#6C3AFF",
   },
   floatingCircle2: {
-    position: 'absolute',
+    position: "absolute",
     bottom: height * 0.2,
     left: width * 0.05,
     width: 80,
     height: 80,
     borderRadius: 40,
-    backgroundColor: '#9B59B6',
+    backgroundColor: "#9B59B6",
   },
   safeArea: {
     flex: 1,
@@ -435,20 +470,20 @@ const styles = StyleSheet.create({
   content: {
     flex: 1,
     paddingHorizontal: 24,
-    justifyContent: 'center',
+    justifyContent: "center",
   },
   headerSection: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 40,
   },
   logoContainer: {
     width: 80,
     height: 80,
     borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginBottom: 16,
-    shadowColor: '#6C3AFF',
+    shadowColor: "#6C3AFF",
     shadowOffset: { width: 0, height: 8 },
     shadowOpacity: 0.3,
     shadowRadius: 16,
@@ -456,23 +491,23 @@ const styles = StyleSheet.create({
   },
   title: {
     fontSize: 32,
-    fontWeight: '800',
-    color: '#FFFFFF',
+    fontWeight: "800",
+    color: "#FFFFFF",
     marginBottom: 8,
     letterSpacing: 1,
   },
   subtitle: {
     fontSize: 16,
-    color: '#A78BFA',
-    fontWeight: '500',
+    color: "#A78BFA",
+    fontWeight: "500",
   },
   formSection: {
-    backgroundColor: 'rgba(26, 26, 26, 0.8)',
+    backgroundColor: "rgba(26, 26, 26, 0.8)",
     borderRadius: 24,
     padding: 24,
     borderWidth: 1,
-    borderColor: 'rgba(108, 58, 255, 0.2)',
-    shadowColor: '#000',
+    borderColor: "rgba(108, 58, 255, 0.2)",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 20 },
     shadowOpacity: 0.3,
     shadowRadius: 40,
@@ -483,31 +518,31 @@ const styles = StyleSheet.create({
   },
   inputLabel: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: "600",
+    color: "#FFFFFF",
     marginBottom: 8,
     marginLeft: 4,
   },
   inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    backgroundColor: '#1F1F1F',
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#1F1F1F",
     borderRadius: 16,
     borderWidth: 2,
-    borderColor: '#2A2A2A',
+    borderColor: "#2A2A2A",
     paddingHorizontal: 16,
     height: 56,
   },
   inputWrapperFocused: {
-    borderColor: '#6C3AFF',
-    shadowColor: '#6C3AFF',
+    borderColor: "#6C3AFF",
+    shadowColor: "#6C3AFF",
     shadowOffset: { width: 0, height: 0 },
     shadowOpacity: 0.3,
     shadowRadius: 8,
     elevation: 4,
   },
   inputWrapperError: {
-    borderColor: '#E91E63',
+    borderColor: "#E91E63",
   },
   inputIcon: {
     marginRight: 12,
@@ -515,64 +550,64 @@ const styles = StyleSheet.create({
   textInput: {
     flex: 1,
     fontSize: 16,
-    color: '#FFFFFF',
-    fontWeight: '500',
+    color: "#FFFFFF",
+    fontWeight: "500",
   },
   eyeButton: {
     padding: 4,
   },
   errorText: {
-    color: '#E91E63',
+    color: "#E91E63",
     fontSize: 12,
     marginTop: 4,
     marginLeft: 4,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   buttonContainer: {
     marginTop: 8,
     marginBottom: 24,
     borderRadius: 16,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   buttonGradient: {
     height: 56,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     borderRadius: 16,
   },
   buttonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   buttonText: {
     fontSize: 16,
-    fontWeight: '700',
-    color: '#FFFFFF',
+    fontWeight: "700",
+    color: "#FFFFFF",
     marginLeft: 8,
     letterSpacing: 0.5,
   },
   loadingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   loadingDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#FFFFFF',
+    backgroundColor: "#FFFFFF",
     marginRight: 8,
   },
   footer: {
-    alignItems: 'center',
+    alignItems: "center",
   },
   footerText: {
     fontSize: 14,
-    color: '#A78BFA',
+    color: "#A78BFA",
     marginBottom: 12,
   },
   footerButton: {
     borderRadius: 12,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   footerButtonGradient: {
     paddingHorizontal: 24,
@@ -581,7 +616,7 @@ const styles = StyleSheet.create({
   },
   footerButtonText: {
     fontSize: 14,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
 });
