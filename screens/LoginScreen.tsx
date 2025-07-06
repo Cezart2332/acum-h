@@ -24,55 +24,77 @@ import BASE_URL from "../config";
 
 const { width: screenWidth } = Dimensions.get("window");
 
-// Simplified responsive font scaling
+// Enhanced responsive font scaling
 const fontScale = PixelRatio.getFontScale();
 const getScaledSize = (size: number) => size / fontScale;
 
 type LoginNav = NativeStackNavigationProp<RootStackParamList, "Login">;
 
-// Optimized AnimatedButton with proper touch handling
+// Enhanced AnimatedButton with press animation
 const AnimatedButton = React.memo(
-  ({ onPress, children, loading, fadeAnim }: any) => (
-    <TouchableOpacity
-      onPress={onPress}
-      disabled={loading}
-      activeOpacity={0.8}
-      style={styles.buttonContainer}
-      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }} // Better touch target
-    >
-      <LinearGradient
-        colors={
-          loading ? ["#4A4A4A", "#6A6A6A"] : ["#6C3AFF", "#9B59B6", "#E91E63"]
-        }
-        start={{ x: 0, y: 0 }}
-        end={{ x: 1, y: 1 }}
-        style={styles.buttonGradient}
+  ({ onPress, children, loading, fadeAnim }: any) => {
+    const scaleValue = useRef(new Animated.Value(1)).current;
+
+    const handlePressIn = () => {
+      Animated.spring(scaleValue, {
+        toValue: 0.98,
+        useNativeDriver: true,
+      }).start();
+    };
+
+    const handlePressOut = () => {
+      Animated.spring(scaleValue, {
+        toValue: 1,
+        useNativeDriver: true,
+      }).start();
+    };
+
+    return (
+      <TouchableOpacity
+        onPress={onPress}
+        onPressIn={handlePressIn}
+        onPressOut={handlePressOut}
+        disabled={loading}
+        activeOpacity={0.9}
+        style={styles.buttonContainer}
+        hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
       >
-        {loading ? (
-          <View style={styles.loadingContainer}>
-            <Animated.View
-              style={[
-                styles.loadingDot,
-                {
-                  transform: [
+        <Animated.View style={{ transform: [{ scale: scaleValue }] }}>
+          <LinearGradient
+            colors={
+              loading ? ["#4A4A4A", "#6A6A6A"] : ["#6C3AFF", "#9B59B6", "#E91E63"]
+            }
+            start={{ x: 0, y: 0 }}
+            end={{ x: 1, y: 1 }}
+            style={styles.buttonGradient}
+          >
+            {loading ? (
+              <View style={styles.loadingContainer}>
+                <Animated.View
+                  style={[
+                    styles.loadingDot,
                     {
-                      scale: fadeAnim.interpolate({
-                        inputRange: [0, 1],
-                        outputRange: [0.8, 1.2],
-                      }),
+                      transform: [
+                        {
+                          scale: fadeAnim.interpolate({
+                            inputRange: [0, 1],
+                            outputRange: [0.8, 1.2],
+                          }),
+                        },
+                      ],
                     },
-                  ],
-                },
-              ]}
-            />
-            <Text style={styles.buttonText}>Se încarcă...</Text>
-          </View>
-        ) : (
-          children
-        )}
-      </LinearGradient>
-    </TouchableOpacity>
-  )
+                  ]}
+                />
+                <Text style={styles.buttonText}>Se încarcă...</Text>
+              </View>
+            ) : (
+              children
+            )}
+          </LinearGradient>
+        </Animated.View>
+      </TouchableOpacity>
+    );
+  }
 );
 
 export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
@@ -83,7 +105,7 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
   const [emailError, setEmailError] = useState("");
   const [passwordError, setPasswordError] = useState("");
   
-  // Simplified focus management - no complex timeout logic
+  // Simplified focus management
   type FocusedInput = 'email' | 'password' | null;
   const [focusedInput, setFocusedInput] = useState<FocusedInput>(null);
 
@@ -96,17 +118,16 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
   const emailInputRef = useRef<TextInput>(null);
   const passwordInputRef = useRef<TextInput>(null);
 
-  // Simplified focus handlers - React Native handles the rest
+  // Simplified focus handlers
   const handleFocus = useCallback((inputName: FocusedInput) => {
     setFocusedInput(inputName);
   }, []);
 
   const handleBlur = useCallback((inputName: FocusedInput) => {
-    // Only clear if this input was focused
     setFocusedInput(current => current === inputName ? null : current);
   }, []);
 
-  // Individual input handlers - simplified
+  // Individual input handlers
   const handleEmailFocus = useCallback(() => handleFocus('email'), [handleFocus]);
   const handleEmailBlur = useCallback(() => handleBlur('email'), [handleBlur]);
   const handlePasswordFocus = useCallback(() => handleFocus('password'), [handleFocus]);
@@ -253,7 +274,7 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
         colors={["#0F0817", "#1A0B2E", "#2D1B69"]}
         style={styles.backgroundGradient}
       >
-        {/* Floating Elements - Using Flexbox positioning */}
+        {/* Floating Elements */}
         <View style={styles.floatingElements}>
           <Animated.View
             style={[
@@ -301,13 +322,13 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
                   colors={["#6C3AFF", "#9B59B6"]}
                   style={styles.logoContainer}
                 >
-                  <Ionicons name="restaurant" size={getScaledSize(40)} color="#FFFFFF" />
+                  <Ionicons name="restaurant" size={getScaledSize(45)} color="#FFFFFF" />
                 </LinearGradient>
                 <Text style={styles.title}>AcoomH</Text>
                 <Text style={styles.subtitle}>Bun venit înapoi!</Text>
               </View>
 
-              {/* Form Section */}
+              {/* Enhanced Form Section */}
               <View style={styles.formSection}>
                 {/* Email Input */}
                 <View style={styles.inputContainer}>
@@ -319,11 +340,11 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
                       focusedInput === 'email' && styles.inputWrapperFocused,
                       emailError && styles.inputWrapperError,
                     ]}
-                    onPress={() => emailInputRef.current?.focus()} // Direct focus on tap
+                    onPress={() => emailInputRef.current?.focus()}
                   >
                     <Ionicons
                       name="mail-outline"
-                      size={getScaledSize(20)}
+                      size={getScaledSize(22)}
                       color={
                         focusedInput === 'email'
                           ? "#6C3AFF"
@@ -373,11 +394,11 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
                       focusedInput === 'password' && styles.inputWrapperFocused,
                       passwordError && styles.inputWrapperError,
                     ]}
-                    onPress={() => passwordInputRef.current?.focus()} // Direct focus on tap
+                    onPress={() => passwordInputRef.current?.focus()}
                   >
                     <Ionicons
                       name="lock-closed-outline"
-                      size={getScaledSize(20)}
+                      size={getScaledSize(22)}
                       color={
                         focusedInput === 'password'
                           ? "#6C3AFF"
@@ -410,11 +431,11 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
                       onPress={() => setSecure(!secure)}
                       style={styles.eyeButton}
                       activeOpacity={0.7}
-                      hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                      hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                     >
                       <Ionicons
                         name={secure ? "eye-off-outline" : "eye-outline"}
-                        size={getScaledSize(20)}
+                        size={getScaledSize(22)}
                         color={focusedInput === 'password' ? "#6C3AFF" : "#A78BFA"}
                       />
                     </TouchableOpacity>
@@ -424,26 +445,26 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
                   ) : null}
                 </View>
 
-                {/* Login Button */}
+                {/* Enhanced Login Button */}
                 <AnimatedButton
                   onPress={onLogin}
                   loading={loading}
                   fadeAnim={fadeAnim}
                 >
                   <View style={styles.buttonContent}>
-                    <Ionicons name="log-in-outline" size={getScaledSize(20)} color="#FFFFFF" />
+                    <Ionicons name="log-in-outline" size={getScaledSize(22)} color="#FFFFFF" />
                     <Text style={styles.buttonText}>Conectează-te</Text>
                   </View>
                 </AnimatedButton>
 
-                {/* Footer */}
+                {/* Enhanced Footer */}
                 <View style={styles.footer}>
                   <Text style={styles.footerText}>Nu ai cont încă?</Text>
                   <TouchableOpacity
                     onPress={() => navigation.navigate("Register")}
                     style={styles.footerButton}
                     activeOpacity={0.8}
-                    hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+                    hitSlop={{ top: 12, bottom: 12, left: 12, right: 12 }}
                   >
                     <LinearGradient
                       colors={["#6C3AFF", "#9B59B6"]}
@@ -464,7 +485,7 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
   );
 }
 
-// Percentage-based responsive styles using Flexbox
+// Enhanced responsive styles with better visual hierarchy
 const styles = StyleSheet.create({
   container: {
     flex: 1,
@@ -479,7 +500,6 @@ const styles = StyleSheet.create({
     right: 0,
     bottom: 0,
   },
-  // Floating circles using percentage positioning
   floatingCircle1: {
     position: "absolute",
     top: "10%",
@@ -488,7 +508,7 @@ const styles = StyleSheet.create({
     height: screenWidth * 0.25,
     borderRadius: screenWidth * 0.125,
     backgroundColor: "#6C3AFF",
-    aspectRatio: 1, // Maintains square shape
+    aspectRatio: 1,
   },
   floatingCircle2: {
     position: "absolute",
@@ -498,178 +518,193 @@ const styles = StyleSheet.create({
     height: screenWidth * 0.15,
     borderRadius: screenWidth * 0.075,
     backgroundColor: "#9B59B6",
-    aspectRatio: 1, // Maintains square shape
+    aspectRatio: 1,
   },
   safeArea: {
     flex: 1,
   },
   scrollContent: {
     flexGrow: 1,
-    paddingHorizontal: "6%", // Percentage-based padding
-    paddingVertical: "2%",
+    paddingHorizontal: "5%",
+    paddingVertical: "3%",
     justifyContent: 'center',
     minHeight: "100%",
   },
   content: {
     flex: 1,
     justifyContent: "center",
-    maxWidth: "90%", // Percentage-based max width
+    width: "90%", // Enhanced width
+    maxWidth: 500, // Maximum width constraint
     alignSelf: 'center',
   },
   headerSection: {
     alignItems: "center",
-    marginBottom: "8%", // Percentage-based margin
+    marginBottom: "10%", // Increased spacing
   },
   logoContainer: {
-    width: screenWidth * 0.2,
-    height: screenWidth * 0.2,
-    borderRadius: screenWidth * 0.05,
+    width: screenWidth * 0.22, // Slightly larger
+    height: screenWidth * 0.22,
+    borderRadius: screenWidth * 0.055,
     justifyContent: "center",
     alignItems: "center",
-    marginBottom: "4%",
+    marginBottom: "5%",
     shadowColor: "#6C3AFF",
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.3,
-    shadowRadius: 16,
-    elevation: 8,
-    aspectRatio: 1, // Maintains square shape
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.4,
+    shadowRadius: 20,
+    elevation: 10,
+    aspectRatio: 1,
   },
   title: {
-    fontSize: getScaledSize(32),
-    fontWeight: "800",
+    fontSize: getScaledSize(36), // Larger title
+    fontWeight: "800", // Bolder weight
     color: "#FFFFFF",
     marginBottom: "2%",
-    letterSpacing: 1,
+    letterSpacing: 1.5,
+    textShadowColor: 'rgba(0, 0, 0, 0.3)',
+    textShadowOffset: { width: 0, height: 2 },
+    textShadowRadius: 4,
   },
   subtitle: {
-    fontSize: getScaledSize(16),
+    fontSize: getScaledSize(18), // Larger subtitle
     color: "#A78BFA",
-    fontWeight: "500",
+    fontWeight: "600", // Bolder weight
     textAlign: 'center',
   },
   formSection: {
-    backgroundColor: "rgba(26, 26, 26, 0.8)",
-    borderRadius: 24,
-    padding: "6%", // Percentage-based padding
+    backgroundColor: "rgba(255, 255, 255, 0.08)", // Lighter background
+    borderRadius: 28, // Larger border radius
+    padding: 25, // Increased padding (20-25px)
     borderWidth: 1,
-    borderColor: "rgba(108, 58, 255, 0.2)",
+    borderColor: "rgba(108, 58, 255, 0.3)",
     shadowColor: "#000",
-    shadowOffset: { width: 0, height: 20 },
-    shadowOpacity: 0.3,
-    shadowRadius: 40,
-    elevation: 10,
+    shadowOffset: { width: 0, height: 25 },
+    shadowOpacity: 0.4,
+    shadowRadius: 50,
+    elevation: 15,
+    backdropFilter: 'blur(10px)', // Modern glass effect
   },
   inputContainer: {
-    marginBottom: "5%", // Percentage-based margin
+    marginBottom: 20, // Consistent 20px spacing
   },
   inputLabel: {
-    fontSize: getScaledSize(14),
-    fontWeight: "600",
+    fontSize: getScaledSize(16), // Larger label
+    fontWeight: "700", // Bolder weight
     color: "#FFFFFF",
-    marginBottom: "2%",
-    marginLeft: "1%",
+    marginBottom: 8,
+    marginLeft: 16, // 16px horizontal margin
   },
   inputWrapper: {
     flexDirection: "row",
     alignItems: "center",
-    backgroundColor: "#1F1F1F",
-    borderRadius: 16,
+    backgroundColor: "rgba(255, 255, 255, 0.1)", // Lighter background
+    borderRadius: 18, // Larger border radius
     borderWidth: 2,
-    borderColor: "#2A2A2A",
-    paddingHorizontal: "4%", // Percentage-based padding
-    minHeight: 56, // Minimum height for accessibility
-    paddingVertical: 12,
+    borderColor: "rgba(255, 255, 255, 0.15)",
+    paddingHorizontal: 16, // 16px horizontal margin
+    height: 60, // 60px height
+    paddingVertical: 10, // 10px vertical padding
   },
   inputWrapperFocused: {
     borderColor: "#6C3AFF",
+    backgroundColor: "rgba(108, 58, 255, 0.1)",
     shadowColor: "#6C3AFF",
     shadowOffset: { width: 0, height: 0 },
-    shadowOpacity: 0.3,
-    shadowRadius: 8,
-    elevation: 4,
+    shadowOpacity: 0.4,
+    shadowRadius: 12,
+    elevation: 6,
   },
   inputWrapperError: {
     borderColor: "#E91E63",
+    backgroundColor: "rgba(233, 30, 99, 0.1)",
   },
   inputIcon: {
-    marginRight: "3%", // Percentage-based margin
+    marginRight: 12,
   },
   textInput: {
     flex: 1,
-    fontSize: getScaledSize(16),
+    fontSize: getScaledSize(17), // Larger font
     color: "#FFFFFF",
     fontWeight: "500",
-    paddingVertical: 0, // Remove default padding to avoid height issues
-    includeFontPadding: false, // Android-specific: removes extra padding
+    paddingVertical: 0,
+    includeFontPadding: false,
   },
   eyeButton: {
-    padding: 8,
-    borderRadius: 8,
-    marginLeft: "2%",
+    padding: 12, // Larger touch target
+    borderRadius: 10,
+    marginLeft: 8,
   },
   errorText: {
     color: "#E91E63",
-    fontSize: getScaledSize(12),
-    marginTop: "1%",
-    marginLeft: "1%",
-    fontWeight: "500",
+    fontSize: getScaledSize(13), // Larger error text
+    marginTop: 8,
+    marginLeft: 16,
+    fontWeight: "600",
   },
   buttonContainer: {
-    marginTop: "2%",
-    marginBottom: "6%",
-    borderRadius: 16,
+    marginTop: 20, // 20px spacing
+    marginBottom: 25,
+    borderRadius: 18,
     overflow: "hidden",
   },
   buttonGradient: {
-    minHeight: 56, // Minimum height for accessibility
+    height: 60, // 60px button height
     justifyContent: "center",
     alignItems: "center",
-    borderRadius: 16,
-    paddingVertical: 16,
+    borderRadius: 18,
+    shadowColor: "#6C3AFF",
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 15,
+    elevation: 8,
   },
   buttonContent: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
   },
   buttonText: {
-    fontSize: getScaledSize(16),
+    fontSize: getScaledSize(18), // 18px font size
     fontWeight: "700",
     color: "#FFFFFF",
-    marginLeft: "2%",
-    letterSpacing: 0.5,
+    marginLeft: 10,
+    letterSpacing: 0.8,
   },
   loadingContainer: {
     flexDirection: "row",
     alignItems: "center",
+    justifyContent: "center",
   },
   loadingDot: {
-    width: 8,
-    height: 8,
-    borderRadius: 4,
+    width: 10,
+    height: 10,
+    borderRadius: 5,
     backgroundColor: "#FFFFFF",
-    marginRight: 8,
+    marginRight: 10,
   },
   footer: {
     alignItems: "center",
+    marginTop: 20, // Additional spacing
   },
   footerText: {
-    fontSize: getScaledSize(14),
+    fontSize: getScaledSize(16), // Larger footer text
     color: "#A78BFA",
-    marginBottom: "3%",
+    marginBottom: 15,
     textAlign: 'center',
+    fontWeight: "500",
   },
   footerButton: {
-    borderRadius: 12,
+    borderRadius: 15,
     overflow: "hidden",
   },
   footerButtonGradient: {
-    paddingHorizontal: "6%", // Percentage-based padding
-    paddingVertical: "3%",
-    borderRadius: 12,
+    paddingHorizontal: 25,
+    paddingVertical: 12,
+    borderRadius: 15,
   },
   footerButtonText: {
-    fontSize: getScaledSize(14),
-    fontWeight: "600",
+    fontSize: getScaledSize(16), // Larger button text
+    fontWeight: "700", // Bolder weight
     color: "#FFFFFF",
     textAlign: 'center',
   },
