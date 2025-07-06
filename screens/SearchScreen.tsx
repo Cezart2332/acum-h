@@ -12,6 +12,7 @@ import {
   Dimensions,
   StatusBar,
   RefreshControl,
+  Alert,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
@@ -63,7 +64,7 @@ interface SearchSection {
 
 const { width } = Dimensions.get('window');
 
-export default function SearchScreen({ navigation }: { navigation?: any }) {
+export default function SearchScreen({ navigation }: { navigation: any }) {
   const [query, setQuery] = useState("");
   const [events, setEvents] = useState<EventData[]>([]);
   const [restaurants, setRestaurants] = useState<CompanyData[]>([]);
@@ -222,7 +223,7 @@ export default function SearchScreen({ navigation }: { navigation?: any }) {
 
   const handleItemPress = useCallback((item: SearchItem) => {
     if (!navigation) {
-      console.warn("Navigation not available");
+      Alert.alert("Info", "Navigarea nu este disponibilă momentan");
       return;
     }
     
@@ -234,6 +235,7 @@ export default function SearchScreen({ navigation }: { navigation?: any }) {
       }
     } catch (error) {
       console.error("Navigation error:", error);
+      Alert.alert("Eroare", "Nu s-a putut naviga la această secțiune");
     }
   }, [navigation]);
 
