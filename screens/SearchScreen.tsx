@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useCallback, useMemo, useRef } from "react";
 import {
   View,
   StyleSheet,
@@ -190,12 +190,20 @@ export default function SearchScreen({ navigation }: { navigation: any }) {
   const [searchFocused, setSearchFocused] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [backendAvailable, setBackendAvailable] = useState(false);
-  const fadeAnim = new Animated.Value(0);
-  const scaleAnim = new Animated.Value(0.95);
+  const [isMounted, setIsMounted] = useState(true); // CRITICAL: Track component mount state
 
-  // Memoized filter functions for better performance
+  // CRITICAL: Use refs for animations to prevent recreation
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const scaleAnim = useRef(new Animated.Value(0.95)).current;
+  
+  // CRITICAL: Debouncing refs to prevent API spam
+  const debounceTimeoutRef = useRef<number | null>(null);
+  const lastFetchRef = useRef<number>(0);
+  const abortControllerRef = useRef<AbortController | null>(null);
+
+  // CRITICAL: Memoized filter functions (unchanged for performance)
   const filteredEvents = useMemo(() => {
-    if (!query.trim()) return events.slice(0, 10); // Show first 10 when no query
+    if (!query.trim()) return events.slice(0, 10);
     
     return events.filter((e) =>
       e.title?.toLowerCase().includes(query.toLowerCase()) ||
@@ -206,7 +214,7 @@ export default function SearchScreen({ navigation }: { navigation: any }) {
   }, [events, query]);
 
   const filteredRestaurants = useMemo(() => {
-    if (!query.trim()) return restaurants.slice(0, 10); // Show first 10 when no query
+    if (!query.trim()) return restaurants.slice(0, 10);
     
     return restaurants.filter((r) =>
       (r.name && r.name.toLowerCase().includes(query.toLowerCase())) ||
@@ -217,7 +225,10 @@ export default function SearchScreen({ navigation }: { navigation: any }) {
     );
   }, [restaurants, query]);
 
+  // CRITICAL: Fixed animation function with proper dependencies
   const startAnimations = useCallback(() => {
+    if (!isMounted) return; // Prevent animations on unmounted component
+    
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
@@ -231,22 +242,40 @@ export default function SearchScreen({ navigation }: { navigation: any }) {
         useNativeDriver: true,
       }),
     ]).start();
-  }, [fadeAnim, scaleAnim]);
+  }, [fadeAnim, scaleAnim, isMounted]);
 
-  const fetchData = useCallback(async (showRefreshing = false) => {
+  // CRITICAL: Enhanced fetchData with debouncing and duplicate prevention
+  const fetchData = useCallback(async (showRefreshing = false, forceRefresh = false) => {
+    // CRITICAL: Prevent duplicate calls within 500ms
+    const now = Date.now();
+    if (!forceRefresh && now - lastFetchRef.current < 500) {
+      return;
+    }
+    lastFetchRef.current = now;
+
+    // CRITICAL: Cancel previous request
+    if (abortControllerRef.current) {
+      abortControllerRef.current.abort();
+    }
+
+    if (!isMounted) return; // Don't fetch if component unmounted
+
     try {
       if (showRefreshing) setRefreshing(true);
       else setDataLoading(true);
       setError(null);
 
-      console.log('Fetching data from:', BASE_URL);
+      // CRITICAL: Reduced log spam - only log when actually fetching
+      if (forceRefresh || !events.length) {
+        console.log('🔄 Fetching data from:', BASE_URL);
+      }
 
-      // Add timeout for better error handling
-      const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 10000);
+      // CRITICAL: Create new abort controller for this request
+      abortControllerRef.current = new AbortController();
+      const timeoutId = setTimeout(() => abortControllerRef.current?.abort(), 10000);
 
       const fetchOptions = {
-        signal: controller.signal,
+        signal: abortControllerRef.current.signal,
         headers: {
           'Accept': 'application/json',
           'Content-Type': 'application/json',
@@ -254,13 +283,14 @@ export default function SearchScreen({ navigation }: { navigation: any }) {
       };
 
       try {
-        // Try to fetch from backend first
         const [eventsResponse, companiesResponse] = await Promise.allSettled([
           fetch(`${BASE_URL}/events`, fetchOptions),
           fetch(`${BASE_URL}/companies`, fetchOptions),
         ]);
 
         clearTimeout(timeoutId);
+
+        if (!isMounted) return; // Check mount state before updating state
 
         let backendWorking = false;
         
@@ -269,10 +299,13 @@ export default function SearchScreen({ navigation }: { navigation: any }) {
         if (eventsResponse.status === 'fulfilled' && eventsResponse.value.ok) {
           try {
             eventsData = await eventsResponse.value.json();
-            console.log('Events loaded from backend:', eventsData.length);
+            // CRITICAL: Reduced log spam - only log successful loads
+            if (Array.isArray(eventsData) && eventsData.length > 0) {
+              console.log('✅ Events loaded:', eventsData.length);
+            }
             backendWorking = true;
           } catch (e) {
-            console.warn('Events JSON parse error:', e);
+            console.warn('⚠️ Events JSON parse error:', e);
           }
         }
 
@@ -281,16 +314,21 @@ export default function SearchScreen({ navigation }: { navigation: any }) {
         if (companiesResponse.status === 'fulfilled' && companiesResponse.value.ok) {
           try {
             companiesData = await companiesResponse.value.json();
-            console.log('Companies loaded from backend:', companiesData.length);
+            // CRITICAL: Reduced log spam - only log successful loads
+            if (Array.isArray(companiesData) && companiesData.length > 0) {
+              console.log('✅ Companies loaded:', companiesData.length);
+            }
             backendWorking = true;
           } catch (e) {
-            console.warn('Companies JSON parse error:', e);
+            console.warn('⚠️ Companies JSON parse error:', e);
           }
         }
 
         // If backend failed, use mock data
         if (!backendWorking) {
-          console.log('Backend unavailable, using mock data');
+          if (forceRefresh || !events.length) {
+            console.log('🔄 Backend unavailable, using mock data');
+          }
           eventsData = getMockEvents();
           companiesData = getMockRestaurants();
           setBackendAvailable(false);
@@ -299,36 +337,92 @@ export default function SearchScreen({ navigation }: { navigation: any }) {
           setBackendAvailable(true);
         }
 
-        // Ensure data is arrays
-        setEvents(Array.isArray(eventsData) ? eventsData : []);
-        setRestaurants(Array.isArray(companiesData) ? companiesData : []);
+        // CRITICAL: Only update state if component is still mounted
+        if (isMounted) {
+          setEvents(Array.isArray(eventsData) ? eventsData : []);
+          setRestaurants(Array.isArray(companiesData) ? companiesData : []);
+        }
 
-      } catch (fetchError) {
-        // On any fetch error, fall back to mock data
-        console.log('Fetch failed, using mock data:', fetchError);
+      } catch (fetchError: any) {
+        if (!isMounted) return;
+        
+        // Only log errors that aren't abort errors
+        if (fetchError?.name !== 'AbortError') {
+          console.log('⚠️ Fetch failed, using mock data:', fetchError.message);
+        }
+        
         setEvents(getMockEvents());
         setRestaurants(getMockRestaurants());
         setBackendAvailable(false);
         setError("Nu s-a putut conecta la server. Se afișează date demonstrative.");
       }
 
-    } catch (err) {
-      console.error("General fetch error:", err);
-      // Final fallback to mock data
+    } catch (err: any) {
+      if (!isMounted) return;
+      
+      console.error("❌ General fetch error:", err?.message);
       setEvents(getMockEvents());
       setRestaurants(getMockRestaurants());
       setBackendAvailable(false);
       setError("Eroare de conectare. Se afișează date demonstrative.");
     } finally {
-      setDataLoading(false);
-      setRefreshing(false);
+      if (isMounted) {
+        setDataLoading(false);
+        setRefreshing(false);
+      }
     }
-  }, []);
+  }, [isMounted, events.length]); // CRITICAL: Proper dependencies
 
+  // CRITICAL: Debounced search function
+  const debouncedFetchData = useCallback((showRefreshing = false) => {
+    // Clear existing debounce timeout
+    if (debounceTimeoutRef.current) {
+      clearTimeout(debounceTimeoutRef.current);
+    }
+
+    // CRITICAL: 500ms debounce as requested
+    debounceTimeoutRef.current = setTimeout(() => {
+      fetchData(showRefreshing, true);
+    }, 500);
+  }, [fetchData]);
+
+  // CRITICAL: Fixed useEffect with proper cleanup and dependencies
   useEffect(() => {
+    setIsMounted(true);
     startAnimations();
-    fetchData();
-  }, [startAnimations, fetchData]);
+    
+    // Initial fetch without debounce
+    fetchData(false, true);
+
+    // CRITICAL: Cleanup function to prevent memory leaks and async warnings
+    return () => {
+      setIsMounted(false);
+      
+      // Clear debounce timeout
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
+      
+      // Abort ongoing requests
+      if (abortControllerRef.current) {
+        abortControllerRef.current.abort();
+      }
+    };
+  }, []); // CRITICAL: Empty dependency array to run only once
+
+  // CRITICAL: Separate effect for search query changes with debouncing
+  useEffect(() => {
+    // Only debounce if there's a query and we have initial data
+    if (query.trim() && events.length > 0) {
+      debouncedFetchData(false);
+    }
+
+    return () => {
+      if (debounceTimeoutRef.current) {
+        clearTimeout(debounceTimeoutRef.current);
+      }
+    };
+  }, [query, debouncedFetchData, events.length]);
 
   // Convert data to unified format with better error handling
   const convertEventsToSearchItems = useCallback((events: EventData[]): SearchItem[] => {
@@ -392,46 +486,60 @@ export default function SearchScreen({ navigation }: { navigation: any }) {
     ].filter(section => section.data.length > 0); // Only show sections with data
   }, [filteredEvents, filteredRestaurants, convertEventsToSearchItems, convertRestaurantsToSearchItems]);
 
-  const EmptyResults = () => (
-    <Animated.View style={[styles.emptyContainer, { opacity: fadeAnim }]}>
-      <LinearGradient
-        colors={['rgba(108, 58, 255, 0.1)', 'rgba(155, 89, 182, 0.1)']}
-        style={styles.emptyGradient}
-      >
-        <Ionicons 
-          name={dataLoading ? "hourglass-outline" : error ? "information-circle-outline" : "search-outline"} 
-          size={64} 
-          color="#6C3AFF" 
-        />
-        <Text style={styles.emptyTitle}>
-          {dataLoading ? "Încărcăm datele..." : 
-           error ? "Mod demonstrativ" :
-           query ? "Nu am găsit rezultate" : "Începe să cauți"}
-        </Text>
-        <Text style={styles.emptySubtitle}>
-          {dataLoading ? "Te rugăm să aștepți..." :
-           error ? "Datele afișate sunt demonstrative până se conectează backend-ul" :
-           query ? "Încearcă să cauți cu alți termeni" : 
-           "Caută evenimente sau restaurante"}
-        </Text>
-        {dataLoading && (
-          <ActivityIndicator 
-            size="large" 
-            color="#6C3AFF" 
-            style={{ marginTop: 20 }}
-          />
-        )}
-        {error && !backendAvailable && (
-          <TouchableOpacity
-            style={styles.retryButton}
-            onPress={() => fetchData()}
+  // CRITICAL: Enhanced refresh handler with proper debouncing
+  const handleRefresh = useCallback(() => {
+    fetchData(true, true); // Force refresh without debounce
+  }, [fetchData]);
+
+  // CRITICAL: Enhanced loading state to prevent empty renders
+  const EmptyResults = () => {
+    if (dataLoading && !events.length && !restaurants.length) {
+      return (
+        <Animated.View style={[styles.emptyContainer, { opacity: fadeAnim }]}>
+          <LinearGradient
+            colors={['rgba(108, 58, 255, 0.1)', 'rgba(155, 89, 182, 0.1)']}
+            style={styles.emptyGradient}
           >
-            <Text style={styles.retryButtonText}>Încearcă conectarea din nou</Text>
-          </TouchableOpacity>
-        )}
-      </LinearGradient>
-    </Animated.View>
-  );
+            <ActivityIndicator size="large" color="#6C3AFF" />
+            <Text style={styles.emptyTitle}>Încărcăm datele...</Text>
+            <Text style={styles.emptySubtitle}>Te rugăm să aștepți...</Text>
+          </LinearGradient>
+        </Animated.View>
+      );
+    }
+
+    return (
+      <Animated.View style={[styles.emptyContainer, { opacity: fadeAnim }]}>
+        <LinearGradient
+          colors={['rgba(108, 58, 255, 0.1)', 'rgba(155, 89, 182, 0.1)']}
+          style={styles.emptyGradient}
+        >
+          <Ionicons 
+            name={error ? "information-circle-outline" : "search-outline"} 
+            size={64} 
+            color="#6C3AFF" 
+          />
+          <Text style={styles.emptyTitle}>
+            {error ? "Mod demonstrativ" :
+             query ? "Nu am găsit rezultate" : "Începe să cauți"}
+          </Text>
+          <Text style={styles.emptySubtitle}>
+            {error ? "Datele afișate sunt demonstrative până se conectează backend-ul" :
+             query ? "Încearcă să cauți cu alți termeni" : 
+             "Caută evenimente sau restaurante"}
+          </Text>
+          {error && !backendAvailable && (
+            <TouchableOpacity
+              style={styles.retryButton}
+              onPress={handleRefresh}
+            >
+              <Text style={styles.retryButtonText}>Încearcă conectarea din nou</Text>
+            </TouchableOpacity>
+          )}
+        </LinearGradient>
+      </Animated.View>
+    );
+  };
 
   const renderItem = useCallback(({ item }: { item: SearchItem }) => (
     <Animated.View
@@ -641,7 +749,7 @@ export default function SearchScreen({ navigation }: { navigation: any }) {
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
-                onRefresh={() => fetchData(true)}
+                onRefresh={handleRefresh}
                 colors={['#6C3AFF']}
                 tintColor="#6C3AFF"
               />

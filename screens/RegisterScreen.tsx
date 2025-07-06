@@ -954,6 +954,7 @@ const styles = StyleSheet.create({
     includeFontPadding: false,
   },
   eyeButton: {
+<<<<<<< HEAD
     // CRITICAL: Enhanced touch target for password visibility button
     minWidth: 48, // Ensure minimum 48px width
     minHeight: 48, // Ensure minimum 48px height
@@ -964,6 +965,15 @@ const styles = StyleSheet.create({
     alignItems: 'center', // Center the icon horizontally
     // CRITICAL: Visual debugging (remove in production)
     // backgroundColor: 'rgba(255, 0, 0, 0.1)', // Uncomment to see touch area
+=======
+    minWidth: 48,
+    minHeight: 48,
+    padding: 12,
+    borderRadius: 12,
+    marginLeft: 4,
+    justifyContent: 'center',
+    alignItems: 'center',
+>>>>>>> a814cc5 (Fix critical performance and UX issues in SearchScreen and RegisterScreen)
   },
   errorText: {
     color: '#E91E63',
