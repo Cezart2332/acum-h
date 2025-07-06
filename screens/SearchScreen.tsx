@@ -64,6 +64,123 @@ interface SearchSection {
 
 const { width } = Dimensions.get('window');
 
+// Mock data for when backend is unavailable
+const getMockRestaurants = (): CompanyData[] => [
+  {
+    id: 1,
+    name: "La Mama",
+    category: "Românesc",
+    address: "Str. Republicii nr. 15, Timișoara",
+    description: "Restaurant traditional românesc cu mâncăruri casnice delicioase, preparat cu ingrediente proaspete",
+    email: "contact@lamama.ro",
+    profileImage: "",
+    tags: ["traditional", "românesc", "casnic", "proaspăt"],
+    latitude: 45.7494,
+    longitude: 21.2272,
+    cui: 12345678
+  },
+  {
+    id: 2,
+    name: "Pizza Bella",
+    category: "Italian",
+    address: "Bulevardul Revoluției nr. 42, Timișoara",
+    description: "Pizzerie autentică cu ingrediente proaspete aduse din Italia, aluat făcut în casă",
+    email: "info@pizzabella.ro",
+    profileImage: "",
+    tags: ["pizza", "italian", "proaspăt", "autentic"],
+    latitude: 45.7578,
+    longitude: 21.2270,
+    cui: 87654321
+  },
+  {
+    id: 3,
+    name: "Sushi Zen",
+    category: "Japonez",
+    address: "Str. Eminescu nr. 8, Timișoara",
+    description: "Restaurant japonez cu sushi proaspăt pregătit de maeștri japonezi",
+    email: "contact@sushizen.ro",
+    profileImage: "",
+    tags: ["sushi", "japonez", "fresh", "autentic"],
+    latitude: 45.7528,
+    longitude: 21.2285,
+    cui: 11223344
+  },
+  {
+    id: 4,
+    name: "Bistro Central",
+    category: "Internațional",
+    address: "Piața Victoriei nr. 2, Timișoara",
+    description: "Bistro modern cu bucătărie internațională și atmosferă elegantă",
+    email: "info@bistrocentral.ro",
+    profileImage: "",
+    tags: ["bistro", "modern", "elegant", "internațional"],
+    latitude: 45.7575,
+    longitude: 21.2298,
+    cui: 22334455
+  },
+  {
+    id: 5,
+    name: "Casa Bunicii",
+    category: "Românesc",
+    address: "Str. Aleea Studentilor nr. 12, Timișoara",
+    description: "Mâncare tradițională românească ca la bunica acasă",
+    email: "contact@casabunicii.ro",
+    profileImage: "",
+    tags: ["tradițional", "casnic", "românesc", "nostalgie"],
+    latitude: 45.7466,
+    longitude: 21.2371,
+    cui: 33445566
+  }
+];
+
+const getMockEvents = (): EventData[] => [
+  {
+    id: "1",
+    title: "Concert Rock în Centrul Vechi",
+    description: "Seară de rock cu cele mai bune trupe locale din Timișoara",
+    company: "Rock Club Timișoara",
+    photo: "",
+    tags: ["rock", "muzică", "concert", "live"],
+    likes: 127
+  },
+  {
+    id: "2", 
+    title: "Festival de Artă Stradală",
+    description: "Trei zile de spectacole de artă stradală și performanțe creative",
+    company: "Primăria Timișoara",
+    photo: "",
+    tags: ["artă", "festival", "stradal", "spectacol"],
+    likes: 89
+  },
+  {
+    id: "3",
+    title: "Noaptea Muzeelor",
+    description: "Intrare gratuită la toate muzeele din oraș până la miezul nopții",
+    company: "Consiliul Județean Timiș",
+    photo: "",
+    tags: ["muzee", "cultură", "gratuit", "noapte"],
+    likes: 203
+  },
+  {
+    id: "4",
+    title: "Târgul de Craciun",
+    description: "Târg tradițional cu produse locale și vin fiert",
+    company: "Centrul de Evenimente Timișoara",
+    photo: "",
+    tags: ["craciun", "târg", "tradițional", "local"],
+    likes: 156
+  },
+  {
+    id: "5",
+    title: "Concurs de Tango Argentinian",
+    description: "Competiție de dans tango cu participanți din toată țara",
+    company: "Club de Dans Timișoara",
+    photo: "",
+    tags: ["dans", "tango", "competiție", "argentinian"],
+    likes: 78
+  }
+];
+
 export default function SearchScreen({ navigation }: { navigation: any }) {
   const [query, setQuery] = useState("");
   const [events, setEvents] = useState<EventData[]>([]);
@@ -72,6 +189,7 @@ export default function SearchScreen({ navigation }: { navigation: any }) {
   const [refreshing, setRefreshing] = useState(false);
   const [searchFocused, setSearchFocused] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [backendAvailable, setBackendAvailable] = useState(false);
   const fadeAnim = new Animated.Value(0);
   const scaleAnim = new Animated.Value(0.95);
 
@@ -125,7 +243,7 @@ export default function SearchScreen({ navigation }: { navigation: any }) {
 
       // Add timeout for better error handling
       const controller = new AbortController();
-      const timeoutId = setTimeout(() => controller.abort(), 15000);
+      const timeoutId = setTimeout(() => controller.abort(), 10000);
 
       const fetchOptions = {
         signal: controller.signal,
@@ -135,53 +253,72 @@ export default function SearchScreen({ navigation }: { navigation: any }) {
         },
       };
 
-      // Fetch both endpoints with error handling
-      const [eventsResponse, companiesResponse] = await Promise.allSettled([
-        fetch(`${BASE_URL}/events`, fetchOptions),
-        fetch(`${BASE_URL}/companies`, fetchOptions),
-      ]);
+      try {
+        // Try to fetch from backend first
+        const [eventsResponse, companiesResponse] = await Promise.allSettled([
+          fetch(`${BASE_URL}/events`, fetchOptions),
+          fetch(`${BASE_URL}/companies`, fetchOptions),
+        ]);
 
-      clearTimeout(timeoutId);
+        clearTimeout(timeoutId);
 
-      // Process events
-      let eventsData: EventData[] = [];
-      if (eventsResponse.status === 'fulfilled' && eventsResponse.value.ok) {
-        try {
-          eventsData = await eventsResponse.value.json();
-          console.log('Events loaded:', eventsData.length);
-        } catch (e) {
-          console.warn('Events JSON parse error:', e);
+        let backendWorking = false;
+        
+        // Process events
+        let eventsData: EventData[] = [];
+        if (eventsResponse.status === 'fulfilled' && eventsResponse.value.ok) {
+          try {
+            eventsData = await eventsResponse.value.json();
+            console.log('Events loaded from backend:', eventsData.length);
+            backendWorking = true;
+          } catch (e) {
+            console.warn('Events JSON parse error:', e);
+          }
         }
-      } else {
-        console.warn('Events fetch failed:', eventsResponse.status === 'rejected' ? eventsResponse.reason : eventsResponse.value.status);
-      }
 
-      // Process companies
-      let companiesData: CompanyData[] = [];
-      if (companiesResponse.status === 'fulfilled' && companiesResponse.value.ok) {
-        try {
-          companiesData = await companiesResponse.value.json();
-          console.log('Companies loaded:', companiesData.length);
-        } catch (e) {
-          console.warn('Companies JSON parse error:', e);
+        // Process companies  
+        let companiesData: CompanyData[] = [];
+        if (companiesResponse.status === 'fulfilled' && companiesResponse.value.ok) {
+          try {
+            companiesData = await companiesResponse.value.json();
+            console.log('Companies loaded from backend:', companiesData.length);
+            backendWorking = true;
+          } catch (e) {
+            console.warn('Companies JSON parse error:', e);
+          }
         }
-      } else {
-        console.warn('Companies fetch failed:', companiesResponse.status === 'rejected' ? companiesResponse.reason : companiesResponse.value.status);
-      }
 
-      // Ensure data is arrays
-      setEvents(Array.isArray(eventsData) ? eventsData : []);
-      setRestaurants(Array.isArray(companiesData) ? companiesData : []);
+        // If backend failed, use mock data
+        if (!backendWorking) {
+          console.log('Backend unavailable, using mock data');
+          eventsData = getMockEvents();
+          companiesData = getMockRestaurants();
+          setBackendAvailable(false);
+          setError("Backend nu este disponibil. Se afișează date demonstrative.");
+        } else {
+          setBackendAvailable(true);
+        }
 
-      if (eventsData.length === 0 && companiesData.length === 0) {
-        setError("Nu s-au putut încărca datele. Verifică conexiunea.");
+        // Ensure data is arrays
+        setEvents(Array.isArray(eventsData) ? eventsData : []);
+        setRestaurants(Array.isArray(companiesData) ? companiesData : []);
+
+      } catch (fetchError) {
+        // On any fetch error, fall back to mock data
+        console.log('Fetch failed, using mock data:', fetchError);
+        setEvents(getMockEvents());
+        setRestaurants(getMockRestaurants());
+        setBackendAvailable(false);
+        setError("Nu s-a putut conecta la server. Se afișează date demonstrative.");
       }
 
     } catch (err) {
-      console.error("Fetch error:", err);
-      setError("Eroare de conectare. Te rog să încerci din nou.");
-      setEvents([]);
-      setRestaurants([]);
+      console.error("General fetch error:", err);
+      // Final fallback to mock data
+      setEvents(getMockEvents());
+      setRestaurants(getMockRestaurants());
+      setBackendAvailable(false);
+      setError("Eroare de conectare. Se afișează date demonstrative.");
     } finally {
       setDataLoading(false);
       setRefreshing(false);
@@ -262,18 +399,18 @@ export default function SearchScreen({ navigation }: { navigation: any }) {
         style={styles.emptyGradient}
       >
         <Ionicons 
-          name={dataLoading ? "hourglass-outline" : error ? "warning-outline" : "search-outline"} 
+          name={dataLoading ? "hourglass-outline" : error ? "information-circle-outline" : "search-outline"} 
           size={64} 
           color="#6C3AFF" 
         />
         <Text style={styles.emptyTitle}>
           {dataLoading ? "Încărcăm datele..." : 
-           error ? "Eroare de conectare" :
+           error ? "Mod demonstrativ" :
            query ? "Nu am găsit rezultate" : "Începe să cauți"}
         </Text>
         <Text style={styles.emptySubtitle}>
           {dataLoading ? "Te rugăm să aștepți..." :
-           error ? error :
+           error ? "Datele afișate sunt demonstrative până se conectează backend-ul" :
            query ? "Încearcă să cauți cu alți termeni" : 
            "Caută evenimente sau restaurante"}
         </Text>
@@ -284,12 +421,12 @@ export default function SearchScreen({ navigation }: { navigation: any }) {
             style={{ marginTop: 20 }}
           />
         )}
-        {error && (
+        {error && !backendAvailable && (
           <TouchableOpacity
             style={styles.retryButton}
             onPress={() => fetchData()}
           >
-            <Text style={styles.retryButtonText}>Încearcă din nou</Text>
+            <Text style={styles.retryButtonText}>Încearcă conectarea din nou</Text>
           </TouchableOpacity>
         )}
       </LinearGradient>
@@ -458,10 +595,18 @@ export default function SearchScreen({ navigation }: { navigation: any }) {
             <View style={styles.resultsInfo}>
               <Text style={styles.resultsCount}>
                 {totalResults} rezultate găsite
+                {!backendAvailable && " (demo)"}
               </Text>
               {dataLoading && (
                 <ActivityIndicator size="small" color="#A78BFA" style={{ marginLeft: 10 }} />
               )}
+            </View>
+          )}
+          
+          {error && (
+            <View style={styles.warningBanner}>
+              <Ionicons name="warning-outline" size={16} color="#F59E0B" />
+              <Text style={styles.warningText}>{error}</Text>
             </View>
           )}
         </Animated.View>
@@ -501,9 +646,15 @@ export default function SearchScreen({ navigation }: { navigation: any }) {
                 tintColor="#6C3AFF"
               />
             }
-            initialNumToRender={10}
-            maxToRenderPerBatch={5}
-            windowSize={10}
+            initialNumToRender={6}
+            maxToRenderPerBatch={3}
+            windowSize={5}
+            removeClippedSubviews={true}
+            getItemLayout={(data, index) => ({
+              length: 120,
+              offset: 120 * index,
+              index,
+            })}
           />
         </Animated.View>
       )}
@@ -759,5 +910,19 @@ const styles = StyleSheet.create({
   separator: {
     height: 12,
     backgroundColor: "transparent",
+  },
+  warningBanner: {
+    flexDirection: "row",
+    alignItems: "center",
+    padding: 12,
+    backgroundColor: "#1A1A1A",
+    borderTopWidth: 1,
+    borderColor: "#2A1A4A",
+  },
+  warningText: {
+    marginLeft: 8,
+    fontSize: 14,
+    color: "#F59E0B",
+    fontWeight: "500",
   },
 });
