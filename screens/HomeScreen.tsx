@@ -9,15 +9,26 @@ import {
   TouchableOpacity,
   Image,
   ActivityIndicator,
-  StatusBar,
+  RefreshControl,
   Alert,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { useFocusEffect } from "@react-navigation/native";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "./RootStackParamList";
 import BASE_URL from "../config";
 import { cachedFetch, cachedAsyncStorage } from "../utils/apiCache";
+import { useTheme } from "../context/ThemeContext";
+import UniversalScreen from "../components/UniversalScreen";
+import { 
+  getResponsiveFontSize, 
+  getShadow, 
+  hapticFeedback, 
+  TYPOGRAPHY,
+  getResponsiveSpacing,
+  SCREEN_DIMENSIONS 
+} from "../utils/responsive";
 
 type HomeNav = NativeStackNavigationProp<RootStackParamList, "Home">;
 
@@ -54,54 +65,93 @@ const HeaderComponent = React.memo(({
   eOrR, 
   loading, 
   userData, 
-  onProfilePress 
+  onProfilePress,
+  theme 
 }: {
   eOrR: boolean;
   loading: boolean;
   userData: UserData | null;
   onProfilePress: () => void;
+  theme: any;
 }) => (
-  <View style={styles.headerContainer}>
-    <Text style={styles.headerTitle}>
+  <LinearGradient
+    colors={[theme.colors.primary, theme.colors.secondary]}
+    style={styles.headerContainer}
+  >
+    <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
       {eOrR ? "Evenimente" : "Restaurante"}
     </Text>
     {loading ? (
-      <View style={styles.profilePlaceholder} />
+      <View style={[styles.profilePlaceholder, { backgroundColor: theme.colors.surface }]} />
     ) : userData?.profileImage ? (
-      <TouchableOpacity onPress={onProfilePress}>
+      <TouchableOpacity 
+        onPress={onProfilePress}
+        style={[styles.profileContainer, getShadow(3)]}
+        activeOpacity={0.8}
+      >
         <Image
-          style={styles.profilePic}
+          style={[styles.profilePic, { borderColor: theme.colors.accent }]}
           source={{ uri: `data:image/jpg;base64,${userData.profileImage}` }}
         />
       </TouchableOpacity>
     ) : (
-      <View style={styles.profilePlaceholder} />
+      <TouchableOpacity 
+        onPress={onProfilePress}
+        style={styles.profileContainer}
+        activeOpacity={0.8}
+      >
+        <View style={[styles.profilePlaceholder, { backgroundColor: theme.colors.surface }]}>
+          <Ionicons name="person-outline" size={20} color={theme.colors.textSecondary} />
+        </View>
+      </TouchableOpacity>
     )}
-  </View>
+  </LinearGradient>
 ));
 
 // Memoized selector component
 const SelectorComponent = React.memo(({ 
   eOrR, 
-  onToggle 
+  onToggle,
+  theme 
 }: {
   eOrR: boolean;
   onToggle: (value: boolean) => void;
+  theme: any;
 }) => (
-  <View style={styles.selectorContainer}>
+  <View style={[styles.selectorContainer, { backgroundColor: theme.colors.surface }]}>
     <TouchableOpacity
-      style={[styles.selectContentButton, eOrR && styles.activeButton]}
-      onPress={() => onToggle(true)}
+      style={[
+        styles.selectContentButton,
+        eOrR && [styles.activeButton, { backgroundColor: theme.colors.accent }]
+      ]}
+      onPress={() => {
+        hapticFeedback('light');
+        onToggle(true);
+      }}
+      activeOpacity={0.8}
     >
-      <Text style={eOrR ? styles.activeSelectorText : styles.selectorText}>
+      <Text style={[
+        eOrR ? styles.activeSelectorText : styles.selectorText,
+        { color: eOrR ? theme.colors.text : theme.colors.textSecondary }
+      ]}>
         Evenimente
       </Text>
     </TouchableOpacity>
     <TouchableOpacity
-      style={[styles.selectContentButton, !eOrR && styles.activeButton]}
-      onPress={() => onToggle(false)}
+      style={[
+        styles.selectContentButton,
+        !eOrR && [styles.activeButton, { backgroundColor: theme.colors.accent }]
+      ]}
+      onPress={() => {
+        hapticFeedback('light');
+        onToggle(false);
+      }}
+      activeOpacity={0.8}
     >
-      <Text style={!eOrR ? styles.activeSelectorText : styles.selectorText}>
+      <Text style={[
+        !eOrR ? styles.activeSelectorText : styles.selectorText,
+        { color: !eOrR ? theme.colors.text : theme.colors.textSecondary }
+      ]}>
         Restaurante
       </Text>
     </TouchableOpacity>
@@ -112,17 +162,23 @@ const SelectorComponent = React.memo(({
 const ListItemComponent = React.memo(({ 
   item, 
   isEvent, 
-  onPress 
+  onPress,
+  theme 
 }: {
   item: EventData | CompanyData;
   isEvent: boolean;
   onPress: () => void;
+  theme: any;
 }) => {
   const eventItem = item as EventData;
   const companyItem = item as CompanyData;
 
   return (
-    <TouchableOpacity style={styles.card} onPress={onPress}>
+    <TouchableOpacity 
+      style={[styles.card, getShadow(4)]} 
+      onPress={onPress}
+      activeOpacity={0.9}
+    >
       <ImageBackground
         source={{
           uri: `data:image/jpg;base64,${
@@ -132,23 +188,31 @@ const ListItemComponent = React.memo(({
         style={styles.cardImage}
         imageStyle={styles.cardImageStyle}
       >
-        <View style={styles.cardOverlay} />
+        <LinearGradient
+          colors={['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.7)']}
+          style={styles.cardOverlay}
+        />
         <View style={styles.cardTextContainer}>
-          <Text style={styles.cardTitle}>
+          <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
             {isEvent ? eventItem.title : companyItem.name}
           </Text>
 
           {!isEvent && (
             <View style={styles.tagsContainer}>
-              {companyItem.tags?.map((tag, index) => (
-                <View key={`${item.id}-${index}`} style={styles.tag}>
-                  <Text style={styles.tagText}>{tag}</Text>
+              {companyItem.tags?.slice(0, 3).map((tag, index) => (
+                <View key={`${item.id}-${index}`} style={[styles.tag, { 
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.accent 
+                }]}>
+                  <Text style={[styles.tagText, { color: theme.colors.textSecondary }]}>
+                    {tag}
+                  </Text>
                 </View>
               ))}
             </View>
           )}
 
-          <Text style={styles.cardDate}>
+          <Text style={[styles.cardDate, { color: theme.colors.textSecondary }]}>
             {isEvent ? eventItem.description : companyItem.category}
           </Text>
         </View>
@@ -158,8 +222,10 @@ const ListItemComponent = React.memo(({
 });
 
 export default function HomeScreen({ navigation }: { navigation: HomeNav }) {
+  const { theme } = useTheme();
   const [userData, setUserData] = useState<UserData | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [events, setEvents] = useState<EventData[]>([]);
   const [restaurants, setRestaurants] = useState<CompanyData[]>([]);
   const [eOrR, setEorR] = useState<boolean>(true);
@@ -220,6 +286,16 @@ export default function HomeScreen({ navigation }: { navigation: HomeNav }) {
     }
   }, [loadUserData, loadEvents, loadCompanies]);
 
+  // Refresh function
+  const onRefresh = useCallback(async () => {
+    setRefreshing(true);
+    try {
+      await loadAllData();
+    } finally {
+      setRefreshing(false);
+    }
+  }, [loadAllData]);
+
   // Initial load
   useEffect(() => {
     loadAllData();
@@ -235,11 +311,13 @@ export default function HomeScreen({ navigation }: { navigation: HomeNav }) {
 
   // Memoized navigation handlers
   const handleProfilePress = useCallback(() => {
+    hapticFeedback('light');
     navigation.navigate("Profile");
   }, [navigation]);
 
   const handleItemPress = useCallback(
     (item: EventData | CompanyData) => {
+      hapticFeedback('medium');
       if (eOrR) {
         navigation.navigate("EventScreen", { event: item as EventData });
       } else {
@@ -265,9 +343,10 @@ export default function HomeScreen({ navigation }: { navigation: HomeNav }) {
         item={item}
         isEvent={eOrR}
         onPress={() => handleItemPress(item)}
+        theme={theme}
       />
     ),
-    [eOrR, handleItemPress]
+    [eOrR, handleItemPress, theme]
   );
 
   // Memoized key extractor
@@ -290,176 +369,191 @@ export default function HomeScreen({ navigation }: { navigation: HomeNav }) {
       initialNumToRender: 8,
       updateCellsBatchingPeriod: 50,
       getItemLayout: undefined, // Let FlatList handle this for variable heights
+      refreshControl: (
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          colors={[theme.colors.accent]}
+          tintColor={theme.colors.accent}
+          progressBackgroundColor={theme.colors.surface}
+        />
+      ),
     }),
-    [currentData, keyExtractor, renderItem]
+    [currentData, keyExtractor, renderItem, refreshing, onRefresh, theme]
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#0F0817" />
-      
+    <UniversalScreen 
+      gradient={true}
+      backgroundColor={theme.colors.primary}
+      safeAreaEdges={['top', 'bottom']}
+    >
       <HeaderComponent
         eOrR={eOrR}
         loading={loading}
         userData={userData}
         onProfilePress={handleProfilePress}
+        theme={theme}
       />
 
-      <SelectorComponent eOrR={eOrR} onToggle={handleToggle} />
+      <SelectorComponent eOrR={eOrR} onToggle={handleToggle} theme={theme} />
 
       {loading ? (
-        <ActivityIndicator size="large" color="#6C3AFF" style={styles.loader} />
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.accent} />
+          <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
+            Loading {eOrR ? 'events' : 'restaurants'}...
+          </Text>
+        </View>
       ) : (
         <FlatList {...listProps} />
       )}
-    </SafeAreaView>
+    </UniversalScreen>
   );
 }
 
-// Styles remain the same as original
+// Enhanced styles with responsive design
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0F0817",
   },
   headerContainer: {
     flexDirection: "row",
     justifyContent: "space-between",
     alignItems: "center",
-    paddingHorizontal: 24,
-    paddingVertical: 16,
-    backgroundColor: "#1A1A1A",
-    borderBottomWidth: 0,
-    shadowColor: "#6C3AFF",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 3,
-  },
-  profilePic: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: "#6C3AFF",
-  },
-  profilePlaceholder: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    backgroundColor: "#2A1A4A",
-    justifyContent: "center",
-    alignItems: "center",
+    paddingHorizontal: getResponsiveSpacing('lg'),
+    paddingVertical: getResponsiveSpacing('md'),
+    minHeight: 80,
   },
   headerTitle: {
-    fontSize: 26,
+    fontSize: TYPOGRAPHY.h3,
     fontWeight: "800",
-    color: "#A78BFA",
     letterSpacing: -0.5,
     textTransform: "uppercase",
+  },
+  profileContainer: {
+    borderRadius: 22,
+    padding: 2,
+  },
+  profilePic: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    borderWidth: 2,
+  },
+  profilePlaceholder: {
+    width: 44,
+    height: 44,
+    borderRadius: 22,
+    justifyContent: "center",
+    alignItems: "center",
+    borderWidth: 1,
+    borderColor: 'rgba(255,255,255,0.2)',
   },
   selectorContainer: {
     flexDirection: "row",
     justifyContent: "center",
-    paddingVertical: 8,
-    backgroundColor: "#1A1A1A",
-    marginHorizontal: 24,
+    paddingVertical: getResponsiveSpacing('sm'),
+    marginHorizontal: getResponsiveSpacing('lg'),
     borderRadius: 16,
-    marginTop: 16,
+    marginTop: getResponsiveSpacing('md'),
     borderWidth: 1,
-    borderColor: "#2A1A4A",
+    borderColor: 'rgba(255,255,255,0.1)',
+    ...getShadow(2),
   },
   selectContentButton: {
-    paddingHorizontal: 32,
-    paddingVertical: 12,
+    paddingHorizontal: getResponsiveSpacing('xl'),
+    paddingVertical: getResponsiveSpacing('md'),
     borderRadius: 12,
     marginHorizontal: 4,
+    minWidth: (SCREEN_DIMENSIONS.width - 80) / 2,
+    alignItems: 'center',
   },
   activeButton: {
-    backgroundColor: "#6C3AFF",
+    ...getShadow(3),
   },
   selectorText: {
-    color: "#A78BFA",
-    fontSize: 16,
+    fontSize: TYPOGRAPHY.body,
     fontWeight: "600",
     letterSpacing: 0.3,
   },
   activeSelectorText: {
-    color: "#FFFFFF",
     fontWeight: "700",
   },
-  loader: {
-    marginTop: 50,
+  loadingContainer: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: getResponsiveSpacing('xxl'),
+  },
+  loadingText: {
+    marginTop: getResponsiveSpacing('md'),
+    fontSize: TYPOGRAPHY.body,
+    fontWeight: '500',
   },
   listContent: {
-    paddingHorizontal: 24,
-    paddingBottom: 24,
-    paddingTop: 16,
+    paddingHorizontal: getResponsiveSpacing('lg'),
+    paddingBottom: getResponsiveSpacing('xxl'),
+    paddingTop: getResponsiveSpacing('md'),
   },
   card: {
-    marginBottom: 20,
-    borderRadius: 24,
+    marginBottom: getResponsiveSpacing('lg'),
+    borderRadius: 20,
     overflow: "hidden",
-    backgroundColor: "#1A1A1A",
+    backgroundColor: '#1A1A1A',
     borderWidth: 1,
-    borderColor: "#2A1A4A",
-    shadowColor: "#6C3AFF",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 8,
-    elevation: 2,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
   cardImage: {
     width: "100%",
-    height: 240,
+    height: Math.max(240, SCREEN_DIMENSIONS.height * 0.28),
     justifyContent: "flex-end",
   },
   cardImageStyle: {
-    borderRadius: 24,
+    borderRadius: 20,
   },
   cardOverlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(15,8,23,0.4)",
   },
   cardTextContainer: {
-    padding: 20,
+    padding: getResponsiveSpacing('lg'),
+    paddingBottom: getResponsiveSpacing('xl'),
   },
   cardTitle: {
-    fontSize: 20,
+    fontSize: TYPOGRAPHY.h5,
     fontWeight: "700",
-    color: "#FFFFFF",
     letterSpacing: 0.3,
-    textShadowColor: "rgba(108,58,255,0.3)",
+    lineHeight: TYPOGRAPHY.h5 * 1.3,
+    textShadowColor: "rgba(0,0,0,0.8)",
     textShadowOffset: { width: 0, height: 2 },
     textShadowRadius: 4,
   },
   cardDate: {
-    fontSize: 14,
-    color: "#C4B5FD",
-    marginTop: 8,
+    fontSize: TYPOGRAPHY.bodySmall,
+    marginTop: getResponsiveSpacing('sm'),
     fontWeight: "500",
-    textShadowColor: "rgba(0,0,0,0.2)",
+    lineHeight: TYPOGRAPHY.bodySmall * 1.4,
+    textShadowColor: "rgba(0,0,0,0.6)",
     textShadowOffset: { width: 0, height: 1 },
     textShadowRadius: 2,
   },
   tagsContainer: {
     flexDirection: "row",
     flexWrap: "wrap",
-    marginTop: 8,
+    marginTop: getResponsiveSpacing('sm'),
+    marginBottom: getResponsiveSpacing('xs'),
   },
   tag: {
-    backgroundColor: "#2A1A4A",
-    paddingHorizontal: 12,
-    paddingVertical: 6,
+    paddingHorizontal: getResponsiveSpacing('md'),
+    paddingVertical: getResponsiveSpacing('xs'),
     borderRadius: 20,
-    marginRight: 8,
-    marginBottom: 8,
+    marginRight: getResponsiveSpacing('sm'),
+    marginBottom: getResponsiveSpacing('xs'),
     borderWidth: 1,
-    borderColor: "#6C3AFF",
+    ...getShadow(1),
   },
   tagText: {
-    color: "#C4B5FD",
-    fontSize: 12,
+    fontSize: TYPOGRAPHY.caption,
     fontWeight: "500",
   },
 });

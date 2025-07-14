@@ -36,6 +36,7 @@ export default function App() {
       <SafeAreaProvider>
         <NavigationContainer>
           <Stack.Navigator
+            id={undefined}
             initialRouteName={isLoggedIn ? "Home" : "Login"}
             screenOptions={{ headerShown: false }}
           >

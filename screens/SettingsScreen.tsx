@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import {
   View,
   Text,
@@ -12,10 +12,18 @@ import {
   StatusBar,
   Dimensions,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from 'expo-linear-gradient';
 import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { useTheme } from "../context/ThemeContext";
+import UniversalScreen from "../components/UniversalScreen";
+import EnhancedButton from "../components/EnhancedButton";
+import { 
+  getShadow, 
+  hapticFeedback, 
+  TYPOGRAPHY,
+  SCREEN_DIMENSIONS 
+} from "../utils/responsive";
 
 export type RootStackParamList = {
   Login: undefined;
@@ -25,161 +33,162 @@ export type RootStackParamList = {
 };
 type HomeNav = NativeStackNavigationProp<RootStackParamList, "Home">;
 
-const { width } = Dimensions.get('window');
-
-interface SettingItemProps {
-  icon: string;
-  title: string;
-  subtitle?: string;
-  onPress?: () => void;
-  rightElement?: React.ReactNode;
-  danger?: boolean;
-}
-
-const SettingItem: React.FC<SettingItemProps> = ({
-  icon,
-  title,
-  subtitle,
-  onPress,
-  rightElement,
-  danger = false,
-}) => {
-  const [scaleAnim] = useState(new Animated.Value(1));
-
-  const animatePress = () => {
-    Animated.sequence([
-      Animated.timing(scaleAnim, {
-        toValue: 0.95,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-      Animated.timing(scaleAnim, {
-        toValue: 1,
-        duration: 100,
-        useNativeDriver: true,
-      }),
-    ]).start();
-  };
-
-  return (
-    <Animated.View style={[styles.settingItemWrapper, { transform: [{ scale: scaleAnim }] }]}>
-      <TouchableOpacity
-        style={[styles.settingItem, danger && styles.dangerItem]}
-        onPress={() => {
-          animatePress();
-          setTimeout(() => onPress?.(), 150);
-        }}
-        activeOpacity={0.8}
-      >
-        <LinearGradient
-          colors={danger ? ['#FF6B6B', '#FF8E53'] : ['#1A1A1A', '#2A1A4A']}
-          style={styles.settingItemGradient}
-        >
-          <View style={styles.settingItemLeft}>
-            <View style={[styles.iconContainer, danger && styles.dangerIconContainer]}>
-              <LinearGradient
-                colors={danger ? ['#FFFFFF20', '#FFFFFF10'] : ['#6C3AFF', '#BB86FC']}
-                style={styles.iconGradient}
-              >
-                <Ionicons 
-                  name={icon as any} 
-                  size={24} 
-                  color={danger ? "#FFFFFF" : "#FFFFFF"} 
-                />
-              </LinearGradient>
-            </View>
-            <View style={styles.textContainer}>
-              <Text style={[styles.settingTitle, danger && styles.dangerText]}>
-                {title}
-              </Text>
-              {subtitle && (
-                <Text style={[styles.settingSubtitle, danger && styles.dangerSubtext]}>
-                  {subtitle}
-                </Text>
-              )}
-            </View>
-          </View>
-          
-          <View style={styles.settingItemRight}>
-            {rightElement || (
-              <Ionicons 
-                name="chevron-forward" 
-                size={20} 
-                color={danger ? "#FFFFFF80" : "#A78BFA"} 
-              />
-            )}
-          </View>
-        </LinearGradient>
-      </TouchableOpacity>
-    </Animated.View>
-  );
-};
-
-const CustomSwitch: React.FC<{
-  value: boolean;
-  onValueChange: (value: boolean) => void;
-}> = ({ value, onValueChange }) => {
-  const [switchAnim] = useState(new Animated.Value(value ? 1 : 0));
-
-  useEffect(() => {
-    Animated.timing(switchAnim, {
-      toValue: value ? 1 : 0,
-      duration: 200,
-      useNativeDriver: false,
-    }).start();
-  }, [value]);
-
-  return (
-    <TouchableOpacity
-      style={styles.customSwitchContainer}
-      onPress={() => onValueChange(!value)}
-      activeOpacity={0.8}
-    >
-      <Animated.View
-        style={[
-          styles.customSwitchTrack,
-          {
-            backgroundColor: switchAnim.interpolate({
-              inputRange: [0, 1],
-              outputRange: ['#2A1A4A', '#6C3AFF'],
-            }),
-          },
-        ]}
-      >
-        <Animated.View
-          style={[
-            styles.customSwitchThumb,
-            {
-              transform: [
-                {
-                  translateX: switchAnim.interpolate({
-                    inputRange: [0, 1],
-                    outputRange: [2, 22],
-                  }),
-                },
-              ],
-            },
-          ]}
-        >
-          <LinearGradient
-            colors={['#FFFFFF', '#E0E0FF']}
-            style={styles.thumbGradient}
-          />
-        </Animated.View>
-      </Animated.View>
-    </TouchableOpacity>
-  );
-};
-
 export default function SettingsScreen({
   navigation,
 }: {
   navigation: HomeNav;
 }) {
+  const { theme } = useTheme();
   const [notif, setNotif] = useState<boolean>(true);
   const [dark, setDark] = useState<boolean>(false);
   const [fadeAnim] = useState(new Animated.Value(0));
   const [slideAnim] = useState(new Animated.Value(50));
+
+  const styles = createStyles(theme);
+
+  interface SettingItemProps {
+    icon: string;
+    title: string;
+    subtitle?: string;
+    onPress?: () => void;
+    rightElement?: React.ReactNode;
+    danger?: boolean;
+  }
+
+  const SettingItem: React.FC<SettingItemProps> = ({
+    icon,
+    title,
+    subtitle,
+    onPress,
+    rightElement,
+    danger = false,
+  }) => {
+    const [scaleAnim] = useState(new Animated.Value(1));
+
+    const animatePress = () => {
+      Animated.sequence([
+        Animated.timing(scaleAnim, {
+          toValue: 0.95,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 1,
+          duration: 100,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    };
+
+    return (
+      <Animated.View style={[styles.settingItemWrapper, { transform: [{ scale: scaleAnim }] }]}>
+        <TouchableOpacity
+          style={[styles.settingItem, danger && styles.dangerItem]}
+          onPress={() => {
+            animatePress();
+            setTimeout(() => onPress?.(), 150);
+          }}
+          activeOpacity={0.8}
+        >
+          <LinearGradient
+            colors={danger ? ['#FF6B6B', '#FF8E53'] : ['#1A1A1A', '#2A1A4A']}
+            style={styles.settingItemGradient}
+          >
+            <View style={styles.settingItemLeft}>
+              <View style={[styles.iconContainer, danger && styles.dangerIconContainer]}>
+                <LinearGradient
+                  colors={danger ? ['#FFFFFF20', '#FFFFFF10'] : ['#6C3AFF', '#BB86FC']}
+                  style={styles.iconGradient}
+                >
+                  <Ionicons 
+                    name={icon as any} 
+                    size={24} 
+                    color={danger ? "#FFFFFF" : "#FFFFFF"} 
+                  />
+                </LinearGradient>
+              </View>
+              <View style={styles.textContainer}>
+                <Text style={[styles.settingTitle, danger && styles.dangerText]}>
+                  {title}
+                </Text>
+                {subtitle && (
+                  <Text style={[styles.settingSubtitle, danger && styles.dangerSubtext]}>
+                    {subtitle}
+                  </Text>
+                )}
+              </View>
+            </View>
+            
+            <View style={styles.settingItemRight}>
+              {rightElement || (
+                <Ionicons 
+                  name="chevron-forward" 
+                  size={20} 
+                  color={danger ? "#FFFFFF80" : "#A78BFA"} 
+                />
+              )}
+            </View>
+          </LinearGradient>
+        </TouchableOpacity>
+      </Animated.View>
+    );
+  };
+
+  const CustomSwitch: React.FC<{
+    value: boolean;
+    onValueChange: (value: boolean) => void;
+  }> = ({ value, onValueChange }) => {
+    const [switchAnim] = useState(new Animated.Value(value ? 1 : 0));
+
+    useEffect(() => {
+      Animated.timing(switchAnim, {
+        toValue: value ? 1 : 0,
+        duration: 200,
+        useNativeDriver: false,
+      }).start();
+    }, [value]);
+
+    return (
+      <TouchableOpacity
+        style={styles.customSwitchContainer}
+        onPress={() => onValueChange(!value)}
+        activeOpacity={0.8}
+      >
+        <Animated.View
+          style={[
+            styles.customSwitchTrack,
+            {
+              backgroundColor: switchAnim.interpolate({
+                inputRange: [0, 1],
+                outputRange: ['#2A1A4A', '#6C3AFF'],
+              }),
+            },
+          ]}
+        >
+          <Animated.View
+            style={[
+              styles.customSwitchThumb,
+              {
+                transform: [
+                  {
+                    translateX: switchAnim.interpolate({
+                      inputRange: [0, 1],
+                      outputRange: [2, 22],
+                    }),
+                  },
+                ],
+              },
+            ]}
+          >
+            <LinearGradient
+              colors={['#FFFFFF', '#E0E0FF']}
+              style={styles.thumbGradient}
+            />
+          </Animated.View>
+        </Animated.View>
+      </TouchableOpacity>
+    );
+  };
 
   useEffect(() => {
     // Animate screen entrance
@@ -268,8 +277,8 @@ export default function SettingsScreen({
     );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#0F0817" />
+    <UniversalScreen>
+      <StatusBar barStyle="light-content" backgroundColor={theme.colors.surface} />
       
       {/* Header */}
       <Animated.View 
@@ -413,14 +422,14 @@ export default function SettingsScreen({
           </View>
         </Animated.View>
       </ScrollView>
-    </SafeAreaView>
+    </UniversalScreen>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: { 
     flex: 1, 
-    backgroundColor: "#0F0817" 
+    backgroundColor: theme.colors.surface 
   },
   header: {
     paddingBottom: 8,

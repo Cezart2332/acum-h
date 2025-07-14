@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useRef, useCallback, useEffect } from "react";
 import {
   View,
   Text,
@@ -11,13 +11,23 @@ import {
   Keyboard,
   TouchableWithoutFeedback,
   Modal,
+  Animated,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
 import type { RootStackParamList } from "./RootStackParamList";
+import { useTheme } from "../context/ThemeContext";
+import UniversalScreen from "../components/UniversalScreen";
+import EnhancedButton from "../components/EnhancedButton";
+import EnhancedInput from "../components/EnhancedInput";
+import { 
+  getShadow, 
+  hapticFeedback, 
+  TYPOGRAPHY,
+  SCREEN_DIMENSIONS 
+} from "../utils/responsive";
 
 type ReservationNav = NativeStackNavigationProp<
   RootStackParamList,
@@ -31,6 +41,7 @@ interface Props {
 }
 
 const Reservation: React.FC<Props> = ({ navigation, route }) => {
+  const { theme } = useTheme();
   const { company } = route.params;
   const [date, setDate] = useState(new Date());
   const [time, setTime] = useState(new Date());
@@ -38,6 +49,29 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
   const [specialRequest, setSpecialRequest] = useState("");
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
+  const [loading, setLoading] = useState(false);
+  
+  // Animation refs
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+
+  const styles = createStyles(theme);
+
+  useEffect(() => {
+    // Start entrance animations
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 1000,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
 
   // Calculate max date (1 week from now)
   const maxDate = new Date();
@@ -90,16 +124,29 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
   };
 
   return (
-    <TouchableWithoutFeedback onPress={() => Keyboard.dismiss()}>
-      <SafeAreaView style={styles.container}>
-        <ScrollView contentContainerStyle={styles.scrollContent}>
+    <UniversalScreen>
+      <Animated.View 
+        style={[
+          { flex: 1 },
+          {
+            opacity: fadeAnim,
+            transform: [
+              { translateY: slideAnim }
+            ]
+          }
+        ]}
+      >
+        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
           {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity
-              onPress={() => navigation.goBack()}
+              onPress={() => {
+                hapticFeedback('light');
+                navigation.goBack();
+              }}
               style={styles.backButton}
             >
-              <Ionicons name="arrow-back" size={28} color="#A78BFA" />
+              <Ionicons name="arrow-back" size={28} color={theme.colors.primary} />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Rezervări</Text>
           </View>
@@ -250,15 +297,15 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
             themeVariant="dark"
           />
         )}
-      </SafeAreaView>
-    </TouchableWithoutFeedback>
+      </Animated.View>
+    </UniversalScreen>
   );
 };
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0F0817",
+    backgroundColor: theme.colors.surface,
   },
   scrollContent: {
     paddingBottom: 40,
@@ -276,11 +323,11 @@ const styles = StyleSheet.create({
   headerTitle: {
     fontSize: 24,
     fontWeight: "700",
-    color: "#A78BFA",
+    color: theme.colors.primary,
   },
   card: {
     margin: 16,
-    backgroundColor: "#1A1A1A",
+    backgroundColor: theme.colors.card,
     borderRadius: 20,
     padding: 24,
     shadowColor: "#6C3AFF",

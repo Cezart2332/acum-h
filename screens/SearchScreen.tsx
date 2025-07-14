@@ -2,48 +2,35 @@ import React, { useEffect, useState, useCallback, useMemo, useRef } from "react"
 import {
   View,
   StyleSheet,
-  TextInput,
   SectionList,
   Text,
   TouchableOpacity,
   Image,
   ActivityIndicator,
   Animated,
-  Dimensions,
-  StatusBar,
   RefreshControl,
   Alert,
 } from "react-native";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from 'expo-linear-gradient';
+import { useNavigation } from '@react-navigation/native';
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import type { RootStackParamList, EventData, CompanyData } from "./RootStackParamList";
 import BASE_URL from "../config";
+import { useTheme } from "../context/ThemeContext";
+import UniversalScreen from "../components/UniversalScreen";
+import EnhancedInput from "../components/EnhancedInput";
+import { 
+  getShadow, 
+  hapticFeedback, 
+  TYPOGRAPHY,
+  getResponsiveSpacing,
+  SCREEN_DIMENSIONS,
+  debounce 
+} from "../utils/responsive";
 
-interface EventData {
-  id: string;
-  title: string;
-  description?: string;
-  photo: string;
-  tags?: string[];
-  company?: string;
-  likes?: number;
-}
+type SearchScreenNavigationProp = NativeStackNavigationProp<RootStackParamList, 'Home'>;
 
-interface CompanyData {
-  id?: number;
-  name?: string;
-  email?: string;
-  address?: string;
-  cui?: number;
-  category?: string;
-  profileImage?: string;
-  description?: string;
-  tags?: string[];
-  latitude?: number;
-  longitude?: number;
-}
-
-// Unified interface for section list items
 interface SearchItem {
   id: string;
   title: string;
@@ -62,980 +49,558 @@ interface SearchSection {
   data: SearchItem[];
 }
 
-const { width } = Dimensions.get('window');
-
-// Mock data for when backend is unavailable
-const getMockRestaurants = (): CompanyData[] => [
-  {
-    id: 1,
-    name: "La Mama",
-    category: "Românesc",
-    address: "Str. Republicii nr. 15, Timișoara",
-    description: "Restaurant traditional românesc cu mâncăruri casnice delicioase, preparat cu ingrediente proaspete",
-    email: "contact@lamama.ro",
-    profileImage: "",
-    tags: ["traditional", "românesc", "casnic", "proaspăt"],
-    latitude: 45.7494,
-    longitude: 21.2272,
-    cui: 12345678
-  },
-  {
-    id: 2,
-    name: "Pizza Bella",
-    category: "Italian",
-    address: "Bulevardul Revoluției nr. 42, Timișoara",
-    description: "Pizzerie autentică cu ingrediente proaspete aduse din Italia, aluat făcut în casă",
-    email: "info@pizzabella.ro",
-    profileImage: "",
-    tags: ["pizza", "italian", "proaspăt", "autentic"],
-    latitude: 45.7578,
-    longitude: 21.2270,
-    cui: 87654321
-  },
-  {
-    id: 3,
-    name: "Sushi Zen",
-    category: "Japonez",
-    address: "Str. Eminescu nr. 8, Timișoara",
-    description: "Restaurant japonez cu sushi proaspăt pregătit de maeștri japonezi",
-    email: "contact@sushizen.ro",
-    profileImage: "",
-    tags: ["sushi", "japonez", "fresh", "autentic"],
-    latitude: 45.7528,
-    longitude: 21.2285,
-    cui: 11223344
-  },
-  {
-    id: 4,
-    name: "Bistro Central",
-    category: "Internațional",
-    address: "Piața Victoriei nr. 2, Timișoara",
-    description: "Bistro modern cu bucătărie internațională și atmosferă elegantă",
-    email: "info@bistrocentral.ro",
-    profileImage: "",
-    tags: ["bistro", "modern", "elegant", "internațional"],
-    latitude: 45.7575,
-    longitude: 21.2298,
-    cui: 22334455
-  },
-  {
-    id: 5,
-    name: "Casa Bunicii",
-    category: "Românesc",
-    address: "Str. Aleea Studentilor nr. 12, Timișoara",
-    description: "Mâncare tradițională românească ca la bunica acasă",
-    email: "contact@casabunicii.ro",
-    profileImage: "",
-    tags: ["tradițional", "casnic", "românesc", "nostalgie"],
-    latitude: 45.7466,
-    longitude: 21.2371,
-    cui: 33445566
-  }
-];
-
-const getMockEvents = (): EventData[] => [
-  {
-    id: "1",
-    title: "Concert Rock în Centrul Vechi",
-    description: "Seară de rock cu cele mai bune trupe locale din Timișoara",
-    company: "Rock Club Timișoara",
-    photo: "",
-    tags: ["rock", "muzică", "concert", "live"],
-    likes: 127
-  },
-  {
-    id: "2", 
-    title: "Festival de Artă Stradală",
-    description: "Trei zile de spectacole de artă stradală și performanțe creative",
-    company: "Primăria Timișoara",
-    photo: "",
-    tags: ["artă", "festival", "stradal", "spectacol"],
-    likes: 89
-  },
-  {
-    id: "3",
-    title: "Noaptea Muzeelor",
-    description: "Intrare gratuită la toate muzeele din oraș până la miezul nopții",
-    company: "Consiliul Județean Timiș",
-    photo: "",
-    tags: ["muzee", "cultură", "gratuit", "noapte"],
-    likes: 203
-  },
-  {
-    id: "4",
-    title: "Târgul de Craciun",
-    description: "Târg tradițional cu produse locale și vin fiert",
-    company: "Centrul de Evenimente Timișoara",
-    photo: "",
-    tags: ["craciun", "târg", "tradițional", "local"],
-    likes: 156
-  },
-  {
-    id: "5",
-    title: "Concurs de Tango Argentinian",
-    description: "Competiție de dans tango cu participanți din toată țara",
-    company: "Club de Dans Timișoara",
-    photo: "",
-    tags: ["dans", "tango", "competiție", "argentinian"],
-    likes: 78
-  }
-];
-
-export default function SearchScreen({ navigation }: { navigation: any }) {
-  const [query, setQuery] = useState("");
-  const [events, setEvents] = useState<EventData[]>([]);
-  const [restaurants, setRestaurants] = useState<CompanyData[]>([]);
-  const [dataLoading, setDataLoading] = useState(true);
+const SearchScreen: React.FC = () => {
+  const navigation = useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const { theme } = useTheme();
+  const [searchQuery, setSearchQuery] = useState("");
+  const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [searchFocused, setSearchFocused] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [backendAvailable, setBackendAvailable] = useState(false);
-  const [isMounted, setIsMounted] = useState(true); // CRITICAL: Track component mount state
+  const [sections, setSections] = useState<SearchSection[]>([]);
+  const [restaurants, setRestaurants] = useState<CompanyData[]>([]);
+  const [events, setEvents] = useState<EventData[]>([]);
+  const [selectedFilter, setSelectedFilter] = useState<'all' | 'restaurants' | 'events'>('all');
 
-  // CRITICAL: Use refs for animations to prevent recreation
+  // Animation refs
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const scaleAnim = useRef(new Animated.Value(0.95)).current;
-  
-  // CRITICAL: Debouncing refs to prevent API spam
-  const debounceTimeoutRef = useRef<number | null>(null);
-  const lastFetchRef = useRef<number>(0);
-  const abortControllerRef = useRef<AbortController | null>(null);
+  const slideAnim = useRef(new Animated.Value(30)).current;
 
-  // CRITICAL: Memoized filter functions (unchanged for performance)
-  const filteredEvents = useMemo(() => {
-    if (!query.trim()) return events.slice(0, 10);
-    
-    return events.filter((e) =>
-      e.title?.toLowerCase().includes(query.toLowerCase()) ||
-      (e.description && e.description.toLowerCase().includes(query.toLowerCase())) ||
-      (e.company && e.company.toLowerCase().includes(query.toLowerCase())) ||
-      (e.tags && e.tags.some(tag => tag.toLowerCase().includes(query.toLowerCase())))
-    );
-  }, [events, query]);
-
-  const filteredRestaurants = useMemo(() => {
-    if (!query.trim()) return restaurants.slice(0, 10);
-    
-    return restaurants.filter((r) =>
-      (r.name && r.name.toLowerCase().includes(query.toLowerCase())) ||
-      (r.category && r.category.toLowerCase().includes(query.toLowerCase())) ||
-      (r.address && r.address.toLowerCase().includes(query.toLowerCase())) ||
-      (r.description && r.description.toLowerCase().includes(query.toLowerCase())) ||
-      (r.tags && r.tags.some(tag => tag.toLowerCase().includes(query.toLowerCase())))
-    );
-  }, [restaurants, query]);
-
-  // CRITICAL: Fixed animation function with proper dependencies
-  const startAnimations = useCallback(() => {
-    if (!isMounted) return; // Prevent animations on unmounted component
-    
+  useEffect(() => {
+    // Start entrance animations
     Animated.parallel([
       Animated.timing(fadeAnim, {
         toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
         duration: 600,
         useNativeDriver: true,
       }),
-      Animated.spring(scaleAnim, {
-        toValue: 1,
-        tension: 50,
-        friction: 7,
-        useNativeDriver: true,
-      }),
     ]).start();
-  }, [fadeAnim, scaleAnim, isMounted]);
 
-  // CRITICAL: Enhanced fetchData with debouncing and duplicate prevention
-  const fetchData = useCallback(async (showRefreshing = false, forceRefresh = false) => {
-    // CRITICAL: Prevent duplicate calls within 500ms
-    const now = Date.now();
-    if (!forceRefresh && now - lastFetchRef.current < 500) {
-      return;
-    }
-    lastFetchRef.current = now;
-
-    // CRITICAL: Cancel previous request
-    if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-    }
-
-    if (!isMounted) return; // Don't fetch if component unmounted
-
-    try {
-      if (showRefreshing) setRefreshing(true);
-      else setDataLoading(true);
-      setError(null);
-
-      // CRITICAL: Reduced log spam - only log when actually fetching
-      if (forceRefresh || !events.length) {
-        console.log('🔄 Fetching data from:', BASE_URL);
-      }
-
-      // CRITICAL: Create new abort controller for this request
-      abortControllerRef.current = new AbortController();
-      const timeoutId = setTimeout(() => abortControllerRef.current?.abort(), 10000);
-
-      const fetchOptions = {
-        signal: abortControllerRef.current.signal,
-        headers: {
-          'Accept': 'application/json',
-          'Content-Type': 'application/json',
-        },
-      };
-
-      try {
-        const [eventsResponse, companiesResponse] = await Promise.allSettled([
-          fetch(`${BASE_URL}/events`, fetchOptions),
-          fetch(`${BASE_URL}/companies`, fetchOptions),
-        ]);
-
-        clearTimeout(timeoutId);
-
-        if (!isMounted) return; // Check mount state before updating state
-
-        let backendWorking = false;
-        
-        // Process events
-        let eventsData: EventData[] = [];
-        if (eventsResponse.status === 'fulfilled' && eventsResponse.value.ok) {
-          try {
-            eventsData = await eventsResponse.value.json();
-            // CRITICAL: Reduced log spam - only log successful loads
-            if (Array.isArray(eventsData) && eventsData.length > 0) {
-              console.log('✅ Events loaded:', eventsData.length);
-            }
-            backendWorking = true;
-          } catch (e) {
-            console.warn('⚠️ Events JSON parse error:', e);
-          }
-        }
-
-        // Process companies  
-        let companiesData: CompanyData[] = [];
-        if (companiesResponse.status === 'fulfilled' && companiesResponse.value.ok) {
-          try {
-            companiesData = await companiesResponse.value.json();
-            // CRITICAL: Reduced log spam - only log successful loads
-            if (Array.isArray(companiesData) && companiesData.length > 0) {
-              console.log('✅ Companies loaded:', companiesData.length);
-            }
-            backendWorking = true;
-          } catch (e) {
-            console.warn('⚠️ Companies JSON parse error:', e);
-          }
-        }
-
-        // If backend failed, use mock data
-        if (!backendWorking) {
-          if (forceRefresh || !events.length) {
-            console.log('🔄 Backend unavailable, using mock data');
-          }
-          eventsData = getMockEvents();
-          companiesData = getMockRestaurants();
-          setBackendAvailable(false);
-          setError("Backend nu este disponibil. Se afișează date demonstrative.");
-        } else {
-          setBackendAvailable(true);
-        }
-
-        // CRITICAL: Only update state if component is still mounted
-        if (isMounted) {
-          setEvents(Array.isArray(eventsData) ? eventsData : []);
-          setRestaurants(Array.isArray(companiesData) ? companiesData : []);
-        }
-
-      } catch (fetchError: any) {
-        if (!isMounted) return;
-        
-        // Only log errors that aren't abort errors
-        if (fetchError?.name !== 'AbortError') {
-          console.log('⚠️ Fetch failed, using mock data:', fetchError.message);
-        }
-        
-        setEvents(getMockEvents());
-        setRestaurants(getMockRestaurants());
-        setBackendAvailable(false);
-        setError("Nu s-a putut conecta la server. Se afișează date demonstrative.");
-      }
-
-    } catch (err: any) {
-      if (!isMounted) return;
-      
-      console.error("❌ General fetch error:", err?.message);
-      setEvents(getMockEvents());
-      setRestaurants(getMockRestaurants());
-      setBackendAvailable(false);
-      setError("Eroare de conectare. Se afișează date demonstrative.");
-    } finally {
-      if (isMounted) {
-        setDataLoading(false);
-        setRefreshing(false);
-      }
-    }
-  }, [isMounted, events.length]); // CRITICAL: Proper dependencies
-
-  // CRITICAL: Debounced search function
-  const debouncedFetchData = useCallback((showRefreshing = false) => {
-    // Clear existing debounce timeout
-    if (debounceTimeoutRef.current) {
-      clearTimeout(debounceTimeoutRef.current);
-    }
-
-    // CRITICAL: 500ms debounce as requested
-    debounceTimeoutRef.current = setTimeout(() => {
-      fetchData(showRefreshing, true);
-    }, 500);
-  }, [fetchData]);
-
-  // CRITICAL: Fixed useEffect with proper cleanup and dependencies
-  useEffect(() => {
-    setIsMounted(true);
-    startAnimations();
-    
-    // Initial fetch without debounce
-    fetchData(false, true);
-
-    // CRITICAL: Cleanup function to prevent memory leaks and async warnings
-    return () => {
-      setIsMounted(false);
-      
-      // Clear debounce timeout
-      if (debounceTimeoutRef.current) {
-        clearTimeout(debounceTimeoutRef.current);
-      }
-      
-      // Abort ongoing requests
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-    };
-  }, []); // CRITICAL: Empty dependency array to run only once
-
-  // CRITICAL: Separate effect for search query changes with debouncing
-  useEffect(() => {
-    // Only debounce if there's a query and we have initial data
-    if (query.trim() && events.length > 0) {
-      debouncedFetchData(false);
-    }
-
-    return () => {
-      if (debounceTimeoutRef.current) {
-        clearTimeout(debounceTimeoutRef.current);
-      }
-    };
-  }, [query, debouncedFetchData, events.length]);
-
-  // Convert data to unified format with better error handling
-  const convertEventsToSearchItems = useCallback((events: EventData[]): SearchItem[] => {
-    return events.map(event => ({
-      id: event.id || `event-${Math.random()}`,
-      title: event.title || 'Eveniment fără titlu',
-      subtitle: event.description || event.company || '',
-      image: event.photo || '',
-      type: 'event' as const,
-      tags: event.tags || [],
-      likes: event.likes || 0,
-      originalData: event,
-    }));
+    // Load initial data
+    loadData();
   }, []);
 
-  const convertRestaurantsToSearchItems = useCallback((restaurants: CompanyData[]): SearchItem[] => {
-    return restaurants.map(restaurant => ({
-      id: restaurant.id?.toString() || `restaurant-${Math.random()}`,
-      title: restaurant.name || 'Restaurant fără nume',
-      subtitle: restaurant.category || restaurant.description || '',
-      image: restaurant.profileImage || '',
-      type: 'restaurant' as const,
-      address: restaurant.address,
-      tags: restaurant.tags || [],
-      rating: 4.5, // Default rating since it's not in the backend
-      originalData: restaurant,
-    }));
-  }, []);
-
-  const handleItemPress = useCallback((item: SearchItem) => {
-    if (!navigation) {
-      Alert.alert("Info", "Navigarea nu este disponibilă momentan");
-      return;
-    }
-    
+  const loadData = async () => {
+    setLoading(true);
     try {
-      if (item.type === 'event') {
-        navigation.navigate("EventScreen", { event: item.originalData });
-      } else {
-        navigation.navigate("Info", { company: item.originalData });
-      }
+      const [restaurantsData, eventsData] = await Promise.all([
+        loadRestaurants(),
+        loadEvents(),
+      ]);
+      
+      setRestaurants(restaurantsData);
+      setEvents(eventsData);
+      updateSections(restaurantsData, eventsData, searchQuery, selectedFilter);
     } catch (error) {
-      console.error("Navigation error:", error);
-      Alert.alert("Eroare", "Nu s-a putut naviga la această secțiune");
+      console.error('Error loading data:', error);
+      Alert.alert('Error', 'Could not load data. Please try again.');
+    } finally {
+      setLoading(false);
     }
-  }, [navigation]);
+  };
 
-  const sections: SearchSection[] = useMemo(() => {
-    const eventItems = convertEventsToSearchItems(filteredEvents);
-    const restaurantItems = convertRestaurantsToSearchItems(filteredRestaurants);
+  const loadRestaurants = async (): Promise<CompanyData[]> => {
+    try {
+      const response = await fetch(`${BASE_URL}/companies`);
+      if (response.ok) {
+        return await response.json();
+      }
+      throw new Error('Failed to load restaurants');
+    } catch (error) {
+      console.warn('Using mock restaurant data');
+      return getMockRestaurants();
+    }
+  };
 
-    return [
-      { 
-        title: "Evenimente", 
-        data: eventItems
-      },
-      { 
-        title: "Restaurante", 
-        data: restaurantItems
-      },
-    ].filter(section => section.data.length > 0); // Only show sections with data
-  }, [filteredEvents, filteredRestaurants, convertEventsToSearchItems, convertRestaurantsToSearchItems]);
+  const loadEvents = async (): Promise<EventData[]> => {
+    try {
+      const response = await fetch(`${BASE_URL}/events`);
+      if (response.ok) {
+        return await response.json();
+      }
+      throw new Error('Failed to load events');
+    } catch (error) {
+      console.warn('Using mock event data');
+      return getMockEvents();
+    }
+  };
 
-  // CRITICAL: Enhanced refresh handler with proper debouncing
-  const handleRefresh = useCallback(() => {
-    fetchData(true, true); // Force refresh without debounce
-  }, [fetchData]);
+  const getMockRestaurants = (): CompanyData[] => [
+    {
+      id: 1,
+      name: "La Mama",
+      category: "Românesc",
+      address: "Str. Republicii nr. 15, Timișoara",
+      description: "Restaurant traditional românesc cu mâncăruri casnice delicioase",
+      profileImage: "",
+      tags: ["traditional", "românesc", "casnic"],
+    },
+    {
+      id: 2,
+      name: "Pizza Bella",
+      category: "Italian", 
+      address: "Bulevardul Revoluției nr. 42, Timișoara",
+      description: "Pizzerie autentică cu ingrediente proaspete din Italia",
+      profileImage: "",
+      tags: ["pizza", "italian", "autentic"],
+    },
+    {
+      id: 3,
+      name: "Sushi Zen",
+      category: "Japonez",
+      address: "Str. Eminescu nr. 8, Timișoara", 
+      description: "Restaurant japonez cu sushi proaspăt",
+      profileImage: "",
+      tags: ["sushi", "japonez", "fresh"],
+    },
+  ];
 
-  // CRITICAL: Enhanced loading state to prevent empty renders
-  const EmptyResults = () => {
-    if (dataLoading && !events.length && !restaurants.length) {
-      return (
-        <Animated.View style={[styles.emptyContainer, { opacity: fadeAnim }]}>
-          <LinearGradient
-            colors={['rgba(108, 58, 255, 0.1)', 'rgba(155, 89, 182, 0.1)']}
-            style={styles.emptyGradient}
-          >
-            <ActivityIndicator size="large" color="#6C3AFF" />
-            <Text style={styles.emptyTitle}>Încărcăm datele...</Text>
-            <Text style={styles.emptySubtitle}>Te rugăm să aștepți...</Text>
-          </LinearGradient>
-        </Animated.View>
+  const getMockEvents = (): EventData[] => [
+    {
+      id: "1",
+      title: "Concert Rock în Centrul Vechi",
+      description: "Seară de rock cu cele mai bune trupe locale",
+      company: "Rock Club Timișoara",
+      photo: "",
+      tags: ["rock", "muzică", "concert"],
+      likes: 127
+    },
+    {
+      id: "2",
+      title: "Festival de Artă Stradală", 
+      description: "Trei zile de spectacole de artă stradală",
+      company: "Primăria Timișoara",
+      photo: "",
+      tags: ["artă", "festival", "stradală"],
+      likes: 89
+    },
+  ];
+
+  const updateSections = (restaurantData: CompanyData[], eventData: EventData[], query: string, filter: string) => {
+    const searchLower = query.toLowerCase();
+    
+    let filteredRestaurants = restaurantData;
+    let filteredEvents = eventData;
+
+    if (query) {
+      filteredRestaurants = restaurantData.filter(restaurant =>
+        restaurant.name?.toLowerCase().includes(searchLower) ||
+        restaurant.category?.toLowerCase().includes(searchLower) ||
+        restaurant.tags?.some(tag => tag.toLowerCase().includes(searchLower)) ||
+        restaurant.description?.toLowerCase().includes(searchLower)
+      );
+
+      filteredEvents = eventData.filter(event =>
+        event.title.toLowerCase().includes(searchLower) ||
+        event.description?.toLowerCase().includes(searchLower) ||
+        event.company?.toLowerCase().includes(searchLower) ||
+        event.tags?.some(tag => tag.toLowerCase().includes(searchLower))
       );
     }
 
-    return (
-      <Animated.View style={[styles.emptyContainer, { opacity: fadeAnim }]}>
-        <LinearGradient
-          colors={['rgba(108, 58, 255, 0.1)', 'rgba(155, 89, 182, 0.1)']}
-          style={styles.emptyGradient}
-        >
-          <Ionicons 
-            name={error ? "information-circle-outline" : "search-outline"} 
-            size={64} 
-            color="#6C3AFF" 
-          />
-          <Text style={styles.emptyTitle}>
-            {error ? "Mod demonstrativ" :
-             query ? "Nu am găsit rezultate" : "Începe să cauți"}
-          </Text>
-          <Text style={styles.emptySubtitle}>
-            {error ? "Datele afișate sunt demonstrative până se conectează backend-ul" :
-             query ? "Încearcă să cauți cu alți termeni" : 
-             "Caută evenimente sau restaurante"}
-          </Text>
-          {error && !backendAvailable && (
-            <TouchableOpacity
-              style={styles.retryButton}
-              onPress={handleRefresh}
-            >
-              <Text style={styles.retryButtonText}>Încearcă conectarea din nou</Text>
-            </TouchableOpacity>
-          )}
-        </LinearGradient>
-      </Animated.View>
-    );
+    const newSections: SearchSection[] = [];
+
+    if (filter === 'all' || filter === 'restaurants') {
+      if (filteredRestaurants.length > 0) {
+        newSections.push({
+          title: `🍽️ Restaurante (${filteredRestaurants.length})`,
+          data: filteredRestaurants.map(restaurant => ({
+            id: restaurant.id?.toString() || '0',
+            title: restaurant.name || '',
+            subtitle: restaurant.category,
+            image: restaurant.profileImage || '',
+            type: 'restaurant' as const,
+            address: restaurant.address,
+            tags: restaurant.tags,
+            originalData: restaurant,
+          })),
+        });
+      }
+    }
+
+    if (filter === 'all' || filter === 'events') {
+      if (filteredEvents.length > 0) {
+        newSections.push({
+          title: `🎉 Evenimente (${filteredEvents.length})`,
+          data: filteredEvents.map(event => ({
+            id: event.id,
+            title: event.title,
+            subtitle: event.company,
+            image: event.photo,
+            type: 'event' as const,
+            likes: event.likes,
+            tags: event.tags,
+            originalData: event,
+          })),
+        });
+      }
+    }
+
+    setSections(newSections);
   };
 
-  const renderItem = useCallback(({ item }: { item: SearchItem }) => (
-    <Animated.View
-      style={[
-        styles.cardWrapper,
-        {
-          opacity: fadeAnim,
-          transform: [{
-            translateY: fadeAnim.interpolate({
-              inputRange: [0, 1],
-              outputRange: [50, 0],
-            }),
-          }],
-        },
-      ]}
+  const debouncedSearch = useMemo(
+    () => debounce((query: string) => {
+      updateSections(restaurants, events, query, selectedFilter);
+    }, 300),
+    [restaurants, events, selectedFilter]
+  );
+
+  const handleSearchChange = (text: string) => {
+    setSearchQuery(text);
+    debouncedSearch(text);
+  };
+
+  const handleFilterChange = (filter: 'all' | 'restaurants' | 'events') => {
+    hapticFeedback('light');
+    setSelectedFilter(filter);
+    updateSections(restaurants, events, searchQuery, filter);
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await loadData();
+    setRefreshing(false);
+  };
+
+  const handleItemPress = (item: SearchItem) => {
+    hapticFeedback('medium');
+    
+    try {
+      if (item.type === 'event') {
+        // Navigate to EventScreen with event data
+        const eventData = item.originalData as EventData;
+        navigation.navigate('EventScreen', { event: eventData });
+      } else if (item.type === 'restaurant') {
+        // Navigate to Info (restaurant details) with company data
+        const companyData = item.originalData as CompanyData;
+        navigation.navigate('Info', { company: companyData });
+      }
+    } catch (error) {
+      console.error('Navigation error:', error);
+      Alert.alert('Error', 'Could not open details. Please try again.');
+    }
+  };
+
+  const renderSectionHeader = ({ section }: { section: SearchSection }) => (
+    <View style={[styles.sectionHeader, { backgroundColor: theme.colors.surface }]}>
+      <Text style={[styles.sectionHeaderText, { color: theme.colors.text }]}>
+        {section.title}
+      </Text>
+    </View>
+  );
+
+  const renderItem = ({ item }: { item: SearchItem }) => (
+    <TouchableOpacity
+      style={[styles.itemContainer, getShadow(3)]}
+      onPress={() => handleItemPress(item)}
+      activeOpacity={0.9}
     >
-      <TouchableOpacity
-        style={styles.card}
-        onPress={() => handleItemPress(item)}
-        activeOpacity={0.8}
-      >
-        <View style={styles.cardImageContainer}>
-          {item.image ? (
-            <Image
-              source={{
-                uri: item.image.startsWith('data:') ? item.image : `data:image/jpg;base64,${item.image}`,
-              }}
-              style={styles.cardImage}
-              defaultSource={require('../assets/default.jpg')}
-              onError={() => {
-                console.log('Image load error for:', item.title);
-              }}
+      <View style={[styles.itemCard, { backgroundColor: theme.colors.surface }]}>
+        {item.image ? (
+          <Image source={{ uri: `data:image/jpg;base64,${item.image}` }} style={styles.itemImage} />
+        ) : (
+          <View style={[styles.itemImagePlaceholder, { backgroundColor: theme.colors.border }]}>
+            <Ionicons 
+              name={item.type === 'restaurant' ? 'restaurant-outline' : 'calendar-outline'} 
+              size={24} 
+              color={theme.colors.textTertiary} 
             />
-          ) : (
-            <View style={styles.cardImagePlaceholder}>
-              <Ionicons 
-                name={item.type === 'event' ? "calendar" : "restaurant"} 
-                size={32} 
-                color="#6C3AFF" 
-              />
-            </View>
-          )}
-          <LinearGradient
-            colors={['transparent', 'rgba(15,8,23,0.8)']}
-            style={styles.cardImageOverlay}
-          />
-        </View>
+          </View>
+        )}
         
-        <View style={styles.cardContent}>
-          <Text style={styles.cardTitle} numberOfLines={2}>
+        <View style={styles.itemContent}>
+          <Text style={[styles.itemTitle, { color: theme.colors.text }]} numberOfLines={2}>
             {item.title}
           </Text>
           
           {item.subtitle && (
-            <Text style={styles.cardSubtitle} numberOfLines={2}>
+            <Text style={[styles.itemSubtitle, { color: theme.colors.textSecondary }]} numberOfLines={1}>
               {item.subtitle}
             </Text>
           )}
-
-          {item.type === 'restaurant' && item.address && (
-            <View style={styles.addressContainer}>
-              <Ionicons name="location-outline" size={14} color="#A78BFA" />
-              <Text style={styles.addressText} numberOfLines={1}>
-                {item.address}
-              </Text>
-            </View>
+          
+          {item.address && (
+            <Text style={[styles.itemAddress, { color: theme.colors.textTertiary }]} numberOfLines={1}>
+              📍 {item.address}
+            </Text>
           )}
-
-          {item.type === 'event' && item.likes !== undefined && (
-            <View style={styles.likesContainer}>
-              <Ionicons name="heart-outline" size={14} color="#FF6B9D" />
-              <Text style={styles.likesText}>
-                {item.likes} like{item.likes !== 1 ? '-uri' : ''}
-              </Text>
-            </View>
+          
+          {item.likes && (
+            <Text style={[styles.itemLikes, { color: theme.colors.accent }]}>
+              👍 {item.likes} likes
+            </Text>
           )}
-
+          
           {item.tags && item.tags.length > 0 && (
             <View style={styles.tagsContainer}>
-              {item.tags.slice(0, 2).map((tag, tagIndex) => (
-                <View key={tagIndex} style={styles.tag}>
-                  <Text style={styles.tagText}>{tag}</Text>
+              {item.tags.slice(0, 3).map((tag, index) => (
+                <View key={index} style={[styles.tag, { backgroundColor: theme.colors.accentLight + '30' }]}>
+                  <Text style={[styles.tagText, { color: theme.colors.accent }]}>{tag}</Text>
                 </View>
               ))}
-              {item.tags.length > 2 && (
-                <Text style={styles.moreTagsText}>
-                  +{item.tags.length - 2}
-                </Text>
-              )}
             </View>
           )}
         </View>
+        
+        <Ionicons name="chevron-forward" size={20} color={theme.colors.textTertiary} />
+      </View>
+    </TouchableOpacity>
+  );
 
-        <View style={styles.cardAction}>
-          <LinearGradient
-            colors={['#6C3AFF', '#9B59B6']}
-            style={styles.actionButton}
-          >
-            <Ionicons 
-              name={item.type === 'event' ? "calendar" : "restaurant"} 
-              size={20} 
-              color="#FFFFFF" 
-            />
-          </LinearGradient>
-        </View>
-      </TouchableOpacity>
-    </Animated.View>
-  ), [fadeAnim, handleItemPress]);
+  const renderFilterButton = (filter: 'all' | 'restaurants' | 'events', title: string, icon: string) => (
+    <TouchableOpacity
+      style={[
+        styles.filterButton,
+        selectedFilter === filter && [styles.activeFilterButton, { backgroundColor: theme.colors.accent }],
+        { borderColor: theme.colors.border }
+      ]}
+      onPress={() => handleFilterChange(filter)}
+      activeOpacity={0.8}
+    >
+      <Ionicons 
+        name={icon as any} 
+        size={18} 
+        color={selectedFilter === filter ? theme.colors.text : theme.colors.textSecondary} 
+      />
+      <Text style={[
+        styles.filterButtonText,
+        { color: selectedFilter === filter ? theme.colors.text : theme.colors.textSecondary }
+      ]}>
+        {title}
+      </Text>
+    </TouchableOpacity>
+  );
 
-  const hasResults = sections.length > 0 && sections.some(section => section.data.length > 0);
-  const totalResults = sections.reduce((sum, section) => sum + section.data.length, 0);
+  const renderEmptyState = () => (
+    <View style={styles.emptyState}>
+      <Ionicons name="search-outline" size={64} color={theme.colors.textTertiary} />
+      <Text style={[styles.emptyStateTitle, { color: theme.colors.text }]}>
+        {searchQuery ? 'Nu am găsit rezultate' : 'Începe să cauți'}
+      </Text>
+      <Text style={[styles.emptyStateText, { color: theme.colors.textSecondary }]}>
+        {searchQuery 
+          ? 'Încearcă să modifici termenul de căutare'
+          : 'Caută restaurante și evenimente în Timișoara'
+        }
+      </Text>
+    </View>
+  );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#0F0817" />
-      
-      {/* Header with gradient */}
-      <LinearGradient
-        colors={['#0F0817', '#1A1A1A']}
-        style={styles.headerGradient}
+    <UniversalScreen safeAreaEdges={['top', 'bottom']}>
+      <Animated.View 
+        style={[
+          styles.container,
+          {
+            opacity: fadeAnim,
+            transform: [{ translateY: slideAnim }],
+          },
+        ]}
       >
-        <Animated.View 
-          style={[
-            styles.searchContainer,
-            { 
-              opacity: fadeAnim,
-              transform: [{ scale: scaleAnim }]
-            }
-          ]}
-        >
-          <View style={[
-            styles.searchBox,
-            searchFocused && styles.searchBoxFocused
-          ]}>
-            <Ionicons 
-              name="search-outline" 
-              size={24} 
-              color={searchFocused ? "#6C3AFF" : "#6B7280"} 
-            />
-            <TextInput
-              style={styles.input}
-              placeholder="Caută evenimente sau restaurante..."
-              placeholderTextColor="#6B7280"
-              value={query}
-              onChangeText={setQuery}
-              onFocus={() => setSearchFocused(true)}
-              onBlur={() => setSearchFocused(false)}
-              returnKeyType="search"
-            />
-            {query.length > 0 && (
-              <TouchableOpacity
-                onPress={() => setQuery("")}
-                style={styles.clearButton}
-              >
-                <Ionicons name="close-circle" size={20} color="#6B7280" />
-              </TouchableOpacity>
-            )}
-          </View>
-          
-          {(query.length > 0 || hasResults) && (
-            <View style={styles.resultsInfo}>
-              <Text style={styles.resultsCount}>
-                {totalResults} rezultate găsite
-                {!backendAvailable && " (demo)"}
-              </Text>
-              {dataLoading && (
-                <ActivityIndicator size="small" color="#A78BFA" style={{ marginLeft: 10 }} />
-              )}
-            </View>
-          )}
-          
-          {error && (
-            <View style={styles.warningBanner}>
-              <Ionicons name="warning-outline" size={16} color="#F59E0B" />
-              <Text style={styles.warningText}>{error}</Text>
-            </View>
-          )}
-        </Animated.View>
-      </LinearGradient>
+        {/* Header */}
+        <View style={styles.header}>
+          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
+            Căutare
+          </Text>
+        </View>
 
-      {/* Content Area */}
-      {!hasResults ? (
-        <EmptyResults />
-      ) : (
-        <Animated.View style={[styles.listContainer, { opacity: fadeAnim }]}>
-          <SectionList<SearchItem>
+        {/* Search Input */}
+        <View style={styles.searchContainer}>
+          <EnhancedInput
+            placeholder="Caută restaurante și evenimente..."
+            value={searchQuery}
+            onChangeText={handleSearchChange}
+            leftIcon="search-outline"
+            style={styles.searchInput}
+          />
+        </View>
+
+        {/* Filter Buttons */}
+        <View style={styles.filterContainer}>
+          {renderFilterButton('all', 'Toate', 'apps-outline')}
+          {renderFilterButton('restaurants', 'Restaurante', 'restaurant-outline')}
+          {renderFilterButton('events', 'Evenimente', 'calendar-outline')}
+        </View>
+
+        {/* Results */}
+        {loading ? (
+          <View style={styles.loadingContainer}>
+            <ActivityIndicator size="large" color={theme.colors.accent} />
+            <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
+              Se încarcă...
+            </Text>
+          </View>
+        ) : sections.length === 0 ? (
+          renderEmptyState()
+        ) : (
+          <SectionList
             sections={sections}
-            keyExtractor={(item, idx) => `${item.id}-${idx}`}
-            renderSectionHeader={({ section: { title, data } }) => (
-              <View style={styles.sectionHeaderContainer}>
-                <LinearGradient
-                  colors={['#6C3AFF', '#9B59B6']}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.sectionHeaderGradient}
-                >
-                  <Text style={styles.sectionHeader}>{title}</Text>
-                  <Text style={styles.sectionCount}>{data.length}</Text>
-                </LinearGradient>
-              </View>
-            )}
+            keyExtractor={(item) => item.id}
             renderItem={renderItem}
+            renderSectionHeader={renderSectionHeader}
             contentContainerStyle={styles.listContent}
-            ItemSeparatorComponent={() => <View style={styles.separator} />}
             showsVerticalScrollIndicator={false}
-            stickySectionHeadersEnabled={false}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
-                onRefresh={handleRefresh}
-                colors={['#6C3AFF']}
-                tintColor="#6C3AFF"
+                onRefresh={onRefresh}
+                colors={[theme.colors.accent]}
+                tintColor={theme.colors.accent}
+                progressBackgroundColor={theme.colors.surface}
               />
             }
-            initialNumToRender={6}
-            maxToRenderPerBatch={3}
-            windowSize={5}
-            removeClippedSubviews={true}
-            getItemLayout={(data, index) => ({
-              length: 120,
-              offset: 120 * index,
-              index,
-            })}
           />
-        </Animated.View>
-      )}
-    </SafeAreaView>
+        )}
+      </Animated.View>
+    </UniversalScreen>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: "#0F0817",
+    paddingHorizontal: getResponsiveSpacing('lg'),
   },
-  headerGradient: {
-    paddingBottom: 8,
+  header: {
+    paddingVertical: getResponsiveSpacing('lg'),
+    alignItems: 'center',
+  },
+  headerTitle: {
+    fontSize: TYPOGRAPHY.h2,
+    fontWeight: '800',
+    letterSpacing: -0.5,
   },
   searchContainer: {
-    paddingHorizontal: 16,
-    paddingTop: 8,
+    marginBottom: getResponsiveSpacing('lg'),
   },
-  searchBox: {
-    flexDirection: "row",
-    backgroundColor: "#FFFFFF",
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: "#E5E7EB",
-    shadowColor: "#6C3AFF",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
-    height: 60,
+  searchInput: {
+    marginBottom: 0,
   },
-  searchBoxFocused: {
-    borderColor: "#6C3AFF",
-    shadowOpacity: 0.3,
-    backgroundColor: "#FFFFFF",
+  filterContainer: {
+    flexDirection: 'row',
+    gap: getResponsiveSpacing('sm'),
+    marginBottom: getResponsiveSpacing('lg'),
   },
-  input: {
-    flex: 1,
-    height: 60,
-    marginLeft: 12,
-    fontSize: 16,
-    color: "#1F2937",
-    fontWeight: "500",
-    paddingVertical: 0,
-  },
-  clearButton: {
-    padding: 4,
-  },
-  resultsInfo: {
+  filterButton: {
     flexDirection: 'row',
     alignItems: 'center',
-    marginTop: 8,
-    marginLeft: 4,
-  },
-  resultsCount: {
-    fontSize: 14,
-    color: "#A78BFA",
-    fontWeight: "500",
-  },
-  emptyContainer: {
-    flex: 1,
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 40,
-  },
-  emptyGradient: {
+    paddingHorizontal: getResponsiveSpacing('md'),
+    paddingVertical: getResponsiveSpacing('sm'),
     borderRadius: 20,
-    padding: 40,
-    alignItems: "center",
-    width: "100%",
+    borderWidth: 1,
+    gap: getResponsiveSpacing('xs'),
   },
-  emptyTitle: {
-    marginTop: 16,
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    textAlign: "center",
+  activeFilterButton: {
+    ...getShadow(2),
   },
-  emptySubtitle: {
-    marginTop: 8,
-    fontSize: 16,
-    color: "#A78BFA",
-    textAlign: "center",
-    lineHeight: 24,
+  filterButtonText: {
+    fontSize: TYPOGRAPHY.bodySmall,
+    fontWeight: '600',
   },
-  retryButton: {
-    marginTop: 20,
-    backgroundColor: "#6C3AFF",
-    paddingHorizontal: 24,
-    paddingVertical: 12,
-    borderRadius: 12,
-  },
-  retryButtonText: {
-    color: "#FFFFFF",
-    fontSize: 16,
-    fontWeight: "600",
-  },
-  listContainer: {
+  loadingContainer: {
     flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    gap: getResponsiveSpacing('md'),
   },
-  sectionHeaderContainer: {
-    marginHorizontal: 16,
-    marginTop: 24,
-    marginBottom: 12,
-    borderRadius: 12,
-    overflow: "hidden",
+  loadingText: {
+    fontSize: TYPOGRAPHY.body,
   },
-  sectionHeaderGradient: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: 16,
-    paddingVertical: 12,
+  emptyState: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingHorizontal: getResponsiveSpacing('xl'),
+  },
+  emptyStateTitle: {
+    fontSize: TYPOGRAPHY.h4,
+    fontWeight: '700',
+    marginTop: getResponsiveSpacing('lg'),
+    marginBottom: getResponsiveSpacing('sm'),
+    textAlign: 'center',
+  },
+  emptyStateText: {
+    fontSize: TYPOGRAPHY.body,
+    textAlign: 'center',
+    lineHeight: TYPOGRAPHY.body * 1.4,
   },
   sectionHeader: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    letterSpacing: 0.5,
-  },
-  sectionCount: {
-    fontSize: 14,
-    fontWeight: "600",
-    color: "#FFFFFF",
-    backgroundColor: "rgba(255,255,255,0.2)",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingVertical: getResponsiveSpacing('md'),
+    paddingHorizontal: getResponsiveSpacing('md'),
     borderRadius: 12,
+    marginBottom: getResponsiveSpacing('sm'),
+    marginTop: getResponsiveSpacing('lg'),
+  },
+  sectionHeaderText: {
+    fontSize: TYPOGRAPHY.h6,
+    fontWeight: '700',
   },
   listContent: {
-    paddingBottom: 32,
+    paddingBottom: getResponsiveSpacing('xxl'),
   },
-  cardWrapper: {
-    marginHorizontal: 16,
+  itemContainer: {
+    marginBottom: getResponsiveSpacing('md'),
   },
-  card: {
-    flexDirection: "row",
-    backgroundColor: "#1A1A1A",
+  itemCard: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    padding: getResponsiveSpacing('md'),
     borderRadius: 16,
-    overflow: "hidden",
     borderWidth: 1,
-    borderColor: "#2A1A4A",
-    shadowColor: "#6C3AFF",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.15,
-    shadowRadius: 12,
-    elevation: 6,
+    borderColor: 'rgba(255,255,255,0.1)',
   },
-  cardImageContainer: {
-    width: 100,
-    height: 100,
-    position: "relative",
+  itemImage: {
+    width: 60,
+    height: 60,
+    borderRadius: 12,
   },
-  cardImage: {
-    width: "100%",
-    height: "100%",
+  itemImagePlaceholder: {
+    width: 60,
+    height: 60,
+    borderRadius: 12,
+    justifyContent: 'center',
+    alignItems: 'center',
   },
-  cardImagePlaceholder: {
-    width: "100%",
-    height: "100%",
-    backgroundColor: "#2A1A4A",
-    alignItems: "center",
-    justifyContent: "center",
-  },
-  cardImageOverlay: {
-    position: "absolute",
-    bottom: 0,
-    left: 0,
-    right: 0,
-    height: "50%",
-  },
-  cardContent: {
+  itemContent: {
     flex: 1,
-    padding: 16,
-    justifyContent: "space-between",
+    marginLeft: getResponsiveSpacing('md'),
+    gap: getResponsiveSpacing('xs'),
   },
-  cardTitle: {
-    fontSize: 16,
-    fontWeight: "700",
-    color: "#FFFFFF",
-    letterSpacing: 0.3,
-    lineHeight: 22,
+  itemTitle: {
+    fontSize: TYPOGRAPHY.body,
+    fontWeight: '700',
+    lineHeight: TYPOGRAPHY.body * 1.3,
   },
-  cardSubtitle: {
-    fontSize: 14,
-    color: "#A78BFA",
-    marginTop: 4,
-    lineHeight: 20,
+  itemSubtitle: {
+    fontSize: TYPOGRAPHY.bodySmall,
+    fontWeight: '500',
   },
-  addressContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 8,
+  itemAddress: {
+    fontSize: TYPOGRAPHY.caption,
   },
-  addressText: {
-    marginLeft: 4,
-    fontSize: 12,
-    color: "#C4B5FD",
-    flex: 1,
-  },
-  likesContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 8,
-  },
-  likesText: {
-    marginLeft: 4,
-    fontSize: 12,
-    color: "#FF6B9D",
+  itemLikes: {
+    fontSize: TYPOGRAPHY.caption,
+    fontWeight: '600',
   },
   tagsContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginTop: 8,
-    flexWrap: "wrap",
+    flexDirection: 'row',
+    flexWrap: 'wrap',
+    gap: getResponsiveSpacing('xs'),
+    marginTop: getResponsiveSpacing('xs'),
   },
   tag: {
-    backgroundColor: "#2A1A4A",
-    paddingHorizontal: 8,
-    paddingVertical: 4,
+    paddingHorizontal: getResponsiveSpacing('sm'),
+    paddingVertical: 2,
     borderRadius: 12,
-    marginRight: 6,
-    borderWidth: 1,
-    borderColor: "#6C3AFF",
   },
   tagText: {
-    fontSize: 10,
-    color: "#C4B5FD",
-    fontWeight: "500",
-  },
-  moreTagsText: {
-    fontSize: 10,
-    color: "#A78BFA",
-    fontWeight: "500",
-  },
-  cardAction: {
-    justifyContent: "center",
-    alignItems: "center",
-    paddingHorizontal: 16,
-  },
-  actionButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
-    justifyContent: "center",
-    alignItems: "center",
-    shadowColor: "#6C3AFF",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.3,
-    shadowRadius: 4,
-    elevation: 4,
-  },
-  separator: {
-    height: 12,
-    backgroundColor: "transparent",
-  },
-  warningBanner: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 12,
-    backgroundColor: "#FEF3C7",
-    borderTopWidth: 1,
-    borderColor: "#F59E0B",
-    borderRadius: 8,
-    marginTop: 8,
-  },
-  warningText: {
-    marginLeft: 8,
-    fontSize: 14,
-    color: "#92400E",
-    fontWeight: "600",
+    fontSize: TYPOGRAPHY.tiny,
+    fontWeight: '500',
   },
 });
+
+export default SearchScreen;

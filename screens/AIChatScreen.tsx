@@ -1,4 +1,10 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, {
+  useState,
+  useEffect,
+  useRef,
+  useCallback,
+  useMemo,
+} from "react";
 import {
   View,
   Text,
@@ -14,17 +20,17 @@ import {
   StatusBar,
   ActivityIndicator,
   Vibration,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons, MaterialIcons } from '@expo/vector-icons';
-import { useTheme } from '../context/ThemeContext';
-import { AI_BASE_URL } from '../config';
+} from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons, MaterialIcons } from "@expo/vector-icons";
+import { useTheme } from "../context/ThemeContext";
+import UniversalScreen from "../components/UniversalScreen";
+import { AI_BASE_URL } from "../config";
 
-const { width, height } = Dimensions.get('window');
+const { width, height } = Dimensions.get("window");
 
 // Tab bar height constant (adjust based on your tab bar design)
-const TAB_BAR_HEIGHT = Platform.OS === 'ios' ? 90 : 70;
+const TAB_BAR_HEIGHT = Platform.OS === "ios" ? 90 : 70;
 
 interface Message {
   id: string;
@@ -104,27 +110,31 @@ interface SystemHealth {
 const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const { theme } = useTheme();
   const [messages, setMessages] = useState<Message[]>([]);
-  const [inputText, setInputText] = useState('');
+  const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [suggestions, setSuggestions] = useState<Suggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(true);
   const [isTyping, setIsTyping] = useState(false);
   const [systemHealth, setSystemHealth] = useState<SystemHealth | null>(null);
   const [connectionError, setConnectionError] = useState(false);
-  
+
   const scrollViewRef = useRef<ScrollView>(null);
   const inputRef = useRef<TextInput>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(50)).current;
   const typingAnim = useRef(new Animated.Value(0)).current;
+  const isMountedRef = useRef(true);
+  const typingAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
 
   useEffect(() => {
+    isMountedRef.current = true;
+
     // Initialize welcome message and suggestions
     initializeChat();
-    
+
     // Check system health
     checkSystemHealth();
-    
+
     // Start entrance animation
     Animated.parallel([
       Animated.timing(fadeAnim, {
@@ -139,63 +149,123 @@ const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         useNativeDriver: true,
       }),
     ]).start();
+
+    // Cleanup function
+    return () => {
+      isMountedRef.current = false;
+      if (typingAnimationRef.current) {
+        typingAnimationRef.current.stop();
+      }
+      typingAnim.stopAnimation();
+    };
   }, []);
 
   useEffect(() => {
     // Scroll to bottom when new messages arrive
     if (messages.length > 0) {
-      setTimeout(() => {
-        scrollViewRef.current?.scrollToEnd({ animated: true });
+      const timeoutId = setTimeout(() => {
+        if (isMountedRef.current && scrollViewRef.current) {
+          scrollViewRef.current.scrollToEnd({ animated: true });
+        }
       }, 100);
+
+      return () => clearTimeout(timeoutId);
     }
   }, [messages]);
 
-  const checkSystemHealth = async () => {
+  const checkSystemHealth = useCallback(async () => {
     try {
       const response = await fetch(`${AI_BASE_URL}/health`);
       const health: SystemHealth = await response.json();
-      setSystemHealth(health);
-      setConnectionError(false);
+      if (isMountedRef.current) {
+        setSystemHealth(health);
+        setConnectionError(false);
+      }
     } catch (error) {
-      console.warn('Failed to check system health:', error);
-      setConnectionError(true);
+      console.warn("Failed to check system health:", error);
+      if (isMountedRef.current) {
+        setConnectionError(true);
+      }
     }
-  };
+  }, []);
 
-  const initializeChat = async () => {
+  const initializeChat = useCallback(async () => {
     // Add welcome message with system info
     const welcomeMessage: Message = {
-      id: 'welcome',
-      text: 'Salut! 👋 Mă bucur să te văd! Sunt aici să te ajut să găsești cele mai bune restaurante și evenimente din oraș. Cu ce te pot ajuta?',
+      id: "welcome",
+      text: "Salut! 👋 Mă bucur să te văd! Sunt aici să te ajut să găsești cele mai bune restaurante și evenimente din oraș. Cu ce te pot ajuta?",
       isUser: false,
       timestamp: new Date(),
-      intent: 'greeting'
+      intent: "greeting",
     };
-    
-    setMessages([welcomeMessage]);
-    
+
+    if (isMountedRef.current) {
+      setMessages([welcomeMessage]);
+    }
+
     // Load suggestions
     try {
-      const response = await fetch(`${AI_BASE_URL}/chat/suggestions`);
+      const response = await fetch(`${AI_BASE_URL}/api/suggestions`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          context: "initial_load",
+          user_id: "react_native_user"
+        })
+      });
       const data = await response.json();
-      if (data.success) {
+      if (data.suggestions && isMountedRef.current) {
         setSuggestions(data.suggestions);
       }
     } catch (error) {
-      console.warn('Failed to load suggestions:', error);
+      console.warn("Failed to load suggestions:", error);
       // Fallback suggestions
-      setSuggestions([
-        { id: 1, text: 'Ce restaurante bune sunt în centru?', category: 'restaurant', icon: '🍽️' },
-        { id: 2, text: 'Arată-mi evenimente din weekend', category: 'events', icon: '�' },
-        { id: 3, text: 'Vreau pizza bună și ieftină', category: 'food', icon: '🍕' },
-        { id: 4, text: 'Ce concerte sunt în oraș?', category: 'events', icon: '�' },
-        { id: 5, text: 'Restaurant românesc traditional', category: 'restaurant', icon: '�' },
-        { id: 6, text: 'Unde pot să mănânc sushi?', category: 'food', icon: '🍣' },
-      ]);
+      if (isMountedRef.current) {
+        setSuggestions([
+          {
+            id: 1,
+            text: "Ce restaurante bune sunt în centru?",
+            category: "restaurant",
+            icon: "🍽️",
+          },
+          {
+            id: 2,
+            text: "Arată-mi evenimente din weekend",
+            category: "events",
+            icon: "🎉",
+          },
+          {
+            id: 3,
+            text: "Vreau pizza bună și ieftină",
+            category: "food",
+            icon: "🍕",
+          },
+          {
+            id: 4,
+            text: "Ce concerte sunt în oraș?",
+            category: "events",
+            icon: "🎵",
+          },
+          {
+            id: 5,
+            text: "Restaurant românesc traditional",
+            category: "restaurant",
+            icon: "🏛️",
+          },
+          {
+            id: 6,
+            text: "Unde pot să mănânc sushi?",
+            category: "food",
+            icon: "🍣",
+          },
+        ]);
+      }
     }
-  };
+  }, []);
 
-  const sendMessage = async (text: string) => {
+  const sendMessage = useCallback(async (text: string) => {
     if (!text.trim()) return;
 
     const userMessage: Message = {
@@ -206,21 +276,23 @@ const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     };
 
     const loadingMessage: Message = {
-      id: Date.now().toString() + '_loading',
-      text: '',
+      id: Date.now().toString() + "_loading",
+      text: "",
       isUser: false,
       timestamp: new Date(),
       isLoading: true,
     };
 
-    setMessages(prev => [...prev, userMessage, loadingMessage]);
-    setInputText('');
-    setIsLoading(true);
-    setShowSuggestions(false);
-    setIsTyping(true);
+    if (isMountedRef.current) {
+      setMessages((prev) => [...prev, userMessage, loadingMessage]);
+      setInputText("");
+      setIsLoading(true);
+      setShowSuggestions(false);
+      setIsTyping(true);
+    }
 
     // Start typing animation
-    Animated.loop(
+    typingAnimationRef.current = Animated.loop(
       Animated.sequence([
         Animated.timing(typingAnim, {
           toValue: 1,
@@ -233,25 +305,32 @@ const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           useNativeDriver: true,
         }),
       ])
-    ).start();
+    );
+    typingAnimationRef.current.start();
 
     try {
-      const response = await fetch(`${AI_BASE_URL}/chat`, {
-        method: 'POST',
+      const response = await fetch(`${AI_BASE_URL}/api/chat`, {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          query: text.trim(),
-          user_id: 'react_native_user',
+          message: text.trim(),
+          user_id: "react_native_user",
         }),
       });
 
       const data: ChatResponse = await response.json();
 
       // Stop typing animation
+      if (typingAnimationRef.current) {
+        typingAnimationRef.current.stop();
+        typingAnimationRef.current = null;
+      }
       typingAnim.stopAnimation();
-      setIsTyping(false);
+      if (isMountedRef.current) {
+        setIsTyping(false);
+      }
 
       if (data.success) {
         const aiMessage: Message = {
@@ -264,88 +343,122 @@ const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           processingTime: data.metadata?.response_time,
         };
 
-        setMessages(prev => prev.slice(0, -1).concat([aiMessage]));
-        
+        if (isMountedRef.current) {
+          setMessages((prev) => prev.slice(0, -1).concat([aiMessage]));
+        }
+
         // Haptic feedback for successful response
         Vibration.vibrate(50);
-        
+
         // Clear connection error if request was successful
-        setConnectionError(false);
+        if (isMountedRef.current) {
+          setConnectionError(false);
+        }
       } else {
-        throw new Error(data.error || 'Failed to get response');
+        throw new Error(data.error || "Failed to get response");
       }
     } catch (error) {
-      console.error('Chat error:', error);
-      
+      console.error("Chat error:", error);
+
       // Check if it's a connection error
-      const isConnectionError = error instanceof TypeError && error.message.includes('Network request failed');
-      setConnectionError(isConnectionError);
-      
+      const isConnectionError =
+        error instanceof TypeError &&
+        error.message.includes("Network request failed");
+      if (isMountedRef.current) {
+        setConnectionError(isConnectionError);
+      }
+
       const errorMessage: Message = {
         id: Date.now().toString(),
-        text: isConnectionError 
-          ? 'Nu pot să mă conectez la serverul AI. Te rog verifică conexiunea și încearcă din nou.'
-          : 'Îmi pare rău, am întâmpinat o problemă tehnică. Te rog să încerci din nou.',
+        text: isConnectionError
+          ? "Nu pot să mă conectez la serverul AI. Te rog verifică conexiunea și încearcă din nou."
+          : "Îmi pare rău, am întâmpinat o problemă tehnică. Te rog să încerci din nou.",
         isUser: false,
         timestamp: new Date(),
         error: true,
       };
 
-      setMessages(prev => prev.slice(0, -1).concat([errorMessage]));
-      
+      if (isMountedRef.current) {
+        setMessages((prev) => prev.slice(0, -1).concat([errorMessage]));
+      }
+
       // Haptic feedback for error
       Vibration.vibrate([100, 50, 100]);
     } finally {
-      setIsLoading(false);
+      if (isMountedRef.current) {
+        setIsLoading(false);
+      }
+      if (typingAnimationRef.current) {
+        typingAnimationRef.current.stop();
+        typingAnimationRef.current = null;
+      }
       typingAnim.stopAnimation();
-      setIsTyping(false);
+      if (isMountedRef.current) {
+        setIsTyping(false);
+      }
     }
-  };
+  }, []);
 
-  const handleSuggestionPress = (suggestion: Suggestion) => {
-    sendMessage(suggestion.text);
-  };
+  const handleSuggestionPress = useCallback(
+    (suggestion: Suggestion) => {
+      sendMessage(suggestion.text);
+    },
+    [sendMessage]
+  );
 
-  const handleRestaurantPress = (restaurant: Restaurant) => {
+  const handleRestaurantPress = useCallback((restaurant: Restaurant) => {
     Alert.alert(
       restaurant.name,
       `${restaurant.description}\n\nCategorie: ${restaurant.category}\nAdresă: ${restaurant.address}\nRating: ${restaurant.rating}/5\n\nDorești să vezi mai multe detalii?`,
       [
-        { text: 'Anulează', style: 'cancel' },
-        { text: 'Vezi meniul', onPress: () => getRestaurantMenu(restaurant.id) },
-        { text: 'Detalii complete', onPress: () => getRestaurantDetails(restaurant.id) },
+        { text: "Anulează", style: "cancel" },
+        {
+          text: "Vezi meniul",
+          onPress: () => getRestaurantMenu(restaurant.id),
+        },
+        {
+          text: "Detalii complete",
+          onPress: () => getRestaurantDetails(restaurant.id),
+        },
       ]
     );
-  };
+  }, []);
 
-  const handleEventPress = (event: Event) => {
+  const handleEventPress = useCallback((event: Event) => {
     Alert.alert(
       event.title,
       `${event.description}\n\nOrganizator: ${event.company}\nLike-uri: ${event.likes}\n\nDorești să vezi detalii complete?`,
       [
-        { text: 'Anulează', style: 'cancel' },
-        { text: 'Vezi detalii', onPress: () => getEventDetails(event.id) },
+        { text: "Anulează", style: "cancel" },
+        { text: "Vezi detalii", onPress: () => getEventDetails(event.id) },
       ]
     );
-  };
+  }, []);
 
-  const getRestaurantMenu = async (restaurantId: number) => {
+  const getRestaurantMenu = useCallback(async (restaurantId: number) => {
     try {
-      const response = await fetch(`${AI_BASE_URL}/companies/${restaurantId}/menu`);
+      const response = await fetch(
+        `${AI_BASE_URL}/companies/${restaurantId}/menu`
+      );
       if (response.ok) {
-        Alert.alert('Succes', 'Meniul este disponibil pentru descărcare!');
+        Alert.alert("Succes", "Meniul este disponibil pentru descărcare!");
         // Here you could implement PDF viewing or download
       } else {
-        Alert.alert('Info', 'Meniul nu este disponibil pentru acest restaurant.');
+        Alert.alert(
+          "Info",
+          "Meniul nu este disponibil pentru acest restaurant."
+        );
       }
     } catch (error) {
-      Alert.alert('Eroare', 'Nu am putut să accesez meniul.');
+      Alert.alert("Eroare", "Nu am putut să accesez meniul.");
     }
-  };
+  }, []);
 
-  const getRestaurantDetails = async (restaurantId: number) => {
+  const getRestaurantDetails = useCallback(async (restaurantId: number) => {
     try {
-      const response = await fetch(`${AI_BASE_URL}/companies/details/${restaurantId}`);
+      const response = await fetch(
+        `${AI_BASE_URL}/companies/details/${restaurantId}`
+      );
       const data = await response.json();
       if (data.success) {
         const company = data.company;
@@ -355,11 +468,11 @@ const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         );
       }
     } catch (error) {
-      Alert.alert('Eroare', 'Nu am putut să accesez detaliile restaurantului.');
+      Alert.alert("Eroare", "Nu am putut să accesez detaliile restaurantului.");
     }
-  };
+  }, []);
 
-  const getEventDetails = async (eventId: number) => {
+  const getEventDetails = useCallback(async (eventId: number) => {
     try {
       const response = await fetch(`${AI_BASE_URL}/events/details/${eventId}`);
       const data = await response.json();
@@ -367,270 +480,419 @@ const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         const event = data.event;
         Alert.alert(
           event.title,
-          `Descriere: ${event.description}\nCompanie: ${event.company}\nLike-uri: ${event.likes}\nTags: ${event.tags?.join(', ') || 'Nu sunt disponibile'}`
+          `Descriere: ${event.description}\nCompanie: ${
+            event.company
+          }\nLike-uri: ${event.likes}\nTags: ${
+            event.tags?.join(", ") || "Nu sunt disponibile"
+          }`
         );
       }
     } catch (error) {
-      Alert.alert('Eroare', 'Nu am putut să accesez detaliile evenimentului.');
+      Alert.alert("Eroare", "Nu am putut să accesez detaliile evenimentului.");
     }
-  };
+  }, []);
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString('ro-RO', {
-      hour: '2-digit',
-      minute: '2-digit',
+  const formatTime = useCallback((date: Date) => {
+    return date.toLocaleTimeString("ro-RO", {
+      hour: "2-digit",
+      minute: "2-digit",
     });
-  };
+  }, []);
 
-  const renderSearchResults = (searchResults: SearchResults) => {
-    if (!searchResults || (!searchResults.restaurants?.length && !searchResults.events?.length)) {
-      return null;
+  const getIntentIcon = useCallback((intent: string) => {
+    switch (intent) {
+      case "greeting":
+        return "👋";
+      case "restaurant_search":
+        return "🍽️";
+      case "food_search":
+        return "🍕";
+      case "event_search":
+        return "🎉";
+      case "recommendation":
+        return "⭐";
+      case "help":
+        return "❓";
+      case "location_search":
+        return "📍";
+      default:
+        return "💬";
     }
+  }, []);
 
-    return (
-      <View style={styles.searchResultsContainer}>
-        {searchResults.restaurants && searchResults.restaurants.length > 0 && (
-          <View style={styles.resultSection}>
-            <Text style={[styles.resultSectionTitle, { color: theme.colors.text }]}>
-              🍽️ Restaurante ({searchResults.restaurants.length})
-            </Text>
-            {searchResults.restaurants.slice(0, 3).map((restaurant) => (
-              <TouchableOpacity
-                key={restaurant.id}
-                style={[styles.resultItem, { backgroundColor: theme.colors.surface }]}
-                onPress={() => handleRestaurantPress(restaurant)}
-              >
-                <View style={styles.resultContent}>
-                  <Text style={[styles.resultTitle, { color: theme.colors.text }]}>
-                    {restaurant.name}
-                  </Text>
-                  <Text style={[styles.resultCategory, { color: theme.colors.textSecondary }]}>
-                    {restaurant.category}
-                  </Text>
-                  <Text style={[styles.resultDescription, { color: theme.colors.textSecondary }]}>
-                    {restaurant.description.substring(0, 100)}...
-                  </Text>
-                  <View style={styles.resultMeta}>
-                    <Text style={[styles.resultRating, { color: theme.colors.accent }]}>
-                      ⭐ {restaurant.rating}/5
-                    </Text>
-                    <Text style={[styles.resultScore, { color: theme.colors.textTertiary }]}>
-                      Relevanță: {Math.round(restaurant.relevance_score * 100)}%
-                    </Text>
-                  </View>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color={theme.colors.textSecondary} />
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
+  const renderSearchResults = useCallback(
+    (searchResults: SearchResults) => {
+      if (
+        !searchResults ||
+        (!searchResults.restaurants?.length && !searchResults.events?.length)
+      ) {
+        return null;
+      }
 
-        {searchResults.events && searchResults.events.length > 0 && (
-          <View style={styles.resultSection}>
-            <Text style={[styles.resultSectionTitle, { color: theme.colors.text }]}>
-              🎉 Evenimente ({searchResults.events.length})
-            </Text>
-            {searchResults.events.slice(0, 3).map((event) => (
-              <TouchableOpacity
-                key={event.id}
-                style={[styles.resultItem, { backgroundColor: theme.colors.surface }]}
-                onPress={() => handleEventPress(event)}
-              >
-                <View style={styles.resultContent}>
-                  <Text style={[styles.resultTitle, { color: theme.colors.text }]}>
-                    {event.title}
-                  </Text>
-                  <Text style={[styles.resultCategory, { color: theme.colors.textSecondary }]}>
-                    {event.company}
-                  </Text>
-                  <Text style={[styles.resultDescription, { color: theme.colors.textSecondary }]}>
-                    {event.description.substring(0, 100)}...
-                  </Text>
-                  <View style={styles.resultMeta}>
-                    <Text style={[styles.resultRating, { color: theme.colors.accent }]}>
-                      👍 {event.likes} like-uri
-                    </Text>
-                    <Text style={[styles.resultScore, { color: theme.colors.textTertiary }]}>
-                      Relevanță: {Math.round(event.relevance_score * 100)}%
-                    </Text>
-                  </View>
-                </View>
-                <Ionicons name="chevron-forward" size={20} color={theme.colors.textSecondary} />
-              </TouchableOpacity>
-            ))}
-          </View>
-        )}
-      </View>
-    );
-  };
-
-  const renderMessage = (message: Message) => {
-    if (message.isLoading) {
       return (
-        <View key={message.id} style={[styles.messageContainer, styles.aiMessageContainer]}>
-          <View style={[styles.messageBubble, styles.aiMessageBubble, { backgroundColor: theme.colors.surface }]}>
-            <View style={styles.typingIndicator}>
-              <Animated.View
+        <View style={styles.searchResultsContainer}>
+          {searchResults.restaurants &&
+            searchResults.restaurants.length > 0 && (
+              <View style={styles.resultSection}>
+                <Text
+                  style={[
+                    styles.resultSectionTitle,
+                    { color: theme.colors.text },
+                  ]}
+                >
+                  🍽️ Restaurante ({searchResults.restaurants.length})
+                </Text>
+                {searchResults.restaurants.slice(0, 3).map((restaurant) => (
+                  <TouchableOpacity
+                    key={restaurant.id}
+                    style={[
+                      styles.resultItem,
+                      { backgroundColor: theme.colors.surface },
+                    ]}
+                    onPress={() => handleRestaurantPress(restaurant)}
+                  >
+                    <View style={styles.resultContent}>
+                      <Text
+                        style={[
+                          styles.resultTitle,
+                          { color: theme.colors.text },
+                        ]}
+                      >
+                        {restaurant.name}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.resultCategory,
+                          { color: theme.colors.textSecondary },
+                        ]}
+                      >
+                        {restaurant.category}
+                      </Text>
+                      <Text
+                        style={[
+                          styles.resultDescription,
+                          { color: theme.colors.textSecondary },
+                        ]}
+                      >
+                        {restaurant.description.substring(0, 100)}...
+                      </Text>
+                      <View style={styles.resultMeta}>
+                        <Text
+                          style={[
+                            styles.resultRating,
+                            { color: theme.colors.accent },
+                          ]}
+                        >
+                          ⭐ {restaurant.rating}/5
+                        </Text>
+                        <Text
+                          style={[
+                            styles.resultScore,
+                            { color: theme.colors.textTertiary },
+                          ]}
+                        >
+                          Relevanță:{" "}
+                          {Math.round(restaurant.relevance_score * 100)}%
+                        </Text>
+                      </View>
+                    </View>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={20}
+                      color={theme.colors.textSecondary}
+                    />
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
+
+          {searchResults.events && searchResults.events.length > 0 && (
+            <View style={styles.resultSection}>
+              <Text
                 style={[
-                  styles.typingDot,
-                  {
-                    opacity: typingAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [0.3, 1],
-                    }),
-                  },
+                  styles.resultSectionTitle,
+                  { color: theme.colors.text },
                 ]}
-              />
-              <Animated.View
-                style={[
-                  styles.typingDot,
-                  {
-                    opacity: typingAnim.interpolate({
-                      inputRange: [0, 0.5, 1],
-                      outputRange: [0.3, 1, 0.3],
-                    }),
-                  },
-                ]}
-              />
-              <Animated.View
-                style={[
-                  styles.typingDot,
-                  {
-                    opacity: typingAnim.interpolate({
-                      inputRange: [0, 1],
-                      outputRange: [1, 0.3],
-                    }),
-                  },
-                ]}
-              />
+              >
+                🎉 Evenimente ({searchResults.events.length})
+              </Text>
+              {searchResults.events.slice(0, 3).map((event) => (
+                <TouchableOpacity
+                  key={event.id}
+                  style={[
+                    styles.resultItem,
+                    { backgroundColor: theme.colors.surface },
+                  ]}
+                  onPress={() => handleEventPress(event)}
+                >
+                  <View style={styles.resultContent}>
+                    <Text
+                      style={[styles.resultTitle, { color: theme.colors.text }]}
+                    >
+                      {event.title}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.resultCategory,
+                        { color: theme.colors.textSecondary },
+                      ]}
+                    >
+                      {event.company}
+                    </Text>
+                    <Text
+                      style={[
+                        styles.resultDescription,
+                        { color: theme.colors.textSecondary },
+                      ]}
+                    >
+                      {event.description.substring(0, 100)}...
+                    </Text>
+                    <View style={styles.resultMeta}>
+                      <Text
+                        style={[
+                          styles.resultRating,
+                          { color: theme.colors.accent },
+                        ]}
+                      >
+                        👍 {event.likes} like-uri
+                      </Text>
+                      <Text
+                        style={[
+                          styles.resultScore,
+                          { color: theme.colors.textTertiary },
+                        ]}
+                      >
+                        Relevanță: {Math.round(event.relevance_score * 100)}%
+                      </Text>
+                    </View>
+                  </View>
+                  <Ionicons
+                    name="chevron-forward"
+                    size={20}
+                    color={theme.colors.textSecondary}
+                  />
+                </TouchableOpacity>
+              ))}
             </View>
-          </View>
+          )}
         </View>
       );
-    }
+    },
+    [theme, handleRestaurantPress, handleEventPress]
+  );
 
-    return (
-      <Animated.View
-        key={message.id}
-        style={[
-          styles.messageContainer,
-          message.isUser ? styles.userMessageContainer : styles.aiMessageContainer,
-          {
-            opacity: fadeAnim,
-            transform: [{ translateY: slideAnim }],
-          },
-        ]}
-      >
-        <View
+  const renderMessage = useCallback(
+    (message: Message) => {
+      if (message.isLoading) {
+        return (
+          <View
+            key={message.id}
+            style={[styles.messageContainer, styles.aiMessageContainer]}
+          >
+            <View
+              style={[
+                styles.messageBubble,
+                styles.aiMessageBubble,
+                { backgroundColor: theme.colors.surface },
+              ]}
+            >
+              <View style={styles.typingIndicator}>
+                <Animated.View
+                  style={[
+                    styles.typingDot,
+                    {
+                      opacity: typingAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [0.3, 1],
+                      }),
+                    },
+                  ]}
+                />
+                <Animated.View
+                  style={[
+                    styles.typingDot,
+                    {
+                      opacity: typingAnim.interpolate({
+                        inputRange: [0, 0.5, 1],
+                        outputRange: [0.3, 1, 0.3],
+                      }),
+                    },
+                  ]}
+                />
+                <Animated.View
+                  style={[
+                    styles.typingDot,
+                    {
+                      opacity: typingAnim.interpolate({
+                        inputRange: [0, 1],
+                        outputRange: [1, 0.3],
+                      }),
+                    },
+                  ]}
+                />
+              </View>
+            </View>
+          </View>
+        );
+      }
+
+      return (
+        <Animated.View
+          key={message.id}
           style={[
-            styles.messageBubble,
-            message.isUser ? styles.userMessageBubble : styles.aiMessageBubble,
+            styles.messageContainer,
+            message.isUser
+              ? styles.userMessageContainer
+              : styles.aiMessageContainer,
             {
-              backgroundColor: message.isUser
-                ? theme.colors.accent
-                : message.error
-                ? theme.colors.error
-                : theme.colors.surface,
+              opacity: fadeAnim,
+              transform: [{ translateY: slideAnim }],
             },
           ]}
         >
-          <Text
+          <View
             style={[
-              styles.messageText,
+              styles.messageBubble,
+              message.isUser
+                ? styles.userMessageBubble
+                : styles.aiMessageBubble,
               {
-                color: message.isUser
-                  ? theme.colors.text
+                backgroundColor: message.isUser
+                  ? theme.colors.accent
                   : message.error
-                  ? theme.colors.text
-                  : theme.colors.text,
+                  ? theme.colors.error
+                  : theme.colors.surface,
               },
             ]}
           >
-            {message.text}
-          </Text>
-          
-          {message.intent && (
-            <View style={styles.intentContainer}>
-              <Text style={[styles.intentText, { color: theme.colors.textSecondary }]}>
-                {getIntentIcon(message.intent)} {message.intent}
-              </Text>
-              {message.processingTime && (
-                <Text style={[styles.processingTime, { color: theme.colors.textTertiary }]}>
-                  ({Math.round(message.processingTime * 1000)}ms)
+            <Text
+              style={[
+                styles.messageText,
+                {
+                  color: message.isUser
+                    ? theme.colors.text
+                    : message.error
+                    ? theme.colors.text
+                    : theme.colors.text,
+                },
+              ]}
+            >
+              {message.text}
+            </Text>
+
+            {message.intent && (
+              <View style={styles.intentContainer}>
+                <Text
+                  style={[
+                    styles.intentText,
+                    { color: theme.colors.textSecondary },
+                  ]}
+                >
+                  {getIntentIcon(message.intent)} {message.intent}
                 </Text>
-              )}
-            </View>
-          )}
-          
-          {message.searchResults && renderSearchResults(message.searchResults)}
-        </View>
-        
-        <Text style={[styles.timestampText, { color: theme.colors.textTertiary }]}>
-          {formatTime(message.timestamp)}
-        </Text>
-      </Animated.View>
-    );
-  };
+                {message.processingTime && (
+                  <Text
+                    style={[
+                      styles.processingTime,
+                      { color: theme.colors.textTertiary },
+                    ]}
+                  >
+                    ({Math.round(message.processingTime * 1000)}ms)
+                  </Text>
+                )}
+              </View>
+            )}
 
-  const getIntentIcon = (intent: string) => {
-    switch (intent) {
-      case 'greeting': return '👋';
-      case 'restaurant_search': return '🍽️';
-      case 'food_search': return '🍕';
-      case 'event_search': return '🎉';
-      case 'recommendation': return '⭐';
-      case 'help': return '�';
-      case 'location_search': return '📍';
-      default: return '💬';
-    }
-  };
+            {message.searchResults &&
+              renderSearchResults(message.searchResults)}
+          </View>
 
-  const renderSuggestion = (suggestion: Suggestion) => (
-    <TouchableOpacity
-      key={suggestion.id}
-      style={[styles.suggestionButton, { backgroundColor: theme.colors.surface }]}
-      onPress={() => handleSuggestionPress(suggestion)}
-      activeOpacity={0.8}
-    >
-      <LinearGradient
-        colors={[theme.colors.primary + '20', theme.colors.secondary + '20']}
-        style={styles.suggestionGradient}
-      >
-        <Text style={styles.suggestionIcon}>{suggestion.icon}</Text>
-        <Text style={[styles.suggestionText, { color: theme.colors.text }]}>
-          {suggestion.text}
-        </Text>
-      </LinearGradient>
-    </TouchableOpacity>
+          <Text
+            style={[styles.timestampText, { color: theme.colors.textTertiary }]}
+          >
+            {formatTime(message.timestamp)}
+          </Text>
+        </Animated.View>
+      );
+    },
+    [
+      theme,
+      fadeAnim,
+      slideAnim,
+      typingAnim,
+      formatTime,
+      getIntentIcon,
+      renderSearchResults,
+    ]
   );
 
-  const renderSystemStatus = () => {
+  const renderSuggestion = useCallback(
+    (suggestion: Suggestion) => (
+      <TouchableOpacity
+        key={suggestion.id}
+        style={[
+          styles.suggestionButton,
+          { backgroundColor: theme.colors.surface },
+        ]}
+        onPress={() => handleSuggestionPress(suggestion)}
+        activeOpacity={0.8}
+      >
+        <LinearGradient
+          colors={[theme.colors.primary + "20", theme.colors.secondary + "20"]}
+          style={styles.suggestionGradient}
+        >
+          <Text style={styles.suggestionIcon}>{suggestion.icon}</Text>
+          <Text style={[styles.suggestionText, { color: theme.colors.text }]}>
+            {suggestion.text}
+          </Text>
+        </LinearGradient>
+      </TouchableOpacity>
+    ),
+    [theme, handleSuggestionPress]
+  );
+
+  const renderSystemStatus = useCallback(() => {
     if (!systemHealth && !connectionError) return null;
 
-    const isHealthy = systemHealth?.status === 'healthy';
-    const statusColor = isHealthy ? theme.colors.success : connectionError ? theme.colors.error : theme.colors.warning;
+    const isHealthy = systemHealth?.status === "healthy";
+    const statusColor = isHealthy
+      ? theme.colors.success
+      : connectionError
+      ? theme.colors.error
+      : theme.colors.warning;
 
     return (
-      <View style={[styles.systemStatus, { backgroundColor: statusColor + '20' }]}>
+      <View
+        style={[styles.systemStatus, { backgroundColor: statusColor + "20" }]}
+      >
         <View style={styles.statusIndicator}>
           <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
           <Text style={[styles.statusText, { color: statusColor }]}>
-            {isHealthy ? 'Smart AI activ' : connectionError ? 'Problemă de conexiune' : 'Status necunoscut'}
+            {isHealthy
+              ? "Smart AI activ"
+              : connectionError
+              ? "Problemă de conexiune"
+              : "Status necunoscut"}
           </Text>
         </View>
         {systemHealth?.ai_system?.data_cache && (
-          <Text style={[styles.statusDetail, { color: theme.colors.textSecondary }]}>
-            {systemHealth.ai_system.data_cache.restaurants_count} restaurante, {systemHealth.ai_system.data_cache.events_count} evenimente
+          <Text
+            style={[styles.statusDetail, { color: theme.colors.textSecondary }]}
+          >
+            {systemHealth.ai_system.data_cache.restaurants_count} restaurante,{" "}
+            {systemHealth.ai_system.data_cache.events_count} evenimente
           </Text>
         )}
       </View>
     );
-  };
+  }, [systemHealth, connectionError, theme]);
 
   return (
-    <SafeAreaView style={[styles.container, { backgroundColor: theme.colors.primary }]}>
+    <UniversalScreen
+      style={StyleSheet.flatten([styles.container, { backgroundColor: theme.colors.primary }])}
+    >
       <StatusBar barStyle={theme.statusBarStyle} />
-      
+
       {/* Header */}
       <LinearGradient
         colors={[theme.colors.primary, theme.colors.secondary]}
@@ -641,22 +903,31 @@ const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
               Smart AI Assistant
             </Text>
-            <Text style={[styles.headerSubtitle, { color: theme.colors.textSecondary }]}>
-              {isTyping ? 'Se gândește...' : connectionError ? 'Offline' : 'Online și inteligent'}
+            <Text
+              style={[
+                styles.headerSubtitle,
+                { color: theme.colors.textSecondary },
+              ]}
+            >
+              {isTyping
+                ? "Se gândește..."
+                : connectionError
+                ? "Offline"
+                : "Online și inteligent"}
             </Text>
           </View>
-          
+
           <TouchableOpacity
             style={styles.headerAction}
             onPress={() => setShowSuggestions(!showSuggestions)}
           >
-            <MaterialIcons 
-              name={showSuggestions ? 'lightbulb' : 'lightbulb-outline'} 
-              size={24} 
-              color={theme.colors.text} 
+            <MaterialIcons
+              name={showSuggestions ? "lightbulb" : "lightbulb-outline"}
+              size={24}
+              color={theme.colors.text}
             />
           </TouchableOpacity>
-          
+
           <TouchableOpacity
             style={styles.headerAction}
             onPress={checkSystemHealth}
@@ -664,20 +935,23 @@ const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             <Ionicons name="refresh" size={24} color={theme.colors.text} />
           </TouchableOpacity>
         </View>
-        
+
         {renderSystemStatus()}
       </LinearGradient>
 
       {/* Chat Container with proper tab spacing */}
       <KeyboardAvoidingView
         style={styles.chatContainer}
-        behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
-        keyboardVerticalOffset={Platform.OS === 'ios' ? 64 : 0}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 64 : 0}
       >
         <ScrollView
           ref={scrollViewRef}
           style={styles.messagesContainer}
-          contentContainerStyle={[styles.messagesContent, { paddingBottom: TAB_BAR_HEIGHT + 20 }]}
+          contentContainerStyle={[
+            styles.messagesContent,
+            { paddingBottom: TAB_BAR_HEIGHT + 20 },
+          ]}
           showsVerticalScrollIndicator={false}
         >
           {messages.map(renderMessage)}
@@ -705,8 +979,21 @@ const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
         )}
 
         {/* Input Area with tab spacing */}
-        <View style={[styles.inputContainer, { backgroundColor: theme.colors.surface, marginBottom: TAB_BAR_HEIGHT }]}>
-          <View style={[styles.inputWrapper, { backgroundColor: theme.colors.surface }]}>
+        <View
+          style={[
+            styles.inputContainer,
+            {
+              backgroundColor: theme.colors.surface,
+              marginBottom: TAB_BAR_HEIGHT,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.inputWrapper,
+              { backgroundColor: theme.colors.surface },
+            ]}
+          >
             <TextInput
               ref={inputRef}
               style={[styles.textInput, { color: theme.colors.text }]}
@@ -718,12 +1005,14 @@ const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
               maxLength={1000}
               editable={!isLoading}
             />
-            
+
             <TouchableOpacity
               style={[
                 styles.sendButton,
                 {
-                  backgroundColor: inputText.trim() ? theme.colors.accent : theme.colors.surface,
+                  backgroundColor: inputText.trim()
+                    ? theme.colors.accent
+                    : theme.colors.surface,
                 },
               ]}
               onPress={() => sendMessage(inputText)}
@@ -736,14 +1025,18 @@ const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                 <Ionicons
                   name="send"
                   size={20}
-                  color={inputText.trim() ? theme.colors.text : theme.colors.textTertiary}
+                  color={
+                    inputText.trim()
+                      ? theme.colors.text
+                      : theme.colors.textTertiary
+                  }
                 />
               )}
             </TouchableOpacity>
           </View>
         </View>
       </KeyboardAvoidingView>
-    </SafeAreaView>
+    </UniversalScreen>
   );
 };
 
@@ -755,8 +1048,8 @@ const styles = StyleSheet.create({
     paddingBottom: 16,
   },
   headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingTop: 8,
   },
@@ -766,7 +1059,7 @@ const styles = StyleSheet.create({
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: '700',
+    fontWeight: "700",
   },
   headerSubtitle: {
     fontSize: 14,
@@ -775,7 +1068,7 @@ const styles = StyleSheet.create({
   headerAction: {
     padding: 8,
     borderRadius: 20,
-    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    backgroundColor: "rgba(255, 255, 255, 0.2)",
     marginLeft: 8,
   },
   systemStatus: {
@@ -785,8 +1078,8 @@ const styles = StyleSheet.create({
     borderRadius: 8,
   },
   statusIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   statusDot: {
     width: 8,
@@ -796,7 +1089,7 @@ const styles = StyleSheet.create({
   },
   statusText: {
     fontSize: 12,
-    fontWeight: '600',
+    fontWeight: "600",
   },
   statusDetail: {
     fontSize: 11,
@@ -816,10 +1109,10 @@ const styles = StyleSheet.create({
     marginVertical: 4,
   },
   userMessageContainer: {
-    alignItems: 'flex-end',
+    alignItems: "flex-end",
   },
   aiMessageContainer: {
-    alignItems: 'flex-start',
+    alignItems: "flex-start",
   },
   messageBubble: {
     maxWidth: width * 0.85,
@@ -827,7 +1120,7 @@ const styles = StyleSheet.create({
     paddingVertical: 12,
     borderRadius: 20,
     marginBottom: 4,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -847,18 +1140,18 @@ const styles = StyleSheet.create({
     marginTop: 8,
     paddingTop: 8,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    borderTopColor: "rgba(255, 255, 255, 0.1)",
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   intentText: {
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   processingTime: {
     fontSize: 10,
-    fontStyle: 'italic',
+    fontStyle: "italic",
   },
   searchResultsContainer: {
     marginTop: 12,
@@ -868,12 +1161,12 @@ const styles = StyleSheet.create({
   },
   resultSectionTitle: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 8,
   },
   resultItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     padding: 12,
     borderRadius: 8,
     marginBottom: 8,
@@ -883,7 +1176,7 @@ const styles = StyleSheet.create({
   },
   resultTitle: {
     fontSize: 14,
-    fontWeight: '600',
+    fontWeight: "600",
     marginBottom: 2,
   },
   resultCategory: {
@@ -896,13 +1189,13 @@ const styles = StyleSheet.create({
     marginBottom: 4,
   },
   resultMeta: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
+    flexDirection: "row",
+    justifyContent: "space-between",
+    alignItems: "center",
   },
   resultRating: {
     fontSize: 12,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   resultScore: {
     fontSize: 10,
@@ -912,16 +1205,16 @@ const styles = StyleSheet.create({
     marginHorizontal: 16,
   },
   typingIndicator: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     paddingVertical: 8,
   },
   typingDot: {
     width: 8,
     height: 8,
     borderRadius: 4,
-    backgroundColor: '#6C3AFF',
+    backgroundColor: "#6C3AFF",
     marginHorizontal: 2,
   },
   suggestionsContainer: {
@@ -933,16 +1226,16 @@ const styles = StyleSheet.create({
   suggestionButton: {
     marginRight: 12,
     borderRadius: 20,
-    overflow: 'hidden',
-    shadowColor: '#000',
+    overflow: "hidden",
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
     elevation: 2,
   },
   suggestionGradient: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 12,
   },
@@ -952,21 +1245,21 @@ const styles = StyleSheet.create({
   },
   suggestionText: {
     fontSize: 14,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   inputContainer: {
     paddingHorizontal: 16,
     paddingVertical: 12,
     borderTopWidth: 1,
-    borderTopColor: 'rgba(255, 255, 255, 0.1)',
+    borderTopColor: "rgba(255, 255, 255, 0.1)",
   },
   inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
+    flexDirection: "row",
+    alignItems: "flex-end",
     borderRadius: 24,
     paddingHorizontal: 16,
     paddingVertical: 8,
-    shadowColor: '#000',
+    shadowColor: "#000",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.1,
     shadowRadius: 4,
@@ -982,8 +1275,8 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     marginLeft: 12,
   },
 });

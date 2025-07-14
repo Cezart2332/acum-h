@@ -15,13 +15,15 @@ import {
   useSafeAreaInsets,
   SafeAreaView,
 } from "react-native-safe-area-context";
+import { useTheme } from "../context/ThemeContext";
+import { getShadow, hapticFeedback } from "../utils/responsive";
 
 // Screens
 import HomeScreen from "./HomeScreen";
 import SearchScreen from "./SearchScreen";
 import SettingsScreen from "./SettingsScreen";
 import MapsScreen from "./MapsScreen";
-import AIChatScreen from "./AIChatScreen";
+import AIChatScreen from "./AIChatScreenAdvanced";
 
 const Tab = createBottomTabNavigator();
 const { width } = Dimensions.get("window");
@@ -40,9 +42,10 @@ const CustomTabBar: React.FC<BottomTabBarProps> = ({
   navigation,
 }) => {
   const insets = useSafeAreaInsets();
+  const { theme } = useTheme();
 
   return (
-    <View style={[styles.container, { paddingBottom: insets.bottom }]}>
+    <View style={[styles.container, { paddingBottom: insets.bottom, backgroundColor: theme.colors.surface }]}>
       {state.routes.map((route, index) => {
         const { options } = descriptors[route.key];
         const label = options.tabBarLabel ?? options.title ?? route.name;
@@ -73,12 +76,12 @@ const CustomTabBar: React.FC<BottomTabBarProps> = ({
             <Ionicons
               name={iconName as any}
               size={24}
-              color={isFocused ? "#9b59b6" : "#7f8c8d"}
+              color={isFocused ? theme.colors.accent : theme.colors.textTertiary}
             />
             <Text
               style={[
                 styles.label,
-                { color: isFocused ? "#9b59b6" : "#7f8c8d" },
+                { color: isFocused ? theme.colors.accent : theme.colors.textTertiary },
               ]}
             >
               {typeof label === "string" ? label : route.name}
@@ -91,9 +94,12 @@ const CustomTabBar: React.FC<BottomTabBarProps> = ({
 };
 
 export default function HomeTabs() {
+  const { theme } = useTheme();
+  
   return (
-    <SafeAreaView style={styles.safeArea} edges={["bottom"]}>
+    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.surface }]} edges={["bottom"]}>
       <Tab.Navigator
+        id={undefined}
         screenOptions={{ headerShown: false }}
         tabBar={(props) => <CustomTabBar {...props} />}
       >
@@ -110,13 +116,11 @@ export default function HomeTabs() {
 const styles = StyleSheet.create({
   safeArea: {
     flex: 1,
-    backgroundColor: "#000", // Pad background pentru a elimina marginile albe
   },
   container: {
     flexDirection: "row",
     justifyContent: "space-around",
     alignItems: "center",
-    backgroundColor: "#000",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
     height: 60,

@@ -17,14 +17,14 @@ import { useTheme } from "../context/ThemeContext";
 import UniversalScreen from "../components/UniversalScreen";
 import EnhancedButton from "../components/EnhancedButton";
 import EnhancedInput from "../components/EnhancedInput";
-import { 
-  getShadow, 
-  hapticFeedback, 
+import {
+  getShadow,
+  hapticFeedback,
   TYPOGRAPHY,
   getResponsiveSpacing,
   SCREEN_DIMENSIONS,
   isValidEmail,
-  isValidPassword 
+  isValidPassword,
 } from "../utils/responsive";
 
 type LoginNav = NativeStackNavigationProp<RootStackParamList, "Login">;
@@ -65,12 +65,11 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
   }, [fadeAnim, slideAnim, scaleAnim]);
 
   const validateEmail = useCallback((email: string): boolean => {
-    const trimmedEmail = email.trim();
-    if (!trimmedEmail) {
+    if (!email.trim()) {
       setEmailError("Email-ul este obligatoriu");
       return false;
     }
-    if (!isValidEmail(trimmedEmail)) {
+    if (!isValidEmail(email)) {
       setEmailError("Email invalid");
       return false;
     }
@@ -79,7 +78,7 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
   }, []);
 
   const validatePassword = useCallback((password: string): boolean => {
-    if (!password) {
+    if (!password.trim()) {
       setPasswordError("Parola este obligatorie");
       return false;
     }
@@ -91,21 +90,6 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
     return true;
   }, []);
 
-  // Add debounced validation
-  const handleEmailChange = useCallback((text: string) => {
-    setEmail(text);
-    if (emailError) {
-      setEmailError("");
-    }
-  }, [emailError]);
-
-  const handlePasswordChange = useCallback((text: string) => {
-    setPassword(text);
-    if (passwordError) {
-      setPasswordError("");
-    }
-  }, [passwordError]);
-
   const onLogin = useCallback(async () => {
     // Validate inputs
     const isEmailValid = validateEmail(email);
@@ -113,7 +97,7 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
 
     if (!isEmailValid || !isPasswordValid) {
       // Shake animation for errors
-      hapticFeedback('heavy');
+      hapticFeedback("heavy");
       Animated.sequence([
         Animated.timing(scaleAnim, {
           toValue: 1.05,
@@ -148,7 +132,7 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
 
       if (response.status === 401) {
         setPasswordError("Email sau parolă incorrecte");
-        hapticFeedback('heavy');
+        hapticFeedback("heavy");
         Alert.alert(
           "Eroare de autentificare",
           "Email sau parolă incorrecte. Te rog să încerci din nou."
@@ -165,8 +149,8 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
       await AsyncStorage.setItem("loggedIn", JSON.stringify(true));
 
       // Success haptic feedback
-      hapticFeedback('medium');
-      
+      hapticFeedback("medium");
+
       // Success animation
       Animated.timing(scaleAnim, {
         toValue: 1.1,
@@ -177,7 +161,7 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
       });
     } catch (error) {
       console.error("Login error:", error);
-      hapticFeedback('heavy');
+      hapticFeedback("heavy");
       Alert.alert(
         "Eroare de conectare",
         "Nu s-a putut conecta la server. Verifică conexiunea la internet și încearcă din nou."
@@ -188,7 +172,7 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
   }, [email, password, validateEmail, validatePassword, navigation, scaleAnim]);
 
   const handleRegisterPress = useCallback(() => {
-    hapticFeedback('light');
+    hapticFeedback("light");
     navigation.navigate("Register");
   }, [navigation]);
 
@@ -205,7 +189,7 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
           style={[
             styles.floatingCircle1,
             {
-              backgroundColor: theme.colors.accent + '20',
+              backgroundColor: theme.colors.accent + "20",
               opacity: fadeAnim.interpolate({
                 inputRange: [0, 1],
                 outputRange: [0, 0.6],
@@ -217,7 +201,7 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
           style={[
             styles.floatingCircle2,
             {
-              backgroundColor: theme.colors.accentSecondary + '15',
+              backgroundColor: theme.colors.accentSecondary + "15",
               opacity: fadeAnim.interpolate({
                 inputRange: [0, 1],
                 outputRange: [0, 0.4],
@@ -263,31 +247,34 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
           },
         ]}
       >
-        <View style={[styles.formContent, { backgroundColor: theme.colors.surface }]}>
+        <View
+          style={[
+            styles.formContent,
+            { backgroundColor: theme.colors.surface },
+          ]}
+        >
           <EnhancedInput
             label="Email"
             placeholder="Introdu email-ul"
             value={email}
-            onChangeText={handleEmailChange}
+            onChangeText={setEmail}
             error={emailError}
             keyboardType="email-address"
             autoCapitalize="none"
             leftIcon="mail-outline"
             required
-            autoCorrect={false}
           />
 
           <EnhancedInput
             label="Parola"
             placeholder="Introdu parola"
             value={password}
-            onChangeText={handlePasswordChange}
+            onChangeText={setPassword}
             error={passwordError}
             secureTextEntry
             leftIcon="lock-closed-outline"
             showPasswordToggle
             required
-            autoCorrect={false}
           />
 
           <View style={styles.buttonContainer}>
@@ -314,7 +301,9 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
           },
         ]}
       >
-        <Text style={[styles.footerText, { color: theme.colors.textSecondary }]}>
+        <Text
+          style={[styles.footerText, { color: theme.colors.textSecondary }]}
+        >
           Nu ai cont încă?
         </Text>
         <TouchableOpacity
@@ -322,7 +311,9 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
           style={styles.registerButton}
           activeOpacity={0.8}
         >
-          <Text style={[styles.registerButtonText, { color: theme.colors.accent }]}>
+          <Text
+            style={[styles.registerButtonText, { color: theme.colors.accent }]}
+          >
             Înregistrează-te
           </Text>
         </TouchableOpacity>
@@ -333,7 +324,7 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
 
 const styles = StyleSheet.create({
   floatingElements: {
-    position: 'absolute',
+    position: "absolute",
     top: 0,
     left: 0,
     right: 0,
@@ -341,7 +332,7 @@ const styles = StyleSheet.create({
     zIndex: 0,
   },
   floatingCircle1: {
-    position: 'absolute',
+    position: "absolute",
     width: 200,
     height: 200,
     borderRadius: 100,
@@ -349,7 +340,7 @@ const styles = StyleSheet.create({
     right: -50,
   },
   floatingCircle2: {
-    position: 'absolute',
+    position: "absolute",
     width: 150,
     height: 150,
     borderRadius: 75,
@@ -357,64 +348,64 @@ const styles = StyleSheet.create({
     left: -30,
   },
   header: {
-    alignItems: 'center',
-    paddingTop: getResponsiveSpacing('xxl'),
-    paddingBottom: getResponsiveSpacing('xl'),
+    alignItems: "center",
+    paddingTop: getResponsiveSpacing("xxl"),
+    paddingBottom: getResponsiveSpacing("xl"),
     zIndex: 1,
   },
   logoContainer: {
-    marginBottom: getResponsiveSpacing('lg'),
+    marginBottom: getResponsiveSpacing("lg"),
   },
   logoGradient: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     ...getShadow(8),
   },
   title: {
     fontSize: TYPOGRAPHY.h2,
-    fontWeight: '800',
-    textAlign: 'center',
-    marginBottom: getResponsiveSpacing('sm'),
+    fontWeight: "800",
+    textAlign: "center",
+    marginBottom: getResponsiveSpacing("sm"),
   },
   subtitle: {
     fontSize: TYPOGRAPHY.body,
-    textAlign: 'center',
+    textAlign: "center",
     opacity: 0.8,
   },
   form: {
     flex: 1,
-    paddingHorizontal: getResponsiveSpacing('lg'),
+    paddingHorizontal: getResponsiveSpacing("lg"),
     zIndex: 1,
   },
   formContent: {
     borderRadius: 24,
-    padding: getResponsiveSpacing('xl'),
+    padding: getResponsiveSpacing("xl"),
     ...getShadow(12),
   },
   buttonContainer: {
-    marginTop: getResponsiveSpacing('lg'),
+    marginTop: getResponsiveSpacing("lg"),
   },
   footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: getResponsiveSpacing('xl'),
-    paddingHorizontal: getResponsiveSpacing('lg'),
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: getResponsiveSpacing("xl"),
+    paddingHorizontal: getResponsiveSpacing("lg"),
     zIndex: 1,
   },
   footerText: {
     fontSize: TYPOGRAPHY.body,
-    marginRight: getResponsiveSpacing('sm'),
+    marginRight: getResponsiveSpacing("sm"),
   },
   registerButton: {
-    paddingVertical: getResponsiveSpacing('sm'),
-    paddingHorizontal: getResponsiveSpacing('md'),
+    paddingVertical: getResponsiveSpacing("sm"),
+    paddingHorizontal: getResponsiveSpacing("md"),
   },
   registerButtonText: {
     fontSize: TYPOGRAPHY.body,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
 import {
   View,
   Text,
@@ -10,13 +10,24 @@ import {
   TouchableOpacity,
   Linking,
   Alert,
+  Animated,
+  Share,
 } from "react-native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
 import type { RootStackParamList } from "./RootStackParamList";
-import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from 'expo-linear-gradient';
 import BASE_URL from "../config";
+import { useTheme } from "../context/ThemeContext";
+import UniversalScreen from "../components/UniversalScreen";
+import EnhancedButton from "../components/EnhancedButton";
+import { 
+  getShadow, 
+  hapticFeedback, 
+  TYPOGRAPHY,
+  SCREEN_DIMENSIONS 
+} from "../utils/responsive";
 
 type InfoNav = NativeStackNavigationProp<RootStackParamList, "Info">;
 type InfoRoute = RouteProp<RootStackParamList, "Info">;
@@ -48,11 +59,34 @@ interface CompanyData {
 type ProfileData = CompanyData;
 
 const Info: React.FC<Props> = ({ navigation, route }) => {
+  const { theme } = useTheme();
   const { company } = route.params;
   const [events, setEvents] = useState<EventData[]>([]);
   const [loadingEvents, setLoadingEvents] = useState<boolean>(true);
   const [hasMenu, setHasMenu] = useState<boolean>(false);
   const [checkingMenu, setCheckingMenu] = useState<boolean>(true);
+  
+  // Animation refs
+  const fadeAnim = useRef(new Animated.Value(0)).current;
+  const slideAnim = useRef(new Animated.Value(30)).current;
+
+  const styles = createStyles(theme);
+
+  useEffect(() => {
+    // Start entrance animations
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 1000,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+    ]).start();
+  }, []);
 
   // Fetch events
   useEffect(() => {
@@ -136,8 +170,19 @@ const Info: React.FC<Props> = ({ navigation, route }) => {
   );
 
   return (
-    <SafeAreaView style={styles.container}>
-      <ScrollView contentContainerStyle={styles.scroll}>
+    <UniversalScreen>
+      <Animated.View 
+        style={[
+          { flex: 1 },
+          {
+            opacity: fadeAnim,
+            transform: [
+              { translateY: slideAnim }
+            ]
+          }
+        ]}
+      >
+        <ScrollView contentContainerStyle={styles.scroll} showsVerticalScrollIndicator={false}>
         <Image
           source={{ uri: `data:image/jpg;base64,${company.profileImage}` }}
           style={styles.heroImage}
@@ -223,12 +268,13 @@ const Info: React.FC<Props> = ({ navigation, route }) => {
           </View>
         </View>
       </ScrollView>
-    </SafeAreaView>
+      </Animated.View>
+    </UniversalScreen>
   );
 };
 
-const styles = StyleSheet.create({
-  container: { flex: 1, backgroundColor: "#0F0817" },
+const createStyles = (theme: any) => StyleSheet.create({
+  container: { flex: 1, backgroundColor: theme.colors.surface },
   scroll: { paddingBottom: 40 },
   heroImage: {
     width: "100%",
@@ -238,19 +284,15 @@ const styles = StyleSheet.create({
   },
   infoCard: {
     margin: 16,
-    backgroundColor: "#1A1A1A",
+    backgroundColor: theme.colors.card,
     borderRadius: 20,
     padding: 24,
-    shadowColor: "#6C3AFF",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.1,
-    shadowRadius: 8,
-    elevation: 4,
+    ...getShadow(4),
   },
   companyName: {
     fontSize: 28,
     fontWeight: "700",
-    color: "#A78BFA",
+    color: theme.colors.primary,
     marginBottom: 16,
     textAlign: "center",
   },

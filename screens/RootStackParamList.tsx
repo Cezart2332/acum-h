@@ -1,11 +1,14 @@
-interface EventData {
+export interface EventData {
   id: string;
   title: string;
   description?: string;
   photo: string;
   tags?: string[];
+  company?: string;
+  likes?: number;
 }
-interface CompanyData {
+
+export interface CompanyData {
   id?: number;
   name?: string;
   email?: string;
@@ -14,7 +17,9 @@ interface CompanyData {
   category?: string;
   profileImage?: string;
   description?: string;
-  tags: string[];
+  tags?: string[];
+  latitude?: number;
+  longitude?: number;
 }
 
 export type RootStackParamList = {

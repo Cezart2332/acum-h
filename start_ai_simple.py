@@ -1,33 +1,58 @@
 #!/usr/bin/env python3
 """
-Simplified startup script for the Backend-Based AI Recommender System
-Works without OpenAI API and handles missing ML dependencies gracefully
+Simple AI Server Starter - Quick launch for development
 """
-
 import os
 import sys
-import time
-import signal
-import logging
-import subprocess
-from pathlib import Path
-import requests
 
-# Configure logging
-logging.basicConfig(
-    level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-)
-logger = logging.getLogger(__name__)
+print("🚀 Starting AI Server...")
+print("🌐 Server will be available at: http://localhost:5001")
+print("🔗 Backend URL: http://localhost:5298")
+print("📖 Test endpoints:")
+print("   GET  /health - Health check")
+print("   GET  /test - Simple test")
+print("   POST /api/chat - Main chat interface")
+print("\n🔥 Starting server...\n")
 
-# Configuration
-BACKEND_URL = os.getenv('BACKEND_URL', 'http://localhost:5298')
-API_PORT = int(os.getenv('API_PORT', 5001))
-API_HOST = os.getenv('API_HOST', '0.0.0.0')
+# Set environment variables
+os.environ['BACKEND_URL'] = 'http://localhost:5298'
+os.environ['AI_PORT'] = '5001'
+os.environ['AI_HOST'] = '0.0.0.0'
 
-def check_basic_dependencies():
-    """Check if basic dependencies are available"""
-    required_modules = ['flask', 'requests', 'flask_cors']
+try:
+    # Import and run the server
+    from ai_chat_api_advanced import app, initialize_ai_engine
+    
+    # Initialize AI engine
+    print("🧠 Initializing AI engine...")
+    ai_initialized = initialize_ai_engine()
+    
+    if ai_initialized:
+        print("✅ Advanced AI engine initialized")
+    else:
+        print("⚠️  Using fallback AI engine (backend not available)")
+    
+    print(f"\n🎯 Server starting on http://0.0.0.0:5001")
+    print("💡 Use Ctrl+C to stop\n")
+    
+    # Run the Flask app
+    app.run(
+        host='0.0.0.0',
+        port=5001,
+        debug=False,
+        threaded=True
+    )
+    
+except KeyboardInterrupt:
+    print("\n👋 Server stopped by user")
+except ImportError as e:
+    print(f"❌ Import error: {e}")
+    print("Make sure you have installed the required dependencies:")
+    print("pip install flask flask-cors requests")
+except Exception as e:
+    print(f"❌ Error starting server: {e}")
+    import traceback
+    traceback.print_exc()
     missing = []
     
     for module in required_modules:

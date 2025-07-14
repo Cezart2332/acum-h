@@ -22,6 +22,9 @@ import * as Location from "expo-location";
 import haversine from "haversine-distance";
 import { cachedFetch } from "../utils/apiCache";
 import BASE_URL from "../config";
+import { useTheme } from "../context/ThemeContext";
+import UniversalScreen from "../components/UniversalScreen";
+import { getShadow } from "../utils/responsive";
 
 // Optimized map style - reduced complexity
 const DARK_MAP_STYLE = [
@@ -67,30 +70,6 @@ interface MapRegion {
   latitudeDelta: number;
   longitudeDelta: number;
 }
-
-// Memoized callout content component
-const CalloutContent = React.memo(({
-  company,
-  distKm,
-}: {
-  company: CompanyData;
-  distKm: string;
-}) => (
-  <View style={styles.callout}>
-    <ImageBackground
-      source={{
-        uri: `data:image/jpg;base64,${company.profileImage}`,
-      }}
-      style={styles.calloutImage}
-      imageStyle={styles.calloutImageStyle}
-    >
-      <View style={styles.overlay} />
-      <Text style={styles.title}>{company.name}</Text>
-    </ImageBackground>
-    <Text style={styles.subtitle}>{company.category}</Text>
-    <Text style={styles.distance}>{distKm} km</Text>
-  </View>
-));
 
 // Simple clustering logic for better performance
 const clusterMarkers = (
@@ -155,12 +134,39 @@ const filterVisibleCompanies = (companies: CompanyData[], region: MapRegion): Co
 };
 
 export default function MapsScreen({ navigation }: { navigation: MapNav }) {
+  const { theme } = useTheme();
   const mapRef = useRef<MapView>(null);
   const { width, height } = Dimensions.get("window");
   const [location, setLocation] = useState<Location.LocationObject | null>(null);
   const [companies, setCompanies] = useState<CompanyData[]>([]);
   const [loading, setLoading] = useState(true);
   const [currentRegion, setCurrentRegion] = useState<MapRegion | null>(null);
+
+  const styles = createStyles(theme);
+
+  // Memoized callout content component
+  const CalloutContent = React.memo(({
+    company,
+    distKm,
+  }: {
+    company: CompanyData;
+    distKm: string;
+  }) => (
+    <View style={styles.callout}>
+      <ImageBackground
+        source={{
+          uri: `data:image/jpg;base64,${company.profileImage}`,
+        }}
+        style={styles.calloutImage}
+        imageStyle={styles.calloutImageStyle}
+      >
+        <View style={styles.overlay} />
+        <Text style={styles.title}>{company.name}</Text>
+      </ImageBackground>
+      <Text style={styles.subtitle}>{company.category}</Text>
+      <Text style={styles.distance}>{distKm} km</Text>
+    </View>
+  ));
 
   // Memoized location request
   const requestLocationPermission = useCallback(async () => {
@@ -317,7 +323,7 @@ export default function MapsScreen({ navigation }: { navigation: MapNav }) {
         </Callout>
       </Marker>
     );
-  }, [location, handleMarkerPress]);
+  }, [location, handleMarkerPress, styles]);
 
   // Auto-fit to coordinates on data load
   useEffect(() => {
@@ -344,57 +350,60 @@ export default function MapsScreen({ navigation }: { navigation: MapNav }) {
 
   if (loading || !location || !initialRegion) {
     return (
-      <View style={styles.loadingContainer}>
-        <ActivityIndicator size="large" color="#bb86fc" />
-        <Text style={styles.loadingText}>Loading map...</Text>
-      </View>
+      <UniversalScreen>
+        <View style={styles.loadingContainer}>
+          <ActivityIndicator size="large" color={theme.colors.accent} />
+          <Text style={[styles.loadingText, { color: theme.colors.text }]}>Loading map...</Text>
+        </View>
+      </UniversalScreen>
     );
   }
 
   return (
-    <View style={styles.container}>
-      <MapView
-        ref={mapRef}
-        provider={PROVIDER_GOOGLE}
-        style={{ width, height }}
-        customMapStyle={DARK_MAP_STYLE}
-        initialRegion={initialRegion}
-        onRegionChangeComplete={handleRegionChange}
-        showsUserLocation
-        showsMyLocationButton
-        maxZoomLevel={18}
-        minZoomLevel={10}
-        rotateEnabled={false}
-        pitchEnabled={false}
-      >
-        {visibleMarkers.map(renderMarker)}
-      </MapView>
-      
-      {/* Performance stats (can be removed in production) */}
-      {__DEV__ && (
-        <View style={styles.debugInfo}>
-          <Text style={styles.debugText}>
-            Visible: {visibleMarkers.length} / {companies.length}
-          </Text>
-        </View>
-      )}
-    </View>
+    <UniversalScreen>
+      <View style={styles.container}>
+        <MapView
+          ref={mapRef}
+          provider={PROVIDER_GOOGLE}
+          style={{ width, height }}
+          customMapStyle={DARK_MAP_STYLE}
+          initialRegion={initialRegion}
+          onRegionChangeComplete={handleRegionChange}
+          showsUserLocation
+          showsMyLocationButton
+          maxZoomLevel={18}
+          minZoomLevel={10}
+          rotateEnabled={false}
+          pitchEnabled={false}
+        >
+          {visibleMarkers.map(renderMarker)}
+        </MapView>
+        
+        {/* Performance stats (can be removed in production) */}
+        {__DEV__ && (
+          <View style={styles.debugInfo}>
+            <Text style={[styles.debugText, { color: theme.colors.text }]}>
+              Visible: {visibleMarkers.length} / {companies.length}
+            </Text>
+          </View>
+        )}
+      </View>
+    </UniversalScreen>
   );
 }
 
-const styles = StyleSheet.create({
+const createStyles = (theme: any) => StyleSheet.create({
   container: { 
     flex: 1, 
-    backgroundColor: "#000" 
+    backgroundColor: theme.colors.surface 
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: "#000",
+    backgroundColor: theme.colors.surface,
   },
   loadingText: {
-    color: "#bb86fc",
     marginTop: 10,
     fontSize: 16,
   },
@@ -409,14 +418,10 @@ const styles = StyleSheet.create({
   callout: {
     width: 170,
     padding: 10,
-    backgroundColor: "#2a2a2a",
+    backgroundColor: theme.colors.surface,
     borderRadius: 12,
     alignItems: "center",
-    shadowColor: "#000",
-    shadowOffset: { width: 0, height: 2 },
-    shadowOpacity: 0.5,
-    shadowRadius: 4,
-    elevation: 8,
+    ...getShadow(4),
   },
   calloutImage: {
     width: "100%",
@@ -435,46 +440,46 @@ const styles = StyleSheet.create({
     position: "absolute",
     bottom: 6,
     left: 10,
-    color: "#bb86fc",
+    color: theme.colors.accent,
     fontWeight: "bold",
     fontSize: 14,
   },
   subtitle: {
     marginTop: 6,
     fontSize: 13,
-    color: "#ddd",
+    color: theme.colors.textSecondary,
     textAlign: "center",
     width: "100%",
   },
   distance: {
     marginTop: 4,
     fontSize: 12,
-    color: "#aaa",
+    color: theme.colors.textTertiary,
     fontWeight: "600",
   },
   clusterMarker: {
-    backgroundColor: "#ff6b6b",
+    backgroundColor: theme.colors.error,
     borderRadius: 15,
     width: 30,
     height: 30,
     justifyContent: "center",
     alignItems: "center",
     borderWidth: 2,
-    borderColor: "#fff",
+    borderColor: theme.colors.surface,
   },
   clusterText: {
-    color: "#fff",
+    color: theme.colors.surface,
     fontWeight: "bold",
     fontSize: 12,
   },
   clusterCallout: {
-    backgroundColor: "#2a2a2a",
+    backgroundColor: theme.colors.surface,
     borderRadius: 12,
     padding: 12,
     minWidth: 200,
   },
   clusterCalloutTitle: {
-    color: "#bb86fc",
+    color: theme.colors.accent,
     fontWeight: "bold",
     fontSize: 16,
     marginBottom: 8,
@@ -482,14 +487,14 @@ const styles = StyleSheet.create({
   clusterItem: {
     paddingVertical: 4,
     borderBottomWidth: 1,
-    borderBottomColor: "#444",
+    borderBottomColor: theme.colors.border,
   },
   clusterItemText: {
-    color: "#fff",
+    color: theme.colors.text,
     fontSize: 14,
   },
   moreText: {
-    color: "#aaa",
+    color: theme.colors.textTertiary,
     fontSize: 12,
     marginTop: 8,
     textAlign: "center",
@@ -498,12 +503,11 @@ const styles = StyleSheet.create({
     position: "absolute",
     top: 50,
     left: 10,
-    backgroundColor: "rgba(0,0,0,0.7)",
+    backgroundColor: theme.colors.surface + "CC",
     padding: 8,
-    borderRadius: 4,
+    borderRadius: 8,
   },
   debugText: {
-    color: "#bb86fc",
     fontSize: 12,
   },
 });

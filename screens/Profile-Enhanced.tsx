@@ -11,7 +11,6 @@ import {
   Alert,
   Animated,
   RefreshControl,
-  ScrollView,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -20,12 +19,12 @@ import BASE_URL from "../config";
 import { useTheme } from "../context/ThemeContext";
 import UniversalScreen from "../components/UniversalScreen";
 import EnhancedButton from "../components/EnhancedButton";
-import { 
-  getShadow, 
-  hapticFeedback, 
+import {
+  getShadow,
+  hapticFeedback,
   TYPOGRAPHY,
   getResponsiveSpacing,
-  SCREEN_DIMENSIONS 
+  SCREEN_DIMENSIONS,
 } from "../utils/responsive";
 
 interface UserData {
@@ -77,7 +76,7 @@ const Profile: React.FC<{ navigation?: any }> = ({ navigation }) => {
 
   useEffect(() => {
     loadUserData();
-    
+
     // Start entrance animations
     Animated.parallel([
       Animated.timing(fadeAnim, {
@@ -134,17 +133,13 @@ const Profile: React.FC<{ navigation?: any }> = ({ navigation }) => {
   }, []);
 
   const handleImagePicker = async () => {
-    hapticFeedback('light');
-    
-    Alert.alert(
-      "Schimbă poza de profil",
-      "Alege o opțiune",
-      [
-        { text: "Anulează", style: "cancel" },
-        { text: "Camera", onPress: () => openCamera() },
-        { text: "Galerie", onPress: () => openGallery() },
-      ]
-    );
+    hapticFeedback("light");
+
+    Alert.alert("Schimbă poza de profil", "Alege o opțiune", [
+      { text: "Anulează", style: "cancel" },
+      { text: "Camera", onPress: () => openCamera() },
+      { text: "Galerie", onPress: () => openGallery() },
+    ]);
   };
 
   const openCamera = async () => {
@@ -153,7 +148,7 @@ const Profile: React.FC<{ navigation?: any }> = ({ navigation }) => {
       Alert.alert("Acces refuzat", "Avem nevoie de permisiune pentru camera");
       return;
     }
-    
+
     const result = await ImagePicker.launchCameraAsync({
       mediaTypes: ImagePicker.MediaTypeOptions.Images,
       allowsEditing: true,
@@ -212,7 +207,7 @@ const Profile: React.FC<{ navigation?: any }> = ({ navigation }) => {
       });
 
       if (response.ok) {
-        hapticFeedback('medium');
+        hapticFeedback("medium");
         Alert.alert("Succes", "Poza de profil a fost actualizată");
         const updatedUser = { ...user, profileImage: newBase64 };
         setUser(updatedUser);
@@ -223,83 +218,95 @@ const Profile: React.FC<{ navigation?: any }> = ({ navigation }) => {
     } catch (error) {
       console.error("Error updating profile image:", error);
       Alert.alert("Eroare", "Nu s-a putut actualiza poza de profil");
-      hapticFeedback('heavy');
+      hapticFeedback("heavy");
     } finally {
       setImageLoading(false);
     }
   };
 
   const handleLogout = () => {
-    Alert.alert(
-      "Deconectare",
-      "Ești sigur că vrei să te deconectezi?",
-      [
-        { text: "Anulează", style: "cancel" },
-        {
-          text: "Deconectare",
-          style: "destructive",
-          onPress: async () => {
-            hapticFeedback('medium');
-            try {
-              await AsyncStorage.removeItem("user");
-              await AsyncStorage.removeItem("loggedIn");
-              navigation?.replace("Login");
-            } catch (error) {
-              console.error("Logout error:", error);
-            }
-          },
+    Alert.alert("Deconectare", "Ești sigur că vrei să te deconectezi?", [
+      { text: "Anulează", style: "cancel" },
+      {
+        text: "Deconectare",
+        style: "destructive",
+        onPress: async () => {
+          hapticFeedback("medium");
+          try {
+            await AsyncStorage.removeItem("user");
+            await AsyncStorage.removeItem("loggedIn");
+            navigation?.replace("Login");
+          } catch (error) {
+            console.error("Logout error:", error);
+          }
         },
-      ]
-    );
+      },
+    ]);
   };
 
   const handleEditProfile = () => {
-    hapticFeedback('light');
+    hapticFeedback("light");
     // Navigate to edit profile screen
-    Alert.alert("În dezvoltare", "Funcția de editare profil va fi disponibilă în curând");
+    Alert.alert(
+      "În dezvoltare",
+      "Funcția de editare profil va fi disponibilă în curând"
+    );
   };
 
-  const renderStatCard = (title: string, value: number, icon: string, color: string) => (
-    <View style={[styles.statCard, { backgroundColor: theme.colors.surface }, getShadow(3)]}>
-      <View style={[styles.statIcon, { backgroundColor: color + '20' }]}>
+  const renderStatCard = (
+    title: string,
+    value: number,
+    icon: string,
+    color: string
+  ) => (
+    <View
+      style={[
+        styles.statCard,
+        { backgroundColor: theme.colors.surface },
+        getShadow(3),
+      ]}
+    >
+      <View style={[styles.statIcon, { backgroundColor: color + "20" }]}>
         <Ionicons name={icon as any} size={24} color={color} />
       </View>
-      <Text style={[styles.statValue, { color: theme.colors.text }]}>{value}</Text>
-      <Text style={[styles.statTitle, { color: theme.colors.textSecondary }]}>{title}</Text>
+      <Text style={[styles.statValue, { color: theme.colors.text }]}>
+        {value}
+      </Text>
+      <Text style={[styles.statTitle, { color: theme.colors.textSecondary }]}>
+        {title}
+      </Text>
     </View>
   );
 
   const getUserDisplayName = () => {
     if (!user) return "Utilizator";
-    
+
     if ("firstName" in user && "lastName" in user) {
-      return `${user.firstName || ""} ${user.lastName || ""}`.trim() || user.username || "Utilizator";
+      return (
+        `${user.firstName || ""} ${user.lastName || ""}`.trim() ||
+        user.username ||
+        "Utilizator"
+      );
     }
-    
+
     if ("name" in user) {
       return user.name || "Companie";
     }
-    
-    if ('username' in user) {
-      return user.username || "Utilizator";
-    }
-    if ('name' in user) {
-      return user.name || "Companie";
-    }
-    return "Profil";
+
+    return user.username || "Utilizator";
   };
 
   const getUserSubtitle = () => {
     if (!user) return "";
-    
+
     if ("email" in user) {
       return user.email || "";
     }
-    
+
     if ("category" in user) {
       return user.category || "";
     }
-    
+
     return "";
   };
 
@@ -308,7 +315,9 @@ const Profile: React.FC<{ navigation?: any }> = ({ navigation }) => {
       <UniversalScreen>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.accent} />
-          <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
+          <Text
+            style={[styles.loadingText, { color: theme.colors.textSecondary }]}
+          >
             Se încarcă profilul...
           </Text>
         </View>
@@ -317,19 +326,18 @@ const Profile: React.FC<{ navigation?: any }> = ({ navigation }) => {
   }
 
   return (
-    <UniversalScreen>
-      <ScrollView
-        refreshControl={
-          <RefreshControl
-            refreshing={refreshing}
-            onRefresh={onRefresh}
-            colors={[theme.colors.accent]}
-            tintColor={theme.colors.accent}
-            progressBackgroundColor={theme.colors.surface}
-          />
-        }
-        showsVerticalScrollIndicator={false}
-      >
+    <UniversalScreen
+      scrollable={true}
+      refreshControl={
+        <RefreshControl
+          refreshing={refreshing}
+          onRefresh={onRefresh}
+          colors={[theme.colors.accent]}
+          tintColor={theme.colors.accent}
+          progressBackgroundColor={theme.colors.surface}
+        />
+      }
+    >
       <Animated.View
         style={[
           styles.container,
@@ -346,7 +354,7 @@ const Profile: React.FC<{ navigation?: any }> = ({ navigation }) => {
         >
           <View style={styles.headerContent}>
             {/* Profile Image */}
-            <TouchableOpacity 
+            <TouchableOpacity
               style={[styles.profileImageContainer, getShadow(5)]}
               onPress={handleImagePicker}
               activeOpacity={0.8}
@@ -361,11 +369,22 @@ const Profile: React.FC<{ navigation?: any }> = ({ navigation }) => {
                   style={styles.profileImage}
                 />
               ) : (
-                <View style={[styles.profileImage, styles.profileImagePlaceholder]}>
-                  <Ionicons name="person" size={40} color={theme.colors.textTertiary} />
+                <View
+                  style={[styles.profileImage, styles.profileImagePlaceholder]}
+                >
+                  <Ionicons
+                    name="person"
+                    size={40}
+                    color={theme.colors.textTertiary}
+                  />
                 </View>
               )}
-              <View style={[styles.editIconContainer, { backgroundColor: theme.colors.accent }]}>
+              <View
+                style={[
+                  styles.editIconContainer,
+                  { backgroundColor: theme.colors.accent },
+                ]}
+              >
                 <Ionicons name="camera" size={16} color={theme.colors.text} />
               </View>
             </TouchableOpacity>
@@ -374,9 +393,14 @@ const Profile: React.FC<{ navigation?: any }> = ({ navigation }) => {
             <Text style={[styles.userName, { color: theme.colors.text }]}>
               {getUserDisplayName()}
             </Text>
-            
+
             {getUserSubtitle() && (
-              <Text style={[styles.userSubtitle, { color: theme.colors.textSecondary }]}>
+              <Text
+                style={[
+                  styles.userSubtitle,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
                 {getUserSubtitle()}
               </Text>
             )}
@@ -388,7 +412,13 @@ const Profile: React.FC<{ navigation?: any }> = ({ navigation }) => {
                 onPress={handleEditProfile}
                 variant="outline"
                 size="small"
-                icon={<Ionicons name="create-outline" size={16} color={theme.colors.accent} />}
+                icon={
+                  <Ionicons
+                    name="create-outline"
+                    size={16}
+                    color={theme.colors.accent}
+                  />
+                }
                 style={styles.actionButton}
               />
             </View>
@@ -401,9 +431,24 @@ const Profile: React.FC<{ navigation?: any }> = ({ navigation }) => {
             Statistici
           </Text>
           <View style={styles.statsGrid}>
-            {renderStatCard("Evenimente apreciate", stats.eventsLiked, "heart", theme.colors.error)}
-            {renderStatCard("Restaurante vizitate", stats.restaurantsVisited, "restaurant", theme.colors.warning)}
-            {renderStatCard("Recenzii scrise", stats.reviewsWritten, "star", theme.colors.success)}
+            {renderStatCard(
+              "Evenimente apreciate",
+              stats.eventsLiked,
+              "heart",
+              theme.colors.error
+            )}
+            {renderStatCard(
+              "Restaurante vizitate",
+              stats.restaurantsVisited,
+              "restaurant",
+              theme.colors.warning
+            )}
+            {renderStatCard(
+              "Recenzii scrise",
+              stats.reviewsWritten,
+              "star",
+              theme.colors.success
+            )}
           </View>
         </View>
 
@@ -412,44 +457,83 @@ const Profile: React.FC<{ navigation?: any }> = ({ navigation }) => {
           <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
             Setări
           </Text>
-          
-          <TouchableOpacity 
-            style={[styles.settingItem, { backgroundColor: theme.colors.surface }]}
+
+          <TouchableOpacity
+            style={[
+              styles.settingItem,
+              { backgroundColor: theme.colors.surface },
+            ]}
             activeOpacity={0.8}
           >
             <View style={styles.settingItemLeft}>
-              <Ionicons name="notifications-outline" size={24} color={theme.colors.textSecondary} />
-              <Text style={[styles.settingItemText, { color: theme.colors.text }]}>
+              <Ionicons
+                name="notifications-outline"
+                size={24}
+                color={theme.colors.textSecondary}
+              />
+              <Text
+                style={[styles.settingItemText, { color: theme.colors.text }]}
+              >
                 Notificări
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={theme.colors.textTertiary} />
+            <Ionicons
+              name="chevron-forward"
+              size={20}
+              color={theme.colors.textTertiary}
+            />
           </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={[styles.settingItem, { backgroundColor: theme.colors.surface }]}
+          <TouchableOpacity
+            style={[
+              styles.settingItem,
+              { backgroundColor: theme.colors.surface },
+            ]}
             activeOpacity={0.8}
           >
             <View style={styles.settingItemLeft}>
-              <Ionicons name="shield-outline" size={24} color={theme.colors.textSecondary} />
-              <Text style={[styles.settingItemText, { color: theme.colors.text }]}>
+              <Ionicons
+                name="shield-outline"
+                size={24}
+                color={theme.colors.textSecondary}
+              />
+              <Text
+                style={[styles.settingItemText, { color: theme.colors.text }]}
+              >
                 Confidențialitate
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={theme.colors.textTertiary} />
+            <Ionicons
+              name="chevron-forward"
+              size={20}
+              color={theme.colors.textTertiary}
+            />
           </TouchableOpacity>
 
-          <TouchableOpacity 
-            style={[styles.settingItem, { backgroundColor: theme.colors.surface }]}
+          <TouchableOpacity
+            style={[
+              styles.settingItem,
+              { backgroundColor: theme.colors.surface },
+            ]}
             activeOpacity={0.8}
           >
             <View style={styles.settingItemLeft}>
-              <Ionicons name="help-circle-outline" size={24} color={theme.colors.textSecondary} />
-              <Text style={[styles.settingItemText, { color: theme.colors.text }]}>
+              <Ionicons
+                name="help-circle-outline"
+                size={24}
+                color={theme.colors.textSecondary}
+              />
+              <Text
+                style={[styles.settingItemText, { color: theme.colors.text }]}
+              >
                 Ajutor și suport
               </Text>
             </View>
-            <Ionicons name="chevron-forward" size={20} color={theme.colors.textTertiary} />
+            <Ionicons
+              name="chevron-forward"
+              size={20}
+              color={theme.colors.textTertiary}
+            />
           </TouchableOpacity>
 
           {/* Logout Button */}
@@ -457,13 +541,18 @@ const Profile: React.FC<{ navigation?: any }> = ({ navigation }) => {
             title="Deconectare"
             onPress={handleLogout}
             variant="outline"
-            style={StyleSheet.flatten([styles.logoutButton, { borderColor: theme.colors.error }])}
+            style={[styles.logoutButton, { borderColor: theme.colors.error }]}
             textStyle={{ color: theme.colors.error }}
-            icon={<Ionicons name="log-out-outline" size={20} color={theme.colors.error} />}
+            icon={
+              <Ionicons
+                name="log-out-outline"
+                size={20}
+                color={theme.colors.error}
+              />
+            }
           />
         </View>
       </Animated.View>
-      </ScrollView>
     </UniversalScreen>
   );
 };
@@ -474,133 +563,133 @@ const styles = StyleSheet.create({
   },
   loadingContainer: {
     flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    gap: getResponsiveSpacing('md'),
+    justifyContent: "center",
+    alignItems: "center",
+    gap: getResponsiveSpacing("md"),
   },
   loadingText: {
     fontSize: TYPOGRAPHY.body,
   },
   header: {
-    paddingHorizontal: getResponsiveSpacing('lg'),
-    paddingVertical: getResponsiveSpacing('xl'),
+    paddingHorizontal: getResponsiveSpacing("lg"),
+    paddingVertical: getResponsiveSpacing("xl"),
     borderBottomLeftRadius: 30,
     borderBottomRightRadius: 30,
   },
   headerContent: {
-    alignItems: 'center',
+    alignItems: "center",
   },
   profileImageContainer: {
-    position: 'relative',
-    marginBottom: getResponsiveSpacing('lg'),
+    position: "relative",
+    marginBottom: getResponsiveSpacing("lg"),
   },
   profileImage: {
     width: 120,
     height: 120,
     borderRadius: 60,
     borderWidth: 4,
-    borderColor: 'rgba(255,255,255,0.3)',
+    borderColor: "rgba(255,255,255,0.3)",
   },
   profileImageLoading: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(255,255,255,0.1)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   profileImagePlaceholder: {
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
+    backgroundColor: "rgba(255,255,255,0.1)",
+    justifyContent: "center",
+    alignItems: "center",
   },
   editIconContainer: {
-    position: 'absolute',
+    position: "absolute",
     bottom: 8,
     right: 8,
     width: 32,
     height: 32,
     borderRadius: 16,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
     borderWidth: 2,
-    borderColor: 'rgba(255,255,255,0.3)',
+    borderColor: "rgba(255,255,255,0.3)",
   },
   userName: {
     fontSize: TYPOGRAPHY.h3,
-    fontWeight: '800',
-    marginBottom: getResponsiveSpacing('xs'),
-    textAlign: 'center',
+    fontWeight: "800",
+    marginBottom: getResponsiveSpacing("xs"),
+    textAlign: "center",
   },
   userSubtitle: {
     fontSize: TYPOGRAPHY.body,
-    marginBottom: getResponsiveSpacing('lg'),
-    textAlign: 'center',
+    marginBottom: getResponsiveSpacing("lg"),
+    textAlign: "center",
   },
   actionButtons: {
-    flexDirection: 'row',
-    gap: getResponsiveSpacing('md'),
+    flexDirection: "row",
+    gap: getResponsiveSpacing("md"),
   },
   actionButton: {
-    backgroundColor: 'rgba(255,255,255,0.2)',
-    borderColor: 'rgba(255,255,255,0.3)',
+    backgroundColor: "rgba(255,255,255,0.2)",
+    borderColor: "rgba(255,255,255,0.3)",
   },
   statsContainer: {
-    padding: getResponsiveSpacing('lg'),
+    padding: getResponsiveSpacing("lg"),
   },
   sectionTitle: {
     fontSize: TYPOGRAPHY.h5,
-    fontWeight: '700',
-    marginBottom: getResponsiveSpacing('lg'),
+    fontWeight: "700",
+    marginBottom: getResponsiveSpacing("lg"),
   },
   statsGrid: {
-    flexDirection: 'row',
-    gap: getResponsiveSpacing('md'),
+    flexDirection: "row",
+    gap: getResponsiveSpacing("md"),
   },
   statCard: {
     flex: 1,
-    padding: getResponsiveSpacing('md'),
+    padding: getResponsiveSpacing("md"),
     borderRadius: 16,
-    alignItems: 'center',
+    alignItems: "center",
   },
   statIcon: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: getResponsiveSpacing('sm'),
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: getResponsiveSpacing("sm"),
   },
   statValue: {
     fontSize: TYPOGRAPHY.h4,
-    fontWeight: '800',
-    marginBottom: getResponsiveSpacing('xs'),
+    fontWeight: "800",
+    marginBottom: getResponsiveSpacing("xs"),
   },
   statTitle: {
     fontSize: TYPOGRAPHY.caption,
-    textAlign: 'center',
-    fontWeight: '500',
+    textAlign: "center",
+    fontWeight: "500",
   },
   settingsContainer: {
-    padding: getResponsiveSpacing('lg'),
+    padding: getResponsiveSpacing("lg"),
   },
   settingItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
-    padding: getResponsiveSpacing('md'),
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    padding: getResponsiveSpacing("md"),
     borderRadius: 12,
-    marginBottom: getResponsiveSpacing('sm'),
+    marginBottom: getResponsiveSpacing("sm"),
     ...getShadow(2),
   },
   settingItemLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    gap: getResponsiveSpacing('md'),
+    flexDirection: "row",
+    alignItems: "center",
+    gap: getResponsiveSpacing("md"),
   },
   settingItemText: {
     fontSize: TYPOGRAPHY.body,
-    fontWeight: '500',
+    fontWeight: "500",
   },
   logoutButton: {
-    marginTop: getResponsiveSpacing('lg'),
+    marginTop: getResponsiveSpacing("lg"),
   },
 });
 
