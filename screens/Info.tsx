@@ -146,6 +146,11 @@ const Info: React.FC<Props> = ({ navigation, route }) => {
     navigation.navigate("Reservation", { company });
   };
 
+  // NEW FUNCTION: Redirect to Schedule page
+  const goToSchedule = () => {
+    navigation.navigate("Schedule", { company });
+  };
+
   const renderEvent = ({ item }: { item: EventData }) => (
     <TouchableOpacity
       onPress={() => navigation.navigate("EventScreen", { event: item })}
@@ -245,6 +250,18 @@ const Info: React.FC<Props> = ({ navigation, route }) => {
             >
               <Ionicons name="restaurant" size={24} color="#A78BFA" />
               <Text style={styles.reservationButtonText}>Rezervă acum</Text>
+            </TouchableOpacity>
+          </View>
+
+          {/* NEW SCHEDULE BUTTON */}
+          <View style={styles.section}>
+            <Text style={styles.sectionTitle}>Program</Text>
+            <TouchableOpacity
+              style={styles.scheduleButton}
+              onPress={goToSchedule}
+            >
+              <Ionicons name="time" size={24} color="#A78BFA" />
+              <Text style={styles.scheduleButtonText}>Vezi Programul</Text>
             </TouchableOpacity>
           </View>
 
@@ -376,6 +393,23 @@ const createStyles = (theme: any) => StyleSheet.create({
     marginTop: 8,
   },
   reservationButtonText: {
+    color: "#C4B5FD",
+    fontSize: 16,
+    marginLeft: 12,
+    fontWeight: "500",
+  },
+  // NEW SCHEDULE BUTTON STYLES
+  scheduleButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    backgroundColor: "#2A1A4A",
+    padding: 16,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: "#6C3AFF",
+    marginTop: 8,
+  },
+  scheduleButtonText: {
     color: "#C4B5FD",
     fontSize: 16,
     marginLeft: 12,

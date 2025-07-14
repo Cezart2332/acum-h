@@ -355,7 +355,7 @@ export default function CompanyProfile() {
               <Text className="text-violet-200 font-medium">Meniu</Text>
             </TouchableOpacity>
             <TouchableOpacity
-              onPress={() => router.push("/program")}
+              onPress={() => router.push("/schedule")}
               className="w-[48%] bg-gradient-to-br from-violet-800/50 to-indigo-900/50 rounded-2xl p-4 items-center shadow-md shadow-violet-900/20"
             >
               <View className="bg-violet-700/30 p-3 rounded-full mb-3">

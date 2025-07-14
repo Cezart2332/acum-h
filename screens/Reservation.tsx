@@ -95,26 +95,60 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
     return date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" });
   };
 
-  const handleSubmit = () => {
+  const handleSubmit = async () => {
     if (!people) {
       Alert.alert("Eroare", "Vă rugăm introduceți numărul de persoane");
       return;
     }
 
-    Alert.alert(
-      "Rezervare confirmată",
-      `Rezervare la ${
-        company.name
-      } pentru ${people} persoane pe data de ${date.toLocaleDateString()} la ora ${formatTime(
-        time
-      )}. Cerințe speciale: ${specialRequest || "Niciuna"}`,
-      [
-        {
-          text: "OK",
-          onPress: () => navigation.goBack(),
+    setLoading(true);
+    try {
+      // Create reservation request
+      const reservationRequest = {
+        customerName: "Client", // You might want to get this from user profile
+        customerEmail: "client@example.com", // You might want to get this from user profile
+        customerPhone: "", // You might want to get this from user profile
+        reservationDate: date.toISOString().split('T')[0],
+        reservationTime: time.toTimeString().split(' ')[0],
+        numberOfPeople: parseInt(people),
+        specialRequests: specialRequest || "",
+        companyId: company.id
+      };
+
+      // Make API call to create reservation
+      const response = await fetch('http://localhost:5000/api/reservation', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
         },
-      ]
-    );
+        body: JSON.stringify(reservationRequest),
+      });
+
+      if (response.ok) {
+        const reservation = await response.json();
+        Alert.alert(
+          "Rezervare confirmată",
+          `Rezervare la ${
+            company.name
+          } pentru ${people} persoane pe data de ${date.toLocaleDateString()} la ora ${formatTime(
+            time
+          )}. Cerințe speciale: ${specialRequest || "Niciuna"}`,
+          [
+            {
+              text: "OK",
+              onPress: () => navigation.goBack(),
+            },
+          ]
+        );
+      } else {
+        const error = await response.text();
+        Alert.alert("Eroare", error || "Nu s-a putut crea rezervarea");
+      }
+    } catch (error) {
+      Alert.alert("Eroare", "Nu s-a putut crea rezervarea");
+    } finally {
+      setLoading(false);
+    }
   };
 
   // Close both pickers
@@ -227,10 +261,13 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
 
             {/* Submit Button */}
             <TouchableOpacity
-              style={styles.submitButton}
+              style={[styles.submitButton, loading && styles.submitButtonDisabled]}
               onPress={handleSubmit}
+              disabled={loading}
             >
-              <Text style={styles.submitButtonText}>Confirmă Rezervarea</Text>
+              <Text style={styles.submitButtonText}>
+                {loading ? "Se procesează..." : "Confirmă Rezervarea"}
+              </Text>
             </TouchableOpacity>
           </View>
         </ScrollView>
@@ -405,6 +442,9 @@ const createStyles = (theme: any) => StyleSheet.create({
     shadowOpacity: 0.4,
     shadowRadius: 8,
     elevation: 6,
+  },
+  submitButtonDisabled: {
+    opacity: 0.6,
   },
   submitButtonText: {
     fontSize: 18,

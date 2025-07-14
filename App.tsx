@@ -17,6 +17,7 @@ import Profile from "./screens/Profile";
 import EventScreen from "./screens/EventScreen";
 import Info from "./screens/Info";
 import Reservation from "./screens/Reservation";
+import ScheduleScreen from "./screens/ScheduleScreen";
 import { RootStackParamList } from "./screens/RootStackParamList";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
@@ -47,6 +48,7 @@ export default function App() {
             <Stack.Screen name="EventScreen" component={EventScreen} />
             <Stack.Screen name="Info" component={Info} />
             <Stack.Screen name="Reservation" component={Reservation} />
+        <Stack.Screen name="Schedule" component={ScheduleScreen} />
           </Stack.Navigator>
         </NavigationContainer>
       </SafeAreaProvider>

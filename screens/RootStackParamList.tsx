@@ -32,4 +32,5 @@ export type RootStackParamList = {
   EventScreen: { event: EventData };
   Info: { company: CompanyData };
   Reservation: { company: CompanyData };
+  Schedule: { company: CompanyData };
 };

@@ -53,61 +53,81 @@ export default function Reservations() {
 
     setRefreshing(true);
     try {
-      // Simulated API call - replace with actual fetch
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      // Mock data with timestamps for sorting
-      const mockReservations: Reservation[] = [
-        {
-          id: 1,
-          customerName: "Andrei Popescu",
-          date: "15 Iunie",
-          time: "19:30",
-          people: 4,
-          status: "confirmed",
-          specialRequests: "Masă lângă fereastră",
-          timestamp: new Date("2023-06-15T19:30:00").getTime(),
-        },
-        {
-          id: 2,
-          customerName: "Maria Ionescu",
-          date: "16 Iunie",
-          time: "20:00",
-          people: 2,
-          status: "pending",
-          timestamp: new Date("2023-06-16T20:00:00").getTime(),
-        },
-        {
-          id: 3,
-          customerName: "Cristian Moldovan",
-          date: "17 Iunie",
-          time: "13:00",
-          people: 6,
-          status: "confirmed",
-          specialRequests: "Aniversare - tort cu surpriză",
-          timestamp: new Date("2023-06-17T13:00:00").getTime(),
-        },
-        {
-          id: 4,
-          customerName: "Elena Vasilescu",
-          date: "18 Iunie",
-          time: "14:30",
-          people: 3,
-          status: "completed",
-          timestamp: new Date("2023-06-18T14:30:00").getTime(),
-        },
-        {
-          id: 5,
-          customerName: "Alexandru Georgescu",
-          date: "19 Iunie",
-          time: "21:00",
-          people: 5,
-          status: "canceled",
-          timestamp: new Date("2023-06-19T21:00:00").getTime(),
-        },
-      ];
-
-      setReservations(mockReservations);
+      // Make API call to fetch reservations
+      const response = await fetch(`http://localhost:5000/api/reservation/company/${companyId}`);
+      
+      if (response.ok) {
+        const apiReservations = await response.json();
+        
+        // Transform API data to match our local format
+        const transformedReservations: Reservation[] = apiReservations.map((res: any) => ({
+          id: res.id,
+          customerName: res.customerName,
+          date: new Date(res.reservationDate).toLocaleDateString('ro-RO', { 
+            day: 'numeric', 
+            month: 'long' 
+          }),
+          time: res.reservationTime.substring(0, 5), // Extract HH:MM from time string
+          people: res.numberOfPeople,
+          status: res.status.toLowerCase(),
+          specialRequests: res.specialRequests,
+          timestamp: new Date(res.reservationDate + 'T' + res.reservationTime).getTime(),
+        }));
+        
+        setReservations(transformedReservations);
+      } else {
+        // Fallback to mock data if API fails
+        const mockReservations: Reservation[] = [
+          {
+            id: 1,
+            customerName: "Andrei Popescu",
+            date: "15 Iunie",
+            time: "19:30",
+            people: 4,
+            status: "confirmed",
+            specialRequests: "Masă lângă fereastră",
+            timestamp: new Date("2023-06-15T19:30:00").getTime(),
+          },
+          {
+            id: 2,
+            customerName: "Maria Ionescu",
+            date: "16 Iunie",
+            time: "20:00",
+            people: 2,
+            status: "pending",
+            timestamp: new Date("2023-06-16T20:00:00").getTime(),
+          },
+          {
+            id: 3,
+            customerName: "Cristian Moldovan",
+            date: "17 Iunie",
+            time: "13:00",
+            people: 6,
+            status: "confirmed",
+            specialRequests: "Aniversare - tort cu surpriză",
+            timestamp: new Date("2023-06-17T13:00:00").getTime(),
+          },
+          {
+            id: 4,
+            customerName: "Elena Vasilescu",
+            date: "18 Iunie",
+            time: "14:30",
+            people: 3,
+            status: "completed",
+            timestamp: new Date("2023-06-18T14:30:00").getTime(),
+          },
+          {
+            id: 5,
+            customerName: "Alexandru Georgescu",
+            date: "19 Iunie",
+            time: "21:00",
+            people: 5,
+            status: "canceled",
+            timestamp: new Date("2023-06-19T21:00:00").getTime(),
+          },
+        ];
+        setReservations(mockReservations);
+      }
     } catch (error) {
       Alert.alert("Eroare", "Nu s-au putut încărca rezervările");
       console.error(error);
@@ -123,11 +143,34 @@ export default function Reservations() {
     }, [fetchReservations])
   );
 
-  const handleStatusChange = (id: number, newStatus: Reservation["status"]) => {
-    setReservations((prev) =>
-      prev.map((res) => (res.id === id ? { ...res, status: newStatus } : res))
-    );
-    // Here you would normally make an API call to update the status
+  const handleStatusChange = async (id: number, newStatus: Reservation["status"]) => {
+    try {
+      // Make API call to update reservation status
+      const response = await fetch(`http://localhost:5000/api/reservation/${id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          id: id,
+          status: newStatus.toUpperCase(),
+          notes: "",
+          cancellationReason: newStatus === "canceled" ? "Anulat de restaurant" : ""
+        }),
+      });
+
+      if (response.ok) {
+        // Update local state
+        setReservations((prev) =>
+          prev.map((res) => (res.id === id ? { ...res, status: newStatus } : res))
+        );
+      } else {
+        Alert.alert("Eroare", "Nu s-a putut actualiza statusul rezervării");
+      }
+    } catch (error) {
+      Alert.alert("Eroare", "Nu s-a putut actualiza statusul rezervării");
+      console.error(error);
+    }
   };
 
   // Sort reservations by status priority and then by timestamp
