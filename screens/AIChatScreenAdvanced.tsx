@@ -24,15 +24,13 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useTheme } from "../context/ThemeContext";
 import UniversalScreen from "../components/UniversalScreen";
-import { useNavigation } from '@react-navigation/native';
+import { useNavigation } from "@react-navigation/native";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "./RootStackParamList";
 import { hapticFeedback, getShadow, TYPOGRAPHY } from "../utils/responsive";
+import { AI_BASE_URL } from "../config";
 
 const { width, height } = Dimensions.get("window");
-// For physical devices, use your computer's IP address
-// For emulator/simulator, use localhost
-const AI_BASE_URL = "http://192.168.0.150:5001"; // Updated to use actual IP
 
 interface Message {
   id: string;
@@ -60,7 +58,7 @@ interface RecommendationItem {
   likes?: number;
   image?: string;
   photo?: string;
-  type?: 'restaurant' | 'event';
+  type?: "restaurant" | "event";
 }
 
 interface ChatSession {
@@ -78,8 +76,12 @@ const AIChatScreen: React.FC = () => {
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [sessionId] = useState(() => `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`);
-  const [userId] = useState(() => `user_${Math.random().toString(36).substr(2, 9)}`);
+  const [sessionId] = useState(
+    () => `session_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`
+  );
+  const [userId] = useState(
+    () => `user_${Math.random().toString(36).substr(2, 9)}`
+  );
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [typingIndicator, setTypingIndicator] = useState(false);
@@ -94,7 +96,7 @@ const AIChatScreen: React.FC = () => {
   // Initialize screen
   useEffect(() => {
     initializeChat();
-    
+
     // Entrance animations
     Animated.parallel([
       Animated.timing(fadeAnim, {
@@ -121,12 +123,12 @@ const AIChatScreen: React.FC = () => {
         "Find restaurants near me",
         "What events are happening today?",
         "Recommend a good Italian restaurant",
-        "Show me upcoming concerts"
-      ]
+        "Show me upcoming concerts",
+      ],
     };
-    
+
     setMessages([welcomeMessage]);
-    
+
     // Check AI service connectivity
     try {
       const response = await fetch(`${AI_BASE_URL}/health`);
@@ -145,8 +147,8 @@ const AIChatScreen: React.FC = () => {
     const text = messageText || inputText.trim();
     if (!text) return;
 
-    hapticFeedback('light');
-    
+    hapticFeedback("light");
+
     // Add user message
     const userMessage: Message = {
       id: generateMessageId(),
@@ -155,7 +157,7 @@ const AIChatScreen: React.FC = () => {
       timestamp: new Date(),
     };
 
-    setMessages(prev => [...prev, userMessage]);
+    setMessages((prev) => [...prev, userMessage]);
     setInputText("");
     setIsLoading(true);
     setTypingIndicator(true);
@@ -176,22 +178,22 @@ const AIChatScreen: React.FC = () => {
         isUser: false,
         timestamp: new Date(),
         isStreaming: true,
-        isLoading: true
+        isLoading: true,
       };
 
-      setMessages(prev => [...prev, streamingMessage]);
+      setMessages((prev) => [...prev, streamingMessage]);
 
       // Send request to advanced AI
       const response = await fetch(`${AI_BASE_URL}/api/chat`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           message: text,
           user_id: userId,
           session_id: sessionId,
-          stream: false
+          stream: false,
         }),
       });
 
@@ -205,16 +207,15 @@ const AIChatScreen: React.FC = () => {
         recommendations: data.recommendations,
         followUpQuestions: data.follow_up_questions,
         confidence: data.confidence,
-        intent: data.intent
+        intent: data.intent,
       });
-
     } catch (error) {
       console.error("Error sending message:", error);
-      
+
       // Add error message
       const errorMessage: Message = {
         id: generateMessageId(),
-        text: isConnected 
+        text: isConnected
           ? "I apologize, but I encountered an error processing your request. Please try again."
           : "I'm currently offline. Please check your connection and try again.",
         isUser: false,
@@ -222,11 +223,11 @@ const AIChatScreen: React.FC = () => {
         error: true,
       };
 
-      setMessages(prev => prev.slice(0, -1).concat([errorMessage]));
+      setMessages((prev) => prev.slice(0, -1).concat([errorMessage]));
     } finally {
       setIsLoading(false);
       setTypingIndicator(false);
-      
+
       // Scroll to bottom
       setTimeout(() => {
         scrollViewRef.current?.scrollToEnd({ animated: true });
@@ -235,22 +236,24 @@ const AIChatScreen: React.FC = () => {
   };
 
   const updateStreamingMessage = (
-    messageId: string, 
-    text: string, 
-    isComplete: boolean, 
+    messageId: string,
+    text: string,
+    isComplete: boolean,
     additionalData?: any
   ) => {
-    setMessages(prev => prev.map(msg => 
-      msg.id === messageId 
-        ? {
-            ...msg,
-            text,
-            isStreaming: !isComplete,
-            isLoading: false,
-            ...additionalData
-          }
-        : msg
-    ));
+    setMessages((prev) =>
+      prev.map((msg) =>
+        msg.id === messageId
+          ? {
+              ...msg,
+              text,
+              isStreaming: !isComplete,
+              isLoading: false,
+              ...additionalData,
+            }
+          : msg
+      )
+    );
   };
 
   const getSuggestions = async (text: string) => {
@@ -262,14 +265,14 @@ const AIChatScreen: React.FC = () => {
 
     try {
       const response = await fetch(`${AI_BASE_URL}/api/suggestions`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           partial_query: text,
           user_id: userId,
-          session_id: sessionId
+          session_id: sessionId,
         }),
       });
 
@@ -285,7 +288,7 @@ const AIChatScreen: React.FC = () => {
 
   const handleTextChange = (text: string) => {
     setInputText(text);
-    
+
     // Debounced suggestions
     if (text.trim()) {
       setTimeout(() => getSuggestions(text), 300);
@@ -295,34 +298,37 @@ const AIChatScreen: React.FC = () => {
   };
 
   const handleRecommendationPress = (item: RecommendationItem) => {
-    hapticFeedback('medium');
-    
+    hapticFeedback("medium");
+
     try {
-      if (item.type === 'event' || item.title) {
+      if (item.type === "event" || item.title) {
         // Navigate to EventScreen
-        navigation.navigate('EventScreen', { 
+        navigation.navigate("EventScreen", {
           event: {
-            id: item.id?.toString() || '0',
-            title: item.title || item.name || 'Event',
-            description: item.description || '',
-            photo: item.photo || item.image || '',
-            company: item.company || '',
+            id: item.id?.toString() || "0",
+            title: item.title || item.name || "Event",
+            description: item.description || "",
+            photo: item.photo || item.image || "",
+            company: item.company || "",
             likes: item.likes || 0,
-            tags: []
-          }
+            tags: [],
+          },
         });
       } else {
         // Navigate to Info (restaurant)
-        navigation.navigate('Info', { 
+        navigation.navigate("Info", {
           company: {
-            id: typeof item.id === 'number' ? item.id : parseInt(item.id?.toString() || '0'),
-            name: item.name || 'Restaurant',
-            category: item.category || '',
-            address: item.address || '',
-            description: item.description || '',
-            profileImage: item.image || '',
-            tags: []
-          }
+            id:
+              typeof item.id === "number"
+                ? item.id
+                : parseInt(item.id?.toString() || "0"),
+            name: item.name || "Restaurant",
+            category: item.category || "",
+            address: item.address || "",
+            description: item.description || "",
+            profileImage: item.image || "",
+            tags: [],
+          },
         });
       }
     } catch (error) {
@@ -334,20 +340,20 @@ const AIChatScreen: React.FC = () => {
   const clearConversation = async () => {
     try {
       await fetch(`${AI_BASE_URL}/api/reset`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           user_id: userId,
-          session_id: sessionId
+          session_id: sessionId,
         }),
       });
-      
+
       // Reset local state
       setMessages([]);
       initializeChat();
-      hapticFeedback('medium');
+      hapticFeedback("medium");
     } catch (error) {
       console.warn("Error clearing conversation:", error);
     }
@@ -355,22 +361,24 @@ const AIChatScreen: React.FC = () => {
 
   const renderMessage = (message: Message, index: number) => {
     const isLastMessage = index === messages.length - 1;
-    
+
     return (
       <Animated.View
         key={message.id}
         style={[
           styles.messageContainer,
-          message.isUser ? styles.userMessageContainer : styles.aiMessageContainer,
+          message.isUser
+            ? styles.userMessageContainer
+            : styles.aiMessageContainer,
         ]}
       >
         <View
           style={[
             styles.messageBubble,
-            message.isUser 
+            message.isUser
               ? [styles.userMessage, { backgroundColor: theme.colors.primary }]
               : [styles.aiMessage, { backgroundColor: theme.colors.surface }],
-            getShadow(2)
+            getShadow(2),
           ]}
         >
           {/* Message text */}
@@ -378,30 +386,30 @@ const AIChatScreen: React.FC = () => {
             style={[
               styles.messageText,
               {
-                color: message.isUser ? '#FFFFFF' : theme.colors.text,
+                color: message.isUser ? "#FFFFFF" : theme.colors.text,
                 fontSize: 16,
-                lineHeight: 22
+                lineHeight: 22,
               },
             ]}
           >
             {message.text}
-            {message.isStreaming && (
-              <Text style={styles.cursor}>|</Text>
-            )}
+            {message.isStreaming && <Text style={styles.cursor}>|</Text>}
           </Text>
 
           {/* Confidence indicator for AI messages */}
           {!message.isUser && message.confidence && (
-            <Text style={[styles.confidence, { color: theme.colors.textTertiary }]}>
+            <Text
+              style={[styles.confidence, { color: theme.colors.textTertiary }]}
+            >
               Confidence: {Math.round(message.confidence * 100)}%
             </Text>
           )}
 
           {/* Loading indicator */}
           {message.isLoading && (
-            <ActivityIndicator 
-              size="small" 
-              color={message.isUser ? '#FFFFFF' : theme.colors.primary}
+            <ActivityIndicator
+              size="small"
+              color={message.isUser ? "#FFFFFF" : theme.colors.primary}
               style={styles.loadingIndicator}
             />
           )}
@@ -409,7 +417,12 @@ const AIChatScreen: React.FC = () => {
           {/* Recommendations */}
           {message.recommendations && message.recommendations.length > 0 && (
             <View style={styles.recommendationsContainer}>
-              <Text style={[styles.recommendationsTitle, { color: theme.colors.text }]}>
+              <Text
+                style={[
+                  styles.recommendationsTitle,
+                  { color: theme.colors.text },
+                ]}
+              >
                 Recommendations:
               </Text>
               {message.recommendations.slice(0, 3).map((item, idx) => (
@@ -417,25 +430,48 @@ const AIChatScreen: React.FC = () => {
                   key={idx}
                   style={[
                     styles.recommendationItem,
-                    { backgroundColor: theme.colors.card, borderColor: theme.colors.border }
+                    {
+                      backgroundColor: theme.colors.card,
+                      borderColor: theme.colors.border,
+                    },
                   ]}
                   onPress={() => handleRecommendationPress(item)}
                 >
-                  <Text style={[styles.recommendationName, { color: theme.colors.text }]}>
+                  <Text
+                    style={[
+                      styles.recommendationName,
+                      { color: theme.colors.text },
+                    ]}
+                  >
                     {item.name || item.title}
                   </Text>
                   {item.category && (
-                    <Text style={[styles.recommendationCategory, { color: theme.colors.textSecondary }]}>
+                    <Text
+                      style={[
+                        styles.recommendationCategory,
+                        { color: theme.colors.textSecondary },
+                      ]}
+                    >
                       {item.category}
                     </Text>
                   )}
                   {item.address && (
-                    <Text style={[styles.recommendationAddress, { color: theme.colors.textTertiary }]}>
+                    <Text
+                      style={[
+                        styles.recommendationAddress,
+                        { color: theme.colors.textTertiary },
+                      ]}
+                    >
                       📍 {item.address}
                     </Text>
                   )}
                   {item.rating && (
-                    <Text style={[styles.recommendationRating, { color: theme.colors.accent }]}>
+                    <Text
+                      style={[
+                        styles.recommendationRating,
+                        { color: theme.colors.accent },
+                      ]}
+                    >
                       ⭐ {item.rating}/5.0
                     </Text>
                   )}
@@ -445,29 +481,41 @@ const AIChatScreen: React.FC = () => {
           )}
 
           {/* Follow-up questions */}
-          {message.followUpQuestions && message.followUpQuestions.length > 0 && (
-            <View style={styles.followUpContainer}>
-              <Text style={[styles.followUpTitle, { color: theme.colors.textSecondary }]}>
-                You might also ask:
-              </Text>
-              {message.followUpQuestions.slice(0, 3).map((question, idx) => (
-                <TouchableOpacity
-                  key={idx}                style={[
-                  styles.followUpButton,
-                  { 
-                    backgroundColor: theme.colors.accentLight + '20',
-                    borderColor: theme.colors.accent + '40'
-                  }
-                ]}
-                  onPress={() => sendMessage(question)}
+          {message.followUpQuestions &&
+            message.followUpQuestions.length > 0 && (
+              <View style={styles.followUpContainer}>
+                <Text
+                  style={[
+                    styles.followUpTitle,
+                    { color: theme.colors.textSecondary },
+                  ]}
                 >
-                  <Text style={[styles.followUpText, { color: theme.colors.accent }]}>
-                    {question}
-                  </Text>
-                </TouchableOpacity>
-              ))}
-            </View>
-          )}
+                  You might also ask:
+                </Text>
+                {message.followUpQuestions.slice(0, 3).map((question, idx) => (
+                  <TouchableOpacity
+                    key={idx}
+                    style={[
+                      styles.followUpButton,
+                      {
+                        backgroundColor: theme.colors.accentLight + "20",
+                        borderColor: theme.colors.accent + "40",
+                      },
+                    ]}
+                    onPress={() => sendMessage(question)}
+                  >
+                    <Text
+                      style={[
+                        styles.followUpText,
+                        { color: theme.colors.accent },
+                      ]}
+                    >
+                      {question}
+                    </Text>
+                  </TouchableOpacity>
+                ))}
+              </View>
+            )}
         </View>
 
         {/* Timestamp */}
@@ -478,9 +526,9 @@ const AIChatScreen: React.FC = () => {
             message.isUser ? styles.userTimestamp : styles.aiTimestamp,
           ]}
         >
-          {message.timestamp.toLocaleTimeString([], { 
-            hour: '2-digit', 
-            minute: '2-digit' 
+          {message.timestamp.toLocaleTimeString([], {
+            hour: "2-digit",
+            minute: "2-digit",
           })}
         </Text>
       </Animated.View>
@@ -492,23 +540,27 @@ const AIChatScreen: React.FC = () => {
 
     return (
       <View style={[styles.messageContainer, styles.aiMessageContainer]}>
-        <View style={[
-          styles.messageBubble,
-          styles.aiMessage,
-          { backgroundColor: theme.colors.surface },
-          getShadow(2)
-        ]}>
+        <View
+          style={[
+            styles.messageBubble,
+            styles.aiMessage,
+            { backgroundColor: theme.colors.surface },
+            getShadow(2),
+          ]}
+        >
           <View style={styles.typingContainer}>
-            <Text style={[styles.typingText, { color: theme.colors.textSecondary }]}>
+            <Text
+              style={[styles.typingText, { color: theme.colors.textSecondary }]}
+            >
               AI is thinking
             </Text>
             <View style={styles.typingDots}>
-              {[0, 1, 2].map(i => (
+              {[0, 1, 2].map((i) => (
                 <Animated.View
                   key={i}
                   style={[
                     styles.typingDot,
-                    { backgroundColor: theme.colors.textSecondary }
+                    { backgroundColor: theme.colors.textSecondary },
                   ]}
                 />
               ))}
@@ -523,12 +575,17 @@ const AIChatScreen: React.FC = () => {
     if (!showSuggestions || suggestions.length === 0) return null;
 
     return (
-      <View style={[
-        styles.suggestionsContainer,
-        { backgroundColor: theme.colors.surface, borderColor: theme.colors.border }
-      ]}>
-        <ScrollView 
-          horizontal 
+      <View
+        style={[
+          styles.suggestionsContainer,
+          {
+            backgroundColor: theme.colors.surface,
+            borderColor: theme.colors.border,
+          },
+        ]}
+      >
+        <ScrollView
+          horizontal
           showsHorizontalScrollIndicator={false}
           contentContainerStyle={styles.suggestionsContent}
         >
@@ -537,10 +594,10 @@ const AIChatScreen: React.FC = () => {
               key={index}
               style={[
                 styles.suggestionItem,
-                { 
+                {
                   backgroundColor: theme.colors.card,
-                  borderColor: theme.colors.border
-                }
+                  borderColor: theme.colors.border,
+                },
               ]}
               onPress={() => {
                 setInputText(suggestion);
@@ -548,7 +605,9 @@ const AIChatScreen: React.FC = () => {
                 sendMessage(suggestion);
               }}
             >
-              <Text style={[styles.suggestionText, { color: theme.colors.text }]}>
+              <Text
+                style={[styles.suggestionText, { color: theme.colors.text }]}
+              >
                 {suggestion}
               </Text>
             </TouchableOpacity>
@@ -564,7 +623,7 @@ const AIChatScreen: React.FC = () => {
         backgroundColor={theme.colors.primary}
         barStyle={theme.statusBarStyle}
       />
-      
+
       {/* Header */}
       <LinearGradient
         colors={[theme.colors.primary, theme.colors.secondary]}
@@ -572,21 +631,21 @@ const AIChatScreen: React.FC = () => {
       >
         <View style={styles.headerContent}>
           <View style={styles.headerLeft}>
-            <View style={[styles.aiIcon, { backgroundColor: '#FFFFFF20' }]}>
+            <View style={[styles.aiIcon, { backgroundColor: "#FFFFFF20" }]}>
               <MaterialIcons name="psychology" size={24} color="#FFFFFF" />
             </View>
             <View>
-              <Text style={[styles.headerTitle, { color: '#FFFFFF' }]}>
+              <Text style={[styles.headerTitle, { color: "#FFFFFF" }]}>
                 AI Assistant
               </Text>
-              <Text style={[styles.headerSubtitle, { color: '#FFFFFF80' }]}>
-                {isConnected ? 'Online • Enhanced' : 'Offline'}
+              <Text style={[styles.headerSubtitle, { color: "#FFFFFF80" }]}>
+                {isConnected ? "Online • Enhanced" : "Offline"}
               </Text>
             </View>
           </View>
-          
+
           <TouchableOpacity
-            style={[styles.clearButton, { backgroundColor: '#FFFFFF20' }]}
+            style={[styles.clearButton, { backgroundColor: "#FFFFFF20" }]}
             onPress={clearConversation}
           >
             <Ionicons name="refresh" size={20} color="#FFFFFF" />
@@ -595,10 +654,10 @@ const AIChatScreen: React.FC = () => {
       </LinearGradient>
 
       {/* Messages */}
-      <Animated.View 
+      <Animated.View
         style={[
           styles.messagesContainer,
-          { opacity: fadeAnim, transform: [{ translateY: slideAnim }] }
+          { opacity: fadeAnim, transform: [{ translateY: slideAnim }] },
         ]}
       >
         <ScrollView
@@ -621,28 +680,32 @@ const AIChatScreen: React.FC = () => {
         behavior={Platform.OS === "ios" ? "padding" : "height"}
         keyboardVerticalOffset={Platform.OS === "ios" ? 90 : 0}
       >
-        <View style={[
-          styles.inputContainer,
-          { 
-            backgroundColor: theme.colors.surface,
-            borderTopColor: theme.colors.border
-          }
-        ]}>
-          <View style={[
-            styles.inputWrapper,
-            { 
-              backgroundColor: theme.colors.card,
-              borderColor: theme.colors.border
-            }
-          ]}>
+        <View
+          style={[
+            styles.inputContainer,
+            {
+              backgroundColor: theme.colors.surface,
+              borderTopColor: theme.colors.border,
+            },
+          ]}
+        >
+          <View
+            style={[
+              styles.inputWrapper,
+              {
+                backgroundColor: theme.colors.card,
+                borderColor: theme.colors.border,
+              },
+            ]}
+          >
             <TextInput
               ref={inputRef}
               style={[
                 styles.textInput,
-                { 
+                {
                   color: theme.colors.text,
-                  fontSize: 16
-                }
+                  fontSize: 16,
+                },
               ]}
               value={inputText}
               onChangeText={handleTextChange}
@@ -652,13 +715,15 @@ const AIChatScreen: React.FC = () => {
               maxLength={500}
               editable={!isLoading}
             />
-            
+
             <TouchableOpacity
               style={[
                 styles.sendButton,
                 {
-                  backgroundColor: inputText.trim() ? theme.colors.primary : theme.colors.border,
-                }
+                  backgroundColor: inputText.trim()
+                    ? theme.colors.primary
+                    : theme.colors.border,
+                },
               ]}
               onPress={() => sendMessage()}
               disabled={!inputText.trim() || isLoading}
@@ -669,7 +734,9 @@ const AIChatScreen: React.FC = () => {
                 <Ionicons
                   name="send"
                   size={20}
-                  color={inputText.trim() ? '#FFFFFF' : theme.colors.textTertiary}
+                  color={
+                    inputText.trim() ? "#FFFFFF" : theme.colors.textTertiary
+                  }
                 />
               )}
             </TouchableOpacity>
@@ -682,30 +749,30 @@ const AIChatScreen: React.FC = () => {
 
 const styles = StyleSheet.create({
   header: {
-    paddingTop: Platform.OS === 'ios' ? 50 : 25,
+    paddingTop: Platform.OS === "ios" ? 50 : 25,
     paddingBottom: 20,
     paddingHorizontal: 20,
   },
   headerContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'space-between',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
   },
   headerLeft: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   aiIcon: {
     width: 40,
     height: 40,
     borderRadius: 20,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginRight: 12,
   },
   headerTitle: {
     fontSize: 18,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   headerSubtitle: {
     fontSize: 12,
@@ -715,8 +782,8 @@ const styles = StyleSheet.create({
     width: 36,
     height: 36,
     borderRadius: 18,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
   },
   messagesContainer: {
     flex: 1,
@@ -732,10 +799,10 @@ const styles = StyleSheet.create({
     marginBottom: 16,
   },
   userMessageContainer: {
-    alignItems: 'flex-end',
+    alignItems: "flex-end",
   },
   aiMessageContainer: {
-    alignItems: 'flex-start',
+    alignItems: "flex-start",
   },
   messageBubble: {
     maxWidth: width * 0.8,
@@ -754,12 +821,12 @@ const styles = StyleSheet.create({
   },
   cursor: {
     opacity: 0.7,
-    fontWeight: 'bold',
+    fontWeight: "bold",
   },
   confidence: {
     fontSize: 11,
     marginTop: 8,
-    fontStyle: 'italic',
+    fontStyle: "italic",
   },
   loadingIndicator: {
     marginTop: 8,
@@ -769,17 +836,17 @@ const styles = StyleSheet.create({
     marginTop: 4,
   },
   userTimestamp: {
-    textAlign: 'right',
+    textAlign: "right",
   },
   aiTimestamp: {
-    textAlign: 'left',
+    textAlign: "left",
   },
   recommendationsContainer: {
     marginTop: 12,
   },
   recommendationsTitle: {
     fontSize: 14,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 8,
   },
   recommendationItem: {
@@ -790,7 +857,7 @@ const styles = StyleSheet.create({
   },
   recommendationName: {
     fontSize: 14,
-    fontWeight: 'bold',
+    fontWeight: "bold",
     marginBottom: 4,
   },
   recommendationCategory: {
@@ -822,15 +889,15 @@ const styles = StyleSheet.create({
     fontSize: 12,
   },
   typingContainer: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
   },
   typingText: {
     fontSize: 14,
     marginRight: 8,
   },
   typingDots: {
-    flexDirection: 'row',
+    flexDirection: "row",
   },
   typingDot: {
     width: 4,
@@ -861,8 +928,8 @@ const styles = StyleSheet.create({
     borderTopWidth: 1,
   },
   inputWrapper: {
-    flexDirection: 'row',
-    alignItems: 'flex-end',
+    flexDirection: "row",
+    alignItems: "flex-end",
     borderWidth: 1,
     borderRadius: 24,
     paddingHorizontal: 16,
@@ -879,8 +946,8 @@ const styles = StyleSheet.create({
     width: 32,
     height: 32,
     borderRadius: 16,
-    alignItems: 'center',
-    justifyContent: 'center',
+    alignItems: "center",
+    justifyContent: "center",
     marginLeft: 8,
   },
 });

@@ -15,6 +15,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
 import type { RootStackParamList } from "./RootStackParamList";
@@ -22,12 +23,13 @@ import { useTheme } from "../context/ThemeContext";
 import UniversalScreen from "../components/UniversalScreen";
 import EnhancedButton from "../components/EnhancedButton";
 import EnhancedInput from "../components/EnhancedInput";
-import { 
-  getShadow, 
-  hapticFeedback, 
+import {
+  getShadow,
+  hapticFeedback,
   TYPOGRAPHY,
-  SCREEN_DIMENSIONS 
+  SCREEN_DIMENSIONS,
 } from "../utils/responsive";
+import BASE_URL from "../config";
 
 type ReservationNav = NativeStackNavigationProp<
   RootStackParamList,
@@ -50,7 +52,9 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [loading, setLoading] = useState(false);
-  
+  const [user, setUser] = useState<any>(null);
+  const [availableTimes, setAvailableTimes] = useState<string[]>([]);
+
   // Animation refs
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
@@ -58,6 +62,20 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
   const styles = createStyles(theme);
 
   useEffect(() => {
+    // Load user information
+    const loadUser = async () => {
+      try {
+        const userData = await AsyncStorage.getItem("user");
+        if (userData) {
+          setUser(JSON.parse(userData));
+        }
+      } catch (error) {
+        console.error("Error loading user:", error);
+      }
+    };
+
+    loadUser();
+
     // Start entrance animations
     Animated.parallel([
       Animated.timing(fadeAnim, {
@@ -72,6 +90,33 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
       }),
     ]).start();
   }, []);
+
+  // Load available times when date changes
+  useEffect(() => {
+    if (date) {
+      loadAvailableTimes();
+    }
+  }, [date]);
+
+  const loadAvailableTimes = async () => {
+    try {
+      const response = await fetch(
+        `${BASE_URL}/reservation/available-times/${company.id}?date=${
+          date.toISOString().split("T")[0]
+        }`
+      );
+      if (response.ok) {
+        const times = await response.json();
+        const formattedTimes = times.map((timeSpan: string) => {
+          // Convert TimeSpan format (HH:MM:SS) to HH:MM
+          return timeSpan.substring(0, 5);
+        });
+        setAvailableTimes(formattedTimes);
+      }
+    } catch (error) {
+      console.error("Error loading available times:", error);
+    }
+  };
 
   // Calculate max date (1 week from now)
   const maxDate = new Date();
@@ -101,27 +146,46 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
       return;
     }
 
+    if (!user) {
+      Alert.alert(
+        "Eroare",
+        "Trebuie să fiți conectat pentru a face o rezervare"
+      );
+      return;
+    }
+
     setLoading(true);
     try {
       // Create reservation request
       const reservationRequest = {
-        customerName: "Client", // You might want to get this from user profile
-        customerEmail: "client@example.com", // You might want to get this from user profile
-        customerPhone: "", // You might want to get this from user profile
-        reservationDate: date.toISOString().split('T')[0],
-        reservationTime: time.toTimeString().split(' ')[0],
+        customerName:
+          user.name || user.firstName + " " + user.lastName || "Client",
+        customerEmail: user.email || "",
+        customerPhone: user.phone || "",
+        reservationDate: date.toISOString().split("T")[0],
+        reservationTime: time.toTimeString().split(" ")[0],
         numberOfPeople: parseInt(people),
         specialRequests: specialRequest || "",
-        companyId: company.id
+        companyId: company.id,
       };
 
       // Make API call to create reservation
-      const response = await fetch('http://localhost:5000/api/reservation', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify(reservationRequest),
+      const formData = new FormData();
+      formData.append("customerName", reservationRequest.customerName);
+      formData.append("customerEmail", reservationRequest.customerEmail);
+      formData.append("customerPhone", reservationRequest.customerPhone);
+      formData.append("reservationDate", reservationRequest.reservationDate);
+      formData.append("reservationTime", reservationRequest.reservationTime);
+      formData.append(
+        "numberOfPeople",
+        reservationRequest.numberOfPeople.toString()
+      );
+      formData.append("specialRequests", reservationRequest.specialRequests);
+      formData.append("companyId", reservationRequest.companyId.toString());
+
+      const response = await fetch(`${BASE_URL}/reservation`, {
+        method: "POST",
+        body: formData,
       });
 
       if (response.ok) {
@@ -159,28 +223,33 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
 
   return (
     <UniversalScreen>
-      <Animated.View 
+      <Animated.View
         style={[
           { flex: 1 },
           {
             opacity: fadeAnim,
-            transform: [
-              { translateY: slideAnim }
-            ]
-          }
+            transform: [{ translateY: slideAnim }],
+          },
         ]}
       >
-        <ScrollView contentContainerStyle={styles.scrollContent} showsVerticalScrollIndicator={false}>
+        <ScrollView
+          contentContainerStyle={styles.scrollContent}
+          showsVerticalScrollIndicator={false}
+        >
           {/* Header */}
           <View style={styles.header}>
             <TouchableOpacity
               onPress={() => {
-                hapticFeedback('light');
+                hapticFeedback("light");
                 navigation.goBack();
               }}
               style={styles.backButton}
             >
-              <Ionicons name="arrow-back" size={28} color={theme.colors.primary} />
+              <Ionicons
+                name="arrow-back"
+                size={28}
+                color={theme.colors.primary}
+              />
             </TouchableOpacity>
             <Text style={styles.headerTitle}>Rezervări</Text>
           </View>
@@ -225,6 +294,45 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
                 <Ionicons name="time" size={24} color="#A78BFA" />
                 <Text style={styles.inputText}>{formatTime(time)}</Text>
               </TouchableOpacity>
+              {availableTimes.length > 0 && (
+                <View style={styles.availableTimesContainer}>
+                  <Text style={styles.availableTimesLabel}>
+                    Ore disponibile:
+                  </Text>
+                  <ScrollView
+                    horizontal
+                    showsHorizontalScrollIndicator={false}
+                    style={styles.timeScrollView}
+                  >
+                    {availableTimes.map((timeSlot) => (
+                      <TouchableOpacity
+                        key={timeSlot}
+                        style={[
+                          styles.timeSlot,
+                          formatTime(time) === timeSlot &&
+                            styles.timeSlotSelected,
+                        ]}
+                        onPress={() => {
+                          const [hours, minutes] = timeSlot.split(":");
+                          const newTime = new Date(time);
+                          newTime.setHours(parseInt(hours), parseInt(minutes));
+                          setTime(newTime);
+                        }}
+                      >
+                        <Text
+                          style={[
+                            styles.timeSlotText,
+                            formatTime(time) === timeSlot &&
+                              styles.timeSlotTextSelected,
+                          ]}
+                        >
+                          {timeSlot}
+                        </Text>
+                      </TouchableOpacity>
+                    ))}
+                  </ScrollView>
+                </View>
+              )}
             </View>
 
             {/* People Selector */}
@@ -261,7 +369,10 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
 
             {/* Submit Button */}
             <TouchableOpacity
-              style={[styles.submitButton, loading && styles.submitButtonDisabled]}
+              style={[
+                styles.submitButton,
+                loading && styles.submitButtonDisabled,
+              ]}
               onPress={handleSubmit}
               disabled={loading}
             >
@@ -339,149 +450,184 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
   );
 };
 
-const createStyles = (theme: any) => StyleSheet.create({
-  container: {
-    flex: 1,
-    backgroundColor: theme.colors.surface,
-  },
-  scrollContent: {
-    paddingBottom: 40,
-  },
-  header: {
-    flexDirection: "row",
-    alignItems: "center",
-    padding: 16,
-    paddingTop: 8,
-  },
-  backButton: {
-    padding: 8,
-    marginRight: 16,
-  },
-  headerTitle: {
-    fontSize: 24,
-    fontWeight: "700",
-    color: theme.colors.primary,
-  },
-  card: {
-    margin: 16,
-    backgroundColor: theme.colors.card,
-    borderRadius: 20,
-    padding: 24,
-    shadowColor: "#6C3AFF",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.2,
-    shadowRadius: 12,
-    elevation: 8,
-  },
-  companyHeader: {
-    borderBottomWidth: 1,
-    borderBottomColor: "#2D2D2D",
-    paddingBottom: 16,
-    marginBottom: 16,
-  },
-  companyName: {
-    fontSize: 22,
-    fontWeight: "700",
-    color: "#E0E0FF",
-    marginBottom: 4,
-  },
-  companyCategory: {
-    fontSize: 16,
-    color: "#A78BFA",
-    fontWeight: "500",
-  },
-  section: {
-    marginBottom: 24,
-  },
-  label: {
-    fontSize: 16,
-    fontWeight: "600",
-    color: "#C4B5FD",
-    marginBottom: 8,
-    marginLeft: 8,
-  },
-  inputContainer: {
-    flexDirection: "row",
-    alignItems: "center",
-    backgroundColor: "#2A1A4A",
-    borderRadius: 16,
-    paddingHorizontal: 16,
-    paddingVertical: 14,
-    borderWidth: 1,
-    borderColor: "#44337A",
-  },
-  multilineContainer: {
-    alignItems: "flex-start",
-    minHeight: 100,
-  },
-  input: {
-    flex: 1,
-    fontSize: 16,
-    color: "#E0E0FF",
-    marginLeft: 12,
-    paddingVertical: 2,
-  },
-  multilineInput: {
-    textAlignVertical: "top",
-  },
-  inputText: {
-    flex: 1,
-    fontSize: 16,
-    color: "#E0E0FF",
-    marginLeft: 12,
-  },
-  submitButton: {
-    backgroundColor: "#6C3AFF",
-    borderRadius: 16,
-    paddingVertical: 16,
-    alignItems: "center",
-    justifyContent: "center",
-    marginTop: 16,
-    shadowColor: "#6C3AFF",
-    shadowOffset: { width: 0, height: 4 },
-    shadowOpacity: 0.4,
-    shadowRadius: 8,
-    elevation: 6,
-  },
-  submitButtonDisabled: {
-    opacity: 0.6,
-  },
-  submitButtonText: {
-    fontSize: 18,
-    fontWeight: "700",
-    color: "#FFFFFF",
-  },
-  modalContainer: {
-    flex: 1,
-    justifyContent: "flex-end",
-    backgroundColor: "rgba(0,0,0,0.5)",
-  },
-  modalHeader: {
-    flexDirection: "row",
-    justifyContent: "flex-end",
-    padding: 16,
-    backgroundColor: "#1A1A1A",
-    borderTopLeftRadius: 20,
-    borderTopRightRadius: 20,
-  },
-  doneButton: {
-    color: "#A78BFA",
-    fontSize: 18,
-    fontWeight: "600",
-    padding: 8,
-  },
-  pickerContainer: {
-    backgroundColor: "#1A1A1A",
-    paddingBottom: 20,
-  },
-  // NEW: Date hint text style
-  dateHint: {
-    fontSize: 12,
-    color: "#A78BFA",
-    marginTop: 6,
-    marginLeft: 8,
-    fontStyle: "italic",
-  },
-});
+const createStyles = (theme: any) =>
+  StyleSheet.create({
+    container: {
+      flex: 1,
+      backgroundColor: theme.colors.surface,
+    },
+    scrollContent: {
+      paddingBottom: 40,
+    },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      padding: 16,
+      paddingTop: 8,
+    },
+    backButton: {
+      padding: 8,
+      marginRight: 16,
+    },
+    headerTitle: {
+      fontSize: 24,
+      fontWeight: "700",
+      color: theme.colors.primary,
+    },
+    card: {
+      margin: 16,
+      backgroundColor: theme.colors.card,
+      borderRadius: 20,
+      padding: 24,
+      shadowColor: "#6C3AFF",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.2,
+      shadowRadius: 12,
+      elevation: 8,
+    },
+    companyHeader: {
+      borderBottomWidth: 1,
+      borderBottomColor: "#2D2D2D",
+      paddingBottom: 16,
+      marginBottom: 16,
+    },
+    companyName: {
+      fontSize: 22,
+      fontWeight: "700",
+      color: "#E0E0FF",
+      marginBottom: 4,
+    },
+    companyCategory: {
+      fontSize: 16,
+      color: "#A78BFA",
+      fontWeight: "500",
+    },
+    section: {
+      marginBottom: 24,
+    },
+    label: {
+      fontSize: 16,
+      fontWeight: "600",
+      color: "#C4B5FD",
+      marginBottom: 8,
+      marginLeft: 8,
+    },
+    inputContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: "#2A1A4A",
+      borderRadius: 16,
+      paddingHorizontal: 16,
+      paddingVertical: 14,
+      borderWidth: 1,
+      borderColor: "#44337A",
+    },
+    multilineContainer: {
+      alignItems: "flex-start",
+      minHeight: 100,
+    },
+    input: {
+      flex: 1,
+      fontSize: 16,
+      color: "#E0E0FF",
+      marginLeft: 12,
+      paddingVertical: 2,
+    },
+    multilineInput: {
+      textAlignVertical: "top",
+    },
+    inputText: {
+      flex: 1,
+      fontSize: 16,
+      color: "#E0E0FF",
+      marginLeft: 12,
+    },
+    submitButton: {
+      backgroundColor: "#6C3AFF",
+      borderRadius: 16,
+      paddingVertical: 16,
+      alignItems: "center",
+      justifyContent: "center",
+      marginTop: 16,
+      shadowColor: "#6C3AFF",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.4,
+      shadowRadius: 8,
+      elevation: 6,
+    },
+    submitButtonDisabled: {
+      opacity: 0.6,
+    },
+    submitButtonText: {
+      fontSize: 18,
+      fontWeight: "700",
+      color: "#FFFFFF",
+    },
+    modalContainer: {
+      flex: 1,
+      justifyContent: "flex-end",
+      backgroundColor: "rgba(0,0,0,0.5)",
+    },
+    modalHeader: {
+      flexDirection: "row",
+      justifyContent: "flex-end",
+      padding: 16,
+      backgroundColor: "#1A1A1A",
+      borderTopLeftRadius: 20,
+      borderTopRightRadius: 20,
+    },
+    doneButton: {
+      color: "#A78BFA",
+      fontSize: 18,
+      fontWeight: "600",
+      padding: 8,
+    },
+    pickerContainer: {
+      backgroundColor: "#1A1A1A",
+      paddingBottom: 20,
+    },
+    // NEW: Date hint text style
+    dateHint: {
+      fontSize: 12,
+      color: "#A78BFA",
+      marginTop: 6,
+      marginLeft: 8,
+      fontStyle: "italic",
+    },
+    // Available times styles
+    availableTimesContainer: {
+      marginTop: 12,
+    },
+    availableTimesLabel: {
+      fontSize: 14,
+      color: "#A78BFA",
+      marginBottom: 8,
+      marginLeft: 8,
+    },
+    timeScrollView: {
+      paddingHorizontal: 8,
+    },
+    timeSlot: {
+      backgroundColor: "#2A1A4A",
+      borderRadius: 12,
+      paddingHorizontal: 16,
+      paddingVertical: 8,
+      marginRight: 8,
+      borderWidth: 1,
+      borderColor: "#44337A",
+    },
+    timeSlotSelected: {
+      backgroundColor: "#6C3AFF",
+      borderColor: "#A78BFA",
+    },
+    timeSlotText: {
+      color: "#C4B5FD",
+      fontSize: 14,
+      fontWeight: "600",
+    },
+    timeSlotTextSelected: {
+      color: "#FFFFFF",
+    },
+  });
 
 export default Reservation;

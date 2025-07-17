@@ -33,7 +33,7 @@ export default function Signup() {
   const [tagInput, setTagInput] = useState("");
   const [error, setError] = useState(false);
 
-  const defaultImage = require("./assets/default.jpg");
+  const defaultImage = require("../../acoomh.png");
 
   const onAddTag = () => {
     if (tagInput.trim()) {
@@ -98,8 +98,8 @@ export default function Signup() {
     formData.append("tags", tags.join(","));
     formData.append("default", {
       uri: defaultUri,
-      name: "default.jpg",
-      type: "image/jpg",
+      name: "acoomh.png",
+      type: "image/png",
     } as any);
 
     try {

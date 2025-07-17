@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useRef, useCallback, useMemo } from "react";
+import React, { useEffect, useState, useRef } from "react";
 import {
   StyleSheet,
   View,
@@ -20,31 +20,57 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "./RootStackParamList";
 import * as Location from "expo-location";
 import haversine from "haversine-distance";
-import { cachedFetch } from "../utils/apiCache";
 import BASE_URL from "../config";
-import { useTheme } from "../context/ThemeContext";
-import UniversalScreen from "../components/UniversalScreen";
-import { getShadow } from "../utils/responsive";
+import { SafeAreaView } from "react-native-safe-area-context";
 
-// Optimized map style - reduced complexity
+// Dark map style optimized for black/violet theme
 const DARK_MAP_STYLE = [
   {
     elementType: "geometry",
-    stylers: [{ color: "#121212" }],
+    stylers: [{ color: "#0F0817" }],
   },
   {
     elementType: "labels.text.fill",
-    stylers: [{ color: "#ffffff" }],
+    stylers: [{ color: "#A78BFA" }],
+  },
+  {
+    elementType: "labels.text.stroke",
+    stylers: [{ color: "#000000" }, { weight: 2 }],
   },
   {
     featureType: "road",
     elementType: "geometry",
-    stylers: [{ color: "#2e2e2e" }],
+    stylers: [{ color: "#2A1A4A" }],
+  },
+  {
+    featureType: "road.highway",
+    elementType: "geometry",
+    stylers: [{ color: "#6C3AFF" }],
+  },
+  {
+    featureType: "road.arterial",
+    elementType: "geometry",
+    stylers: [{ color: "#4A2E6B" }],
   },
   {
     featureType: "water",
     elementType: "geometry",
-    stylers: [{ color: "#0d1b2a" }],
+    stylers: [{ color: "#1A0A2E" }],
+  },
+  {
+    featureType: "poi",
+    elementType: "geometry",
+    stylers: [{ color: "#1A1A2E" }],
+  },
+  {
+    featureType: "transit",
+    elementType: "geometry",
+    stylers: [{ color: "#2A1A4A" }],
+  },
+  {
+    featureType: "administrative",
+    elementType: "geometry.stroke",
+    stylers: [{ color: "#6C3AFF" }],
   },
 ];
 
@@ -61,97 +87,93 @@ interface CompanyData {
   email?: string;
   cui?: number;
   description?: string;
-  tags: string[];
+  tags?: string[];
 }
-
-interface MapRegion {
-  latitude: number;
-  longitude: number;
-  latitudeDelta: number;
-  longitudeDelta: number;
-}
-
-// Simple clustering logic for better performance
-const clusterMarkers = (
-  companies: CompanyData[],
-  region: MapRegion,
-  clusterRadius = 50
-): (CompanyData | { cluster: boolean; companies: CompanyData[]; coordinate: { latitude: number; longitude: number } })[] => {
-  const clustered: any[] = [];
-  const processed = new Set<number>();
-
-  for (const company of companies) {
-    if (processed.has(company.id)) continue;
-
-    const nearby = companies.filter(other => {
-      if (processed.has(other.id) || company.id === other.id) return false;
-      
-      const distance = haversine(
-        { lat: company.latitude, lng: company.longitude },
-        { lat: other.latitude, lng: other.longitude }
-      );
-      
-      return distance < clusterRadius * 1000; // Convert to meters
-    });
-
-    if (nearby.length > 0) {
-      // Create cluster
-      nearby.forEach(c => processed.add(c.id));
-      processed.add(company.id);
-      
-      const allCompanies = [company, ...nearby];
-      const avgLat = allCompanies.reduce((sum, c) => sum + c.latitude, 0) / allCompanies.length;
-      const avgLng = allCompanies.reduce((sum, c) => sum + c.longitude, 0) / allCompanies.length;
-      
-      clustered.push({
-        cluster: true,
-        companies: allCompanies,
-        coordinate: { latitude: avgLat, longitude: avgLng }
-      });
-    } else {
-      processed.add(company.id);
-      clustered.push(company);
-    }
-  }
-
-  return clustered;
-};
-
-// Viewport filtering for better performance
-const filterVisibleCompanies = (companies: CompanyData[], region: MapRegion): CompanyData[] => {
-  const padding = 0.1; // Add some padding to viewport
-  const minLat = region.latitude - region.latitudeDelta / 2 - padding;
-  const maxLat = region.latitude + region.latitudeDelta / 2 + padding;
-  const minLng = region.longitude - region.longitudeDelta / 2 - padding;
-  const maxLng = region.longitude + region.longitudeDelta / 2 + padding;
-
-  return companies.filter(company => 
-    company.latitude >= minLat &&
-    company.latitude <= maxLat &&
-    company.longitude >= minLng &&
-    company.longitude <= maxLng
-  );
-};
 
 export default function MapsScreen({ navigation }: { navigation: MapNav }) {
-  const { theme } = useTheme();
   const mapRef = useRef<MapView>(null);
   const { width, height } = Dimensions.get("window");
-  const [location, setLocation] = useState<Location.LocationObject | null>(null);
+  const [location, setLocation] = useState<Location.LocationObject | null>(
+    null
+  );
   const [companies, setCompanies] = useState<CompanyData[]>([]);
   const [loading, setLoading] = useState(true);
-  const [currentRegion, setCurrentRegion] = useState<MapRegion | null>(null);
 
-  const styles = createStyles(theme);
+  useEffect(() => {
+    (async () => {
+      try {
+        // Request location permission
+        const { status } = await Location.requestForegroundPermissionsAsync();
+        if (status !== "granted") {
+          Alert.alert(
+            "Permisiune",
+            "Permisiunea pentru localizare a fost refuzată"
+          );
+          setLoading(false);
+          return;
+        }
 
-  // Memoized callout content component
-  const CalloutContent = React.memo(({
-    company,
-    distKm,
-  }: {
-    company: CompanyData;
-    distKm: string;
-  }) => (
+        // Get current location
+        const currentLocation = await Location.getCurrentPositionAsync({});
+        setLocation(currentLocation);
+
+        // Fetch companies
+        const response = await fetch(`${BASE_URL}/companies`);
+        if (!response.ok) {
+          throw new Error(`HTTP error! status: ${response.status}`);
+        }
+        const companiesData = await response.json();
+        setCompanies(companiesData);
+      } catch (error) {
+        console.error("Error loading map data:", error);
+        Alert.alert("Eroare", "Nu s-au putut încărca datele hărții");
+      } finally {
+        setLoading(false);
+      }
+    })();
+  }, []);
+
+  // Auto-fit to show all markers
+  useEffect(() => {
+    if (!loading && location && companies.length > 0 && mapRef.current) {
+      const coordinates = [
+        {
+          latitude: location.coords.latitude,
+          longitude: location.coords.longitude,
+        },
+        ...companies.map((company) => ({
+          latitude: company.latitude,
+          longitude: company.longitude,
+        })),
+      ];
+
+      // Delay to ensure map is ready
+      setTimeout(() => {
+        mapRef.current?.fitToCoordinates(coordinates, {
+          edgePadding: { top: 100, right: 100, bottom: 100, left: 100 },
+          animated: true,
+        });
+      }, 1000);
+    }
+  }, [loading, location, companies]);
+
+  if (loading || !location) {
+    return (
+      <SafeAreaView style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#A78BFA" />
+        <Text style={styles.loadingText}>Se încarcă harta...</Text>
+      </SafeAreaView>
+    );
+  }
+
+  const initialRegion: Region = {
+    latitude: location.coords.latitude,
+    longitude: location.coords.longitude,
+    latitudeDelta: 0.05,
+    longitudeDelta: 0.05,
+  };
+
+  const renderCalloutContent = (company: CompanyData, distance: string) => (
     <View style={styles.callout}>
       <ImageBackground
         source={{
@@ -161,252 +183,116 @@ export default function MapsScreen({ navigation }: { navigation: MapNav }) {
         imageStyle={styles.calloutImageStyle}
       >
         <View style={styles.overlay} />
-        <Text style={styles.title}>{company.name}</Text>
+        <Text style={styles.calloutTitle}>{company.name}</Text>
       </ImageBackground>
-      <Text style={styles.subtitle}>{company.category}</Text>
-      <Text style={styles.distance}>{distKm} km</Text>
+      <View style={styles.calloutInfo}>
+        <Text style={styles.calloutCategory}>{company.category}</Text>
+        <Text style={styles.calloutDistance}>{distance} km</Text>
+      </View>
     </View>
-  ));
-
-  // Memoized location request
-  const requestLocationPermission = useCallback(async () => {
-    const { status } = await Location.requestForegroundPermissionsAsync();
-    if (status !== "granted") {
-      Alert.alert("Permission to access location was denied");
-      return null;
-    }
-    return await Location.getCurrentPositionAsync({});
-  }, []);
-
-  // Memoized companies fetch
-  const fetchCompanies = useCallback(async () => {
-    try {
-      const data = await cachedFetch<CompanyData[]>(
-        `${BASE_URL}/companies`,
-        { ttl: 15 * 60 * 1000 } // 15 minutes cache
-      );
-      return data;
-    } catch (e) {
-      console.error("Error fetching companies:", e);
-      Alert.alert("Error", "Could not load companies");
-      return [];
-    }
-  }, []);
-
-  // Initial data loading
-  useEffect(() => {
-    const loadMapData = async () => {
-      setLoading(true);
-      try {
-        const [loc, companiesData] = await Promise.all([
-          requestLocationPermission(),
-          fetchCompanies(),
-        ]);
-        
-        if (loc) setLocation(loc);
-        setCompanies(companiesData);
-      } finally {
-        setLoading(false);
-      }
-    };
-
-    loadMapData();
-  }, [requestLocationPermission, fetchCompanies]);
-
-  // Memoized initial region
-  const initialRegion = useMemo((): MapRegion | undefined => {
-    if (!location) return undefined;
-    
-    const region = {
-      latitude: location.coords.latitude,
-      longitude: location.coords.longitude,
-      latitudeDelta: 0.05,
-      longitudeDelta: 0.05,
-    };
-    
-    if (!currentRegion) {
-      setCurrentRegion(region);
-    }
-    
-    return region;
-  }, [location, currentRegion]);
-
-  // Memoized visible companies (filtered and clustered)
-  const visibleMarkers = useMemo(() => {
-    if (!currentRegion || companies.length === 0) return [];
-    
-    const visible = filterVisibleCompanies(companies, currentRegion);
-    return clusterMarkers(visible, currentRegion);
-  }, [companies, currentRegion]);
-
-  // Memoized region change handler
-  const handleRegionChange = useCallback((region: MapRegion) => {
-    setCurrentRegion(region);
-  }, []);
-
-  // Memoized navigation handler
-  const handleMarkerPress = useCallback((company: CompanyData) => {
-    navigation.navigate("Info", { company });
-  }, [navigation]);
-
-  // Memoized marker render
-  const renderMarker = useCallback((item: any, index: number) => {
-    if (item.cluster) {
-      // Render cluster marker
-      return (
-        <Marker
-          key={`cluster-${index}`}
-          coordinate={item.coordinate}
-          pinColor="#ff6b6b"
-        >
-          <View style={styles.clusterMarker}>
-            <Text style={styles.clusterText}>{item.companies.length}</Text>
-          </View>
-          <Callout tooltip={false}>
-            <View style={styles.clusterCallout}>
-              <Text style={styles.clusterCalloutTitle}>
-                {item.companies.length} restaurante
-              </Text>
-              {item.companies.slice(0, 3).map((company: CompanyData, idx: number) => (
-                <TouchableOpacity
-                  key={company.id}
-                  onPress={() => handleMarkerPress(company)}
-                  style={styles.clusterItem}
-                >
-                  <Text style={styles.clusterItemText}>{company.name}</Text>
-                </TouchableOpacity>
-              ))}
-              {item.companies.length > 3 && (
-                <Text style={styles.moreText}>
-                  +{item.companies.length - 3} mai multe
-                </Text>
-              )}
-            </View>
-          </Callout>
-        </Marker>
-      );
-    }
-
-    // Render single marker
-    const company = item as CompanyData;
-    const distKm = location ? (
-      haversine(
-        { lat: location.coords.latitude, lng: location.coords.longitude },
-        { lat: company.latitude, lng: company.longitude }
-      ) / 1000
-    ).toFixed(1) : "0.0";
-
-    return (
-      <Marker
-        key={company.id}
-        coordinate={{
-          latitude: company.latitude,
-          longitude: company.longitude,
-        }}
-        pinColor="#bb86fc"
-      >
-        <Callout
-          tooltip={Platform.OS === "ios"}
-          style={Platform.OS === "android" ? styles.androidCallout : undefined}
-          onPress={() => handleMarkerPress(company)}
-        >
-          {Platform.OS === "android" ? (
-            <TouchableOpacity
-              activeOpacity={0.7}
-              onPress={() => handleMarkerPress(company)}
-            >
-              <CalloutContent company={company} distKm={distKm} />
-            </TouchableOpacity>
-          ) : (
-            <CalloutContent company={company} distKm={distKm} />
-          )}
-        </Callout>
-      </Marker>
-    );
-  }, [location, handleMarkerPress, styles]);
-
-  // Auto-fit to coordinates on data load
-  useEffect(() => {
-    if (!loading && location && companies.length && mapRef.current) {
-      const coords = [
-        {
-          latitude: location.coords.latitude,
-          longitude: location.coords.longitude,
-        },
-        ...companies.slice(0, 20).map((c) => ({ // Limit to first 20 for performance
-          latitude: c.latitude,
-          longitude: c.longitude,
-        })),
-      ];
-      
-      setTimeout(() => {
-        mapRef.current?.fitToCoordinates(coords, {
-          edgePadding: { top: 80, right: 80, bottom: 80, left: 80 },
-          animated: true,
-        });
-      }, 1000);
-    }
-  }, [loading, location, companies]);
-
-  if (loading || !location || !initialRegion) {
-    return (
-      <UniversalScreen>
-        <View style={styles.loadingContainer}>
-          <ActivityIndicator size="large" color={theme.colors.accent} />
-          <Text style={[styles.loadingText, { color: theme.colors.text }]}>Loading map...</Text>
-        </View>
-      </UniversalScreen>
-    );
-  }
+  );
 
   return (
-    <UniversalScreen>
-      <View style={styles.container}>
-        <MapView
-          ref={mapRef}
-          provider={PROVIDER_GOOGLE}
-          style={{ width, height }}
-          customMapStyle={DARK_MAP_STYLE}
-          initialRegion={initialRegion}
-          onRegionChangeComplete={handleRegionChange}
-          showsUserLocation
-          showsMyLocationButton
-          maxZoomLevel={18}
-          minZoomLevel={10}
-          rotateEnabled={false}
-          pitchEnabled={false}
-        >
-          {visibleMarkers.map(renderMarker)}
-        </MapView>
-        
-        {/* Performance stats (can be removed in production) */}
-        {__DEV__ && (
-          <View style={styles.debugInfo}>
-            <Text style={[styles.debugText, { color: theme.colors.text }]}>
-              Visible: {visibleMarkers.length} / {companies.length}
-            </Text>
-          </View>
-        )}
-      </View>
-    </UniversalScreen>
+    <SafeAreaView style={styles.container}>
+      <MapView
+        ref={mapRef}
+        provider={PROVIDER_GOOGLE}
+        style={styles.map}
+        customMapStyle={DARK_MAP_STYLE}
+        initialRegion={initialRegion}
+        showsUserLocation={true}
+        showsMyLocationButton={true}
+        zoomControlEnabled={true}
+        rotateEnabled={false}
+        pitchEnabled={false}
+        toolbarEnabled={false}
+      >
+        {companies.map((company) => {
+          const distance = (
+            haversine(
+              { lat: location.coords.latitude, lng: location.coords.longitude },
+              { lat: company.latitude, lng: company.longitude }
+            ) / 1000
+          ).toFixed(1);
+
+          return (
+            <Marker
+              key={company.id}
+              coordinate={{
+                latitude: company.latitude,
+                longitude: company.longitude,
+              }}
+              pinColor="#A78BFA"
+            >
+              {Platform.OS === "ios" ? (
+                <Callout
+                  tooltip={true}
+                  onPress={() => navigation.navigate("Info", { company })}
+                >
+                  {renderCalloutContent(company, distance)}
+                </Callout>
+              ) : (
+                // Android callout - use default bubble style with better styling
+                <Callout
+                  onPress={() => navigation.navigate("Info", { company })}
+                  style={styles.androidCallout}
+                >
+                  <View style={styles.androidCalloutContent}>
+                    <View style={styles.androidCalloutImageContainer}>
+                      <ImageBackground
+                        source={{
+                          uri: `data:image/jpg;base64,${company.profileImage}`,
+                        }}
+                        style={styles.androidCalloutImage}
+                        imageStyle={styles.androidCalloutImageStyle}
+                      >
+                        <View style={styles.androidCalloutOverlay} />
+                        <Text style={styles.androidCalloutTitle}>
+                          {company.name}
+                        </Text>
+                      </ImageBackground>
+                    </View>
+                    <View style={styles.androidCalloutInfo}>
+                      <Text style={styles.androidCalloutCategory}>
+                        {company.category}
+                      </Text>
+                      <Text style={styles.androidCalloutDistance}>
+                        {distance} km
+                      </Text>
+                    </View>
+                  </View>
+                </Callout>
+              )}
+            </Marker>
+          );
+        })}
+      </MapView>
+    </SafeAreaView>
   );
 }
 
-const createStyles = (theme: any) => StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: theme.colors.surface 
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#0F0817",
+  },
+  map: {
+    width: Dimensions.get("window").width,
+    height: Dimensions.get("window").height,
   },
   loadingContainer: {
     flex: 1,
     justifyContent: "center",
     alignItems: "center",
-    backgroundColor: theme.colors.surface,
+    backgroundColor: "#0F0817",
   },
   loadingText: {
-    marginTop: 10,
+    marginTop: 16,
     fontSize: 16,
+    color: "#A78BFA",
+    textAlign: "center",
   },
+  // Android callout styling
   androidCallout: {
     backgroundColor: "transparent",
     borderWidth: 0,
@@ -415,99 +301,116 @@ const createStyles = (theme: any) => StyleSheet.create({
     elevation: 0,
     shadowOpacity: 0,
   },
-  callout: {
-    width: 170,
-    padding: 10,
-    backgroundColor: theme.colors.surface,
+  androidCalloutContainer: {
+    minWidth: 200,
+    backgroundColor: "transparent",
+  },
+  androidCalloutTouchable: {
+    borderRadius: 16,
+    overflow: "hidden",
+  },
+  androidCalloutContent: {
+    width: 180,
+    backgroundColor: "#1A0A2E",
     borderRadius: 12,
+    overflow: "hidden",
+    borderWidth: 1,
+    borderColor: "#6C3AFF",
+  },
+  androidCalloutImageContainer: {
+    width: "100%",
+    height: 80,
+  },
+  androidCalloutImage: {
+    width: "100%",
+    height: 80,
+    justifyContent: "flex-end",
+  },
+  androidCalloutImageStyle: {
+    borderTopLeftRadius: 12,
+    borderTopRightRadius: 12,
+  },
+  androidCalloutOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
+  },
+  androidCalloutTitle: {
+    color: "#FFFFFF",
+    fontSize: 14,
+    fontWeight: "700",
+    textAlign: "center",
+    paddingHorizontal: 8,
+    paddingVertical: 6,
+    textShadowColor: "#000000",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 2,
+  },
+  androidCalloutInfo: {
+    padding: 8,
     alignItems: "center",
-    ...getShadow(4),
+  },
+  androidCalloutCategory: {
+    color: "#A78BFA",
+    fontSize: 12,
+    fontWeight: "600",
+    marginBottom: 2,
+  },
+  androidCalloutDistance: {
+    color: "#C4B5FD",
+    fontSize: 10,
+    fontWeight: "500",
+  },
+  // Callout container
+  callout: {
+    width: 200,
+    backgroundColor: "#1A0A2E",
+    borderRadius: 16,
+    overflow: "hidden",
+    shadowColor: "#000",
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.3,
+    shadowRadius: 8,
+    elevation: 8,
+    borderWidth: 1,
+    borderColor: "#6C3AFF",
   },
   calloutImage: {
     width: "100%",
-    height: 80,
-    borderRadius: 12,
-    overflow: "hidden",
+    height: 100,
+    justifyContent: "flex-end",
   },
-  calloutImageStyle: { 
-    borderRadius: 12 
+  calloutImageStyle: {
+    borderTopLeftRadius: 16,
+    borderTopRightRadius: 16,
   },
   overlay: {
     ...StyleSheet.absoluteFillObject,
-    backgroundColor: "rgba(0,0,0,0.3)",
+    backgroundColor: "rgba(0, 0, 0, 0.4)",
   },
-  title: {
-    position: "absolute",
-    bottom: 6,
-    left: 10,
-    color: theme.colors.accent,
-    fontWeight: "bold",
-    fontSize: 14,
-  },
-  subtitle: {
-    marginTop: 6,
-    fontSize: 13,
-    color: theme.colors.textSecondary,
-    textAlign: "center",
-    width: "100%",
-  },
-  distance: {
-    marginTop: 4,
-    fontSize: 12,
-    color: theme.colors.textTertiary,
-    fontWeight: "600",
-  },
-  clusterMarker: {
-    backgroundColor: theme.colors.error,
-    borderRadius: 15,
-    width: 30,
-    height: 30,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 2,
-    borderColor: theme.colors.surface,
-  },
-  clusterText: {
-    color: theme.colors.surface,
-    fontWeight: "bold",
-    fontSize: 12,
-  },
-  clusterCallout: {
-    backgroundColor: theme.colors.surface,
-    borderRadius: 12,
-    padding: 12,
-    minWidth: 200,
-  },
-  clusterCalloutTitle: {
-    color: theme.colors.accent,
-    fontWeight: "bold",
+  calloutTitle: {
+    color: "#FFFFFF",
     fontSize: 16,
-    marginBottom: 8,
-  },
-  clusterItem: {
-    paddingVertical: 4,
-    borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
-  },
-  clusterItemText: {
-    color: theme.colors.text,
-    fontSize: 14,
-  },
-  moreText: {
-    color: theme.colors.textTertiary,
-    fontSize: 12,
-    marginTop: 8,
+    fontWeight: "700",
     textAlign: "center",
+    paddingHorizontal: 12,
+    paddingVertical: 8,
+    textShadowColor: "#000000",
+    textShadowOffset: { width: 0, height: 1 },
+    textShadowRadius: 3,
   },
-  debugInfo: {
-    position: "absolute",
-    top: 50,
-    left: 10,
-    backgroundColor: theme.colors.surface + "CC",
-    padding: 8,
-    borderRadius: 8,
+  calloutInfo: {
+    padding: 12,
+    alignItems: "center",
   },
-  debugText: {
+  calloutCategory: {
+    color: "#A78BFA",
+    fontSize: 14,
+    fontWeight: "600",
+    marginBottom: 4,
+  },
+  calloutDistance: {
+    color: "#C4B5FD",
     fontSize: 12,
+    fontWeight: "500",
   },
 });

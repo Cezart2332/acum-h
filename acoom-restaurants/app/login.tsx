@@ -12,6 +12,7 @@ import {
   TouchableOpacity,
   TouchableWithoutFeedback,
   View,
+  Image,
 } from "react-native";
 
 export default function Login() {
@@ -62,7 +63,11 @@ export default function Login() {
           {/* Logo Section */}
           <View className="items-center mb-10">
             <View className="bg-violet-600 p-4 rounded-2xl mb-4 shadow-lg shadow-violet-800">
-              <Ionicons name="restaurant" size={48} color="white" />
+              <Image
+                source={require("../../acoomh.png")}
+                style={{ width: 48, height: 48 }}
+                resizeMode="contain"
+              />
             </View>
             <Text className="text-3xl font-bold text-white">
               AcoomH Business

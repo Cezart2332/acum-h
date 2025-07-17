@@ -13,6 +13,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import BASE_URL from "@/config";
 
 type Reservation = {
   id: number;
@@ -54,26 +55,32 @@ export default function Reservations() {
     setRefreshing(true);
     try {
       // Make API call to fetch reservations
-      const response = await fetch(`http://localhost:5000/api/reservation/company/${companyId}`);
-      
+      const response = await fetch(
+        `${BASE_URL}/reservation/company/${companyId}`
+      );
+
       if (response.ok) {
         const apiReservations = await response.json();
-        
+
         // Transform API data to match our local format
-        const transformedReservations: Reservation[] = apiReservations.map((res: any) => ({
-          id: res.id,
-          customerName: res.customerName,
-          date: new Date(res.reservationDate).toLocaleDateString('ro-RO', { 
-            day: 'numeric', 
-            month: 'long' 
-          }),
-          time: res.reservationTime.substring(0, 5), // Extract HH:MM from time string
-          people: res.numberOfPeople,
-          status: res.status.toLowerCase(),
-          specialRequests: res.specialRequests,
-          timestamp: new Date(res.reservationDate + 'T' + res.reservationTime).getTime(),
-        }));
-        
+        const transformedReservations: Reservation[] = apiReservations.map(
+          (res: any) => ({
+            id: res.id,
+            customerName: res.customerName,
+            date: new Date(res.reservationDate).toLocaleDateString("ro-RO", {
+              day: "numeric",
+              month: "long",
+            }),
+            time: res.reservationTime.substring(0, 5), // Extract HH:MM from time string
+            people: res.numberOfPeople,
+            status: res.status.toLowerCase(),
+            specialRequests: res.specialRequests,
+            timestamp: new Date(
+              res.reservationDate + "T" + res.reservationTime
+            ).getTime(),
+          })
+        );
+
         setReservations(transformedReservations);
       } else {
         // Fallback to mock data if API fails
@@ -143,33 +150,76 @@ export default function Reservations() {
     }, [fetchReservations])
   );
 
-  const handleStatusChange = async (id: number, newStatus: Reservation["status"]) => {
+  const handleStatusChange = async (
+    id: number,
+    newStatus: Reservation["status"]
+  ) => {
     try {
-      // Make API call to update reservation status
-      const response = await fetch(`http://localhost:5000/api/reservation/${id}`, {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          id: id,
-          status: newStatus.toUpperCase(),
-          notes: "",
-          cancellationReason: newStatus === "canceled" ? "Anulat de restaurant" : ""
-        }),
+      console.log("Updating reservation:", id, "to status:", newStatus);
+
+      // Convert status to Pascal case for backend
+      const statusMap = {
+        pending: "Pending",
+        confirmed: "Confirmed",
+        completed: "Completed",
+        canceled: "Canceled",
+      };
+
+      const backendStatus = statusMap[newStatus];
+
+      // Create URL-encoded body instead of FormData
+      const bodyParams = new URLSearchParams();
+      bodyParams.append("status", backendStatus);
+      bodyParams.append("notes", "");
+      if (newStatus === "canceled") {
+        bodyParams.append("cancellationReason", "Anulat de restaurant");
+      }
+
+      console.log("Sending request to:", `${BASE_URL}/reservation/${id}`);
+      console.log("Body contents:", {
+        status: backendStatus,
+        notes: "",
+        cancellationReason:
+          newStatus === "canceled" ? "Anulat de restaurant" : undefined,
       });
 
+      const response = await fetch(`${BASE_URL}/reservation/${id}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/x-www-form-urlencoded",
+        },
+        body: bodyParams.toString(),
+      });
+
+      console.log("Response status:", response.status);
+      console.log("Response ok:", response.ok);
+
       if (response.ok) {
+        const responseData = await response.text();
+        console.log("Response data:", responseData);
+
         // Update local state
         setReservations((prev) =>
-          prev.map((res) => (res.id === id ? { ...res, status: newStatus } : res))
+          prev.map((res) =>
+            res.id === id ? { ...res, status: newStatus } : res
+          )
         );
+
+        Alert.alert("Succes", "Statusul rezervării a fost actualizat");
       } else {
-        Alert.alert("Eroare", "Nu s-a putut actualiza statusul rezervării");
+        const errorText = await response.text();
+        console.log("Error response:", errorText);
+        Alert.alert(
+          "Eroare",
+          `Nu s-a putut actualiza statusul rezervării. Status: ${response.status}`
+        );
       }
     } catch (error) {
-      Alert.alert("Eroare", "Nu s-a putut actualiza statusul rezervării");
-      console.error(error);
+      console.error("Network error:", error);
+      Alert.alert(
+        "Eroare",
+        "Nu s-a putut actualiza statusul rezervării - eroare de rețea"
+      );
     }
   };
 
@@ -217,70 +267,133 @@ export default function Reservations() {
     };
 
     return (
-      <View className="bg-gradient-to-r from-violet-800/40 to-indigo-900/30 rounded-2xl p-5 mb-4 shadow-md shadow-violet-900/20">
-        <View className="flex-row justify-between items-start mb-3">
+      <View
+        style={{
+          backgroundColor: "#312e81", // violet-800/40 equivalent
+          borderRadius: 16,
+          padding: 20,
+          marginBottom: 16,
+          shadowColor: "#7c3aed",
+          shadowOffset: { width: 0, height: 2 },
+          shadowOpacity: 0.25,
+          shadowRadius: 3.84,
+          elevation: 5,
+        }}
+      >
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "flex-start",
+            marginBottom: 12,
+          }}
+        >
           <View>
-            <Text className="text-white text-lg font-bold">
+            <Text style={{ color: "white", fontSize: 18, fontWeight: "bold" }}>
               {item.customerName}
             </Text>
-            <Text className="text-violet-400 mt-1">
+            <Text style={{ color: "#a78bfa", marginTop: 4 }}>
               {item.people} persoană{item.people > 1 ? "e" : ""}
             </Text>
           </View>
 
           <View
-            className={`px-3 py-1 rounded-full border ${
-              statusColors[item.status]
-            }`}
+            style={{
+              paddingHorizontal: 12,
+              paddingVertical: 4,
+              borderRadius: 20,
+              borderWidth: 1,
+              borderColor: statusColors[item.status],
+            }}
           >
             <Text
-              className={`text-xs font-medium ${
-                item.status === "confirmed"
-                  ? "text-green-400"
-                  : item.status === "pending"
-                  ? "text-amber-400"
-                  : item.status === "canceled"
-                  ? "text-red-400"
-                  : "text-blue-400"
-              }`}
+              style={{
+                fontSize: 12,
+                fontWeight: "500",
+                color:
+                  item.status === "confirmed"
+                    ? "#4ade80"
+                    : item.status === "pending"
+                    ? "#fbbf24"
+                    : item.status === "canceled"
+                    ? "#f87171"
+                    : "#60a5fa",
+              }}
             >
               {statusText[item.status]}
             </Text>
           </View>
         </View>
 
-        <View className="flex-row justify-between mb-4 border-b border-violet-900/30 pb-4">
-          <View className="items-center">
-            <Text className="text-gray-400 text-xs mb-1">Dată</Text>
-            <Text className="text-white font-medium">{item.date}</Text>
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            marginBottom: 16,
+            borderBottomWidth: 1,
+            borderBottomColor: "#312e81",
+            paddingBottom: 16,
+          }}
+        >
+          <View style={{ alignItems: "center" }}>
+            <Text style={{ color: "#9ca3af", fontSize: 12, marginBottom: 4 }}>
+              Dată
+            </Text>
+            <Text style={{ color: "white", fontWeight: "500" }}>
+              {item.date}
+            </Text>
           </View>
 
-          <View className="items-center">
-            <Text className="text-gray-400 text-xs mb-1">Ora</Text>
-            <Text className="text-white font-medium">{item.time}</Text>
+          <View style={{ alignItems: "center" }}>
+            <Text style={{ color: "#9ca3af", fontSize: 12, marginBottom: 4 }}>
+              Ora
+            </Text>
+            <Text style={{ color: "white", fontWeight: "500" }}>
+              {item.time}
+            </Text>
           </View>
 
-          <View className="items-center">
-            <Text className="text-gray-400 text-xs mb-1">ID</Text>
-            <Text className="text-violet-300 font-medium">#{item.id}</Text>
+          <View style={{ alignItems: "center" }}>
+            <Text style={{ color: "#9ca3af", fontSize: 12, marginBottom: 4 }}>
+              ID
+            </Text>
+            <Text style={{ color: "#c4b5fd", fontWeight: "500" }}>
+              #{item.id}
+            </Text>
           </View>
         </View>
 
         {item.specialRequests && (
-          <View className="mb-4">
-            <Text className="text-gray-400 text-xs mb-1">Cerințe speciale</Text>
-            <Text className="text-white italic">{item.specialRequests}</Text>
+          <View style={{ marginBottom: 16 }}>
+            <Text style={{ color: "#9ca3af", fontSize: 12, marginBottom: 4 }}>
+              Cerințe speciale
+            </Text>
+            <Text style={{ color: "white", fontStyle: "italic" }}>
+              {item.specialRequests}
+            </Text>
           </View>
         )}
 
         {item.status === "pending" && (
-          <View className="flex-row space-x-3">
+          <View style={{ flexDirection: "row", gap: 12 }}>
             <TouchableOpacity
               onPress={() => handleStatusChange(item.id, "confirmed")}
-              className="flex-1 bg-gradient-to-r from-green-600 to-emerald-700 py-3 rounded-xl items-center flex-row justify-center"
+              style={{
+                flex: 1,
+                flexDirection: "row",
+                justifyContent: "center",
+                alignItems: "center",
+                paddingVertical: 12,
+                borderRadius: 16,
+                backgroundColor: "#059669", // green-600 equivalent
+              }}
             >
               <Ionicons name="checkmark" size={18} color="white" />
-              <Text className="text-white font-medium ml-2">Confirmă</Text>
+              <Text
+                style={{ color: "white", fontWeight: "500", marginLeft: 8 }}
+              >
+                Confirmă
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
@@ -294,21 +407,45 @@ export default function Reservations() {
         )}
 
         {item.status === "confirmed" && (
-          <View className="flex-row space-x-3">
+          <View style={{ flexDirection: "row", gap: 12 }}>
             <TouchableOpacity
               onPress={() => handleStatusChange(item.id, "completed")}
-              className="flex-1 bg-gradient-to-r from-blue-600 to-indigo-700 py-3 rounded-xl items-center flex-row justify-center"
+              style={{
+                flex: 1,
+                flexDirection: "row",
+                justifyContent: "center",
+                alignItems: "center",
+                paddingVertical: 12,
+                borderRadius: 16,
+                backgroundColor: "#2563eb", // blue-600 equivalent
+              }}
             >
               <Ionicons name="checkmark-done" size={18} color="white" />
-              <Text className="text-white font-medium ml-2">Finalizează</Text>
+              <Text
+                style={{ color: "white", fontWeight: "500", marginLeft: 8 }}
+              >
+                Finalizează
+              </Text>
             </TouchableOpacity>
 
             <TouchableOpacity
               onPress={() => handleStatusChange(item.id, "canceled")}
-              className="flex-1 bg-gradient-to-r from-red-600 to-rose-700 py-3 rounded-xl items-center flex-row justify-center"
+              style={{
+                flex: 1,
+                flexDirection: "row",
+                justifyContent: "center",
+                alignItems: "center",
+                paddingVertical: 12,
+                borderRadius: 16,
+                backgroundColor: "#dc2626", // red-600 equivalent
+              }}
             >
               <Ionicons name="close" size={18} color="white" />
-              <Text className="text-white font-medium ml-2">Anulează</Text>
+              <Text
+                style={{ color: "white", fontWeight: "500", marginLeft: 8 }}
+              >
+                Anulează
+              </Text>
             </TouchableOpacity>
           </View>
         )}
@@ -330,28 +467,66 @@ export default function Reservations() {
 
   if (loading) {
     return (
-      <SafeAreaView className="flex-1 bg-[#0F0817] items-center justify-center">
+      <SafeAreaView
+        style={{
+          flex: 1,
+          backgroundColor: "#0F0817",
+          alignItems: "center",
+          justifyContent: "center",
+        }}
+      >
         <ActivityIndicator size="large" color="#7c3aed" />
       </SafeAreaView>
     );
   }
 
   return (
-    <SafeAreaView className="flex-1 bg-[#0F0817]">
+    <SafeAreaView style={{ flex: 1, backgroundColor: "#0F0817" }}>
       {/* Header with Gradient */}
-      <View className="bg-gradient-to-b from-violet-900/90 to-violet-800/70 px-5 pb-4 pt-2 rounded-b-[40px] shadow-lg shadow-violet-900/50">
-        <View className="flex-row justify-between items-center py-3">
+      <View
+        style={{
+          backgroundColor: "#4c1d95", // violet-900/90 equivalent
+          paddingHorizontal: 20,
+          paddingBottom: 16,
+          paddingTop: 8,
+          borderBottomLeftRadius: 40,
+          borderBottomRightRadius: 40,
+          shadowColor: "#7c3aed",
+          shadowOffset: { width: 0, height: 4 },
+          shadowOpacity: 0.3,
+          shadowRadius: 8,
+          elevation: 8,
+        }}
+      >
+        <View
+          style={{
+            flexDirection: "row",
+            justifyContent: "space-between",
+            alignItems: "center",
+            paddingVertical: 12,
+          }}
+        >
           <TouchableOpacity
             onPress={() => router.back()}
-            className="bg-violet-800/50 p-2 rounded-full"
+            style={{
+              backgroundColor: "#5b21b6",
+              padding: 8,
+              borderRadius: 20,
+            }}
           >
             <Ionicons name="arrow-back" size={22} color="#d8b4fe" />
           </TouchableOpacity>
 
-          <Text className="text-xl font-bold text-white">Rezervări</Text>
+          <Text style={{ fontSize: 20, fontWeight: "bold", color: "white" }}>
+            Rezervări
+          </Text>
 
           <TouchableOpacity
-            className="bg-violet-800/50 p-2 rounded-full"
+            style={{
+              backgroundColor: "#5b21b6",
+              padding: 8,
+              borderRadius: 20,
+            }}
             onPress={fetchReservations}
           >
             <Ionicons name="refresh" size={22} color="#d8b4fe" />
@@ -360,7 +535,7 @@ export default function Reservations() {
       </View>
 
       <ScrollView
-        className="flex-1 pt-4"
+        style={{ flex: 1, paddingTop: 16 }}
         refreshControl={
           <RefreshControl
             refreshing={refreshing}
@@ -370,32 +545,122 @@ export default function Reservations() {
           />
         }
       >
-        <View className="px-5 pb-10">
+        <View style={{ paddingHorizontal: 20, paddingBottom: 40 }}>
           {/* Stats Overview */}
-          <View className="flex-row justify-between mb-6">
-            <View className="bg-gradient-to-br from-violet-800/50 to-indigo-900/40 p-4 rounded-2xl flex-1 mr-2 shadow-md shadow-violet-900/20">
-              <Text className="text-center text-violet-300 text-xs font-medium">
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              marginBottom: 24,
+            }}
+          >
+            <View
+              style={{
+                backgroundColor: "#312e81",
+                padding: 16,
+                borderRadius: 16,
+                flex: 1,
+                marginRight: 8,
+                shadowColor: "#7c3aed",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.25,
+                shadowRadius: 3.84,
+                elevation: 5,
+              }}
+            >
+              <Text
+                style={{
+                  textAlign: "center",
+                  color: "#c4b5fd",
+                  fontSize: 12,
+                  fontWeight: "500",
+                }}
+              >
                 Total
               </Text>
-              <Text className="text-center text-white text-xl font-bold mt-1">
+              <Text
+                style={{
+                  textAlign: "center",
+                  color: "white",
+                  fontSize: 20,
+                  fontWeight: "bold",
+                  marginTop: 4,
+                }}
+              >
                 {reservations.length}
               </Text>
             </View>
 
-            <View className="bg-gradient-to-br from-violet-800/50 to-indigo-900/40 p-4 rounded-2xl flex-1 mx-2 shadow-md shadow-violet-900/20">
-              <Text className="text-center text-amber-400 text-xs font-medium">
+            <View
+              style={{
+                backgroundColor: "#312e81",
+                padding: 16,
+                borderRadius: 16,
+                flex: 1,
+                marginHorizontal: 8,
+                shadowColor: "#7c3aed",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.25,
+                shadowRadius: 3.84,
+                elevation: 5,
+              }}
+            >
+              <Text
+                style={{
+                  textAlign: "center",
+                  color: "#fbbf24",
+                  fontSize: 12,
+                  fontWeight: "500",
+                }}
+              >
                 În așteptare
               </Text>
-              <Text className="text-center text-white text-xl font-bold mt-1">
+              <Text
+                style={{
+                  textAlign: "center",
+                  color: "white",
+                  fontSize: 20,
+                  fontWeight: "bold",
+                  marginTop: 4,
+                }}
+              >
                 {filterReservations("pending").length}
               </Text>
             </View>
 
-            <View className="bg-gradient-to-br from-violet-800/50 to-indigo-900/40 p-4 rounded-2xl flex-1 ml-2 shadow-md shadow-violet-900/20">
-              <Text className="text-center text-green-400 text-xs font-medium">
+            <View
+              style={{
+                backgroundColor: "#312e81",
+                padding: 16,
+                borderRadius: 16,
+                flex: 1,
+                marginLeft: 8,
+                shadowColor: "#7c3aed",
+                shadowOffset: { width: 0, height: 2 },
+                shadowOpacity: 0.25,
+                shadowRadius: 3.84,
+                elevation: 5,
+              }}
+            >
+              <Text
+                style={{
+                  textAlign: "center",
+                  color: "#4ade80",
+                  fontSize: 12,
+                  fontWeight: "500",
+                }}
+              >
                 Confirmate
               </Text>
-              <Text className="text-center text-white text-xl font-bold mt-1">
+              <Text
+                style={{
+                  textAlign: "center",
+                  color: "white",
+                  fontSize: 20,
+                  fontWeight: "bold",
+                  marginTop: 4,
+                }}
+              >
                 {filterReservations("confirmed").length}
               </Text>
             </View>
@@ -405,38 +670,30 @@ export default function Reservations() {
           <ScrollView
             horizontal
             showsHorizontalScrollIndicator={false}
-            className="mb-6"
+            style={{ marginBottom: 24 }}
           >
-            <View className="flex-row space-x-3 pb-1">
+            <View style={{ flexDirection: "row", gap: 12, paddingBottom: 4 }}>
               {[
-                { id: "all", label: "Toate", color: "bg-violet-600" },
-                {
-                  id: "pending",
-                  label: "În așteptare",
-                  color: "bg-amber-600/60",
-                },
-                {
-                  id: "confirmed",
-                  label: "Confirmate",
-                  color: "bg-green-600/60",
-                },
-                {
-                  id: "completed",
-                  label: "Finalizate",
-                  color: "bg-blue-600/60",
-                },
-                { id: "canceled", label: "Anulate", color: "bg-red-600/60" },
+                { id: "all", label: "Toate", color: "#7c3aed" },
+                { id: "pending", label: "În așteptare", color: "#d97706" },
+                { id: "confirmed", label: "Confirmate", color: "#059669" },
+                { id: "completed", label: "Finalizate", color: "#2563eb" },
+                { id: "canceled", label: "Anulate", color: "#dc2626" },
               ].map((filter) => (
                 <TouchableOpacity
                   key={filter.id}
                   onPress={() => setActiveFilter(filter.id as any)}
-                  className={`px-4 py-2 rounded-full ${filter.color} ${
-                    activeFilter === filter.id
-                      ? "border-2 border-violet-300"
-                      : ""
-                  }`}
+                  style={{
+                    paddingHorizontal: 16,
+                    paddingVertical: 8,
+                    borderRadius: 20,
+                    backgroundColor: filter.color,
+                    borderWidth: activeFilter === filter.id ? 2 : 0,
+                    borderColor:
+                      activeFilter === filter.id ? "#c4b5fd" : "transparent",
+                  }}
                 >
-                  <Text className="text-white font-medium">
+                  <Text style={{ color: "white", fontWeight: "500" }}>
                     {filter.label}{" "}
                     {filterCounts[filter.id as keyof typeof filterCounts]}
                   </Text>
@@ -447,27 +704,62 @@ export default function Reservations() {
 
           {/* Reservations List */}
           {filteredReservations.length === 0 ? (
-            <View className="items-center py-10">
-              <View className="bg-violet-900/30 p-6 rounded-full mb-6">
+            <View style={{ alignItems: "center", paddingVertical: 40 }}>
+              <View
+                style={{
+                  backgroundColor: "#312e81",
+                  padding: 24,
+                  borderRadius: 50,
+                  marginBottom: 24,
+                }}
+              >
                 <Ionicons name="calendar-outline" size={50} color="#a78bfa" />
               </View>
-              <Text className="text-violet-300 text-lg font-medium mb-1">
+              <Text
+                style={{
+                  color: "#c4b5fd",
+                  fontSize: 18,
+                  fontWeight: "500",
+                  marginBottom: 4,
+                }}
+              >
                 Nicio rezervare înregistrată
               </Text>
-              <Text className="text-gray-500 text-center px-10">
+              <Text
+                style={{
+                  color: "#6b7280",
+                  textAlign: "center",
+                  paddingHorizontal: 40,
+                }}
+              >
                 Rezervările clienților vor apărea aici
               </Text>
 
               <TouchableOpacity
-                className="mt-6 bg-gradient-to-r from-violet-700 to-indigo-800 px-6 py-3 rounded-xl"
+                style={{
+                  marginTop: 24,
+                  backgroundColor: "#5b21b6",
+                  paddingHorizontal: 24,
+                  paddingVertical: 12,
+                  borderRadius: 16,
+                }}
                 onPress={fetchReservations}
               >
-                <Text className="text-white font-medium">Reîncarcă</Text>
+                <Text style={{ color: "white", fontWeight: "500" }}>
+                  Reîncarcă
+                </Text>
               </TouchableOpacity>
             </View>
           ) : (
             <View>
-              <Text className="text-lg font-bold text-violet-300 mb-4">
+              <Text
+                style={{
+                  fontSize: 18,
+                  fontWeight: "bold",
+                  color: "#c4b5fd",
+                  marginBottom: 16,
+                }}
+              >
                 {activeFilter === "all"
                   ? `Toate rezervările (${reservations.length})`
                   : `${filteredReservations.length} ${

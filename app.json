@@ -4,23 +4,23 @@
     "slug": "acum-h",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./acoomh.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
-      "image": "./assets/splash-icon.png",
+      "image": "./acoomh.png",
       "resizeMode": "contain",
       "backgroundColor": "#ffffff"
     },
     "ios": {
       "supportsTablet": true,
-        "config": {
-        "googleMapsApiKey":  "AIzaSyCJ50t81koTREgiais4695uc6UJVZedJ4I"
+      "config": {
+        "googleMapsApiKey": "AIzaSyCJ50t81koTREgiais4695uc6UJVZedJ4I"
       }
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./acoomh.png",
         "backgroundColor": "#ffffff"
       },
       "config": {
@@ -32,7 +32,7 @@
       "package": "com.anonymous.acumh"
     },
     "web": {
-      "favicon": "./assets/favicon.png"
+      "favicon": "./acoomh.png"
     },
     "expo": {
       "plugins": [
@@ -43,6 +43,14 @@
           }
         ]
       ]
-    }
+    },
+    "plugins": [
+      [
+        "expo-location",
+        {
+          "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location"
+        }
+      ]
+    ]
   }
 }

@@ -15,6 +15,12 @@ var connectionString = builder.Configuration.GetConnectionString("DefaultConnect
 builder.Services.AddDbContext<AppDbContext>(options =>
     options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString)));
 
+// Configure JSON options to serialize enums as strings
+builder.Services.ConfigureHttpJsonOptions(options =>
+{
+    options.SerializerOptions.Converters.Add(new System.Text.Json.Serialization.JsonStringEnumConverter());
+});
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
@@ -319,9 +325,141 @@ app.MapGet("/companyhours/{companyId}", async (AppDbContext context, int company
         .OrderBy(ch => ch.DayOfWeek)
         .ToListAsync();
 
-    return Results.Ok(hours);
+    // Convert to DTOs for proper JSON serialization
+    var hourDtos = hours.Select(h => new CompanyHourDto
+    {
+        DayOfWeek = h.DayOfWeek.ToString(),
+        Is24Hours = h.Is24Hours,
+        OpenTime = h.OpenTime?.ToString(@"hh\:mm") ?? "",
+        CloseTime = h.CloseTime?.ToString(@"hh\:mm") ?? ""
+    }).ToList();
+
+    return Results.Ok(hourDtos);
 });
 
+// POST endpoint for creating company hours (JSON)
+app.MapPost("/companyhours/{companyId}", async (HttpRequest req, AppDbContext db, int companyId) =>
+{
+    try
+    {
+        var body = await new StreamReader(req.Body).ReadToEndAsync();
+        var scheduleData = JsonSerializer.Deserialize<List<CompanyHourDto>>(body);
+        
+        if (scheduleData == null || !scheduleData.Any())
+        {
+            return Results.BadRequest("Invalid schedule data");
+        }
+
+        // Check if company hours already exist
+        var existingHours = await db.CompanyHours
+            .Where(ch => ch.CompanyId == companyId)
+            .ToListAsync();
+
+        if (existingHours.Any())
+        {
+            return Results.Conflict("Company hours already exist. Use PUT to update.");
+        }
+
+        // Add new hours
+        foreach (var dto in scheduleData)
+        {
+            TimeSpan? openTime = null;
+            TimeSpan? closeTime = null;
+            
+            if (!string.IsNullOrEmpty(dto.OpenTime) && 
+                TimeSpan.TryParse(dto.OpenTime, out var openTs))
+            {
+                openTime = openTs;
+            }
+            
+            if (!string.IsNullOrEmpty(dto.CloseTime) && 
+                TimeSpan.TryParse(dto.CloseTime, out var closeTs))
+            {
+                closeTime = closeTs;
+            }
+            
+            if (Enum.TryParse<DayOfWeekEnum>(dto.DayOfWeek, out var dayOfWeek))
+            {
+                db.CompanyHours.Add(new CompanyHour
+                {
+                    DayOfWeek = dayOfWeek,
+                    Is24Hours = dto.Is24Hours,
+                    OpenTime = openTime,
+                    CloseTime = closeTime,
+                    CompanyId = companyId
+                });
+            }
+        }
+        
+        await db.SaveChangesAsync();
+        return Results.Ok("Schedule created successfully");
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Error creating schedule: {ex.Message}");
+    }
+});
+
+// PUT endpoint for updating company hours (JSON)
+app.MapPut("/companyhours/{companyId}", async (HttpRequest req, AppDbContext db, int companyId) =>
+{
+    try
+    {
+        var body = await new StreamReader(req.Body).ReadToEndAsync();
+        var scheduleData = JsonSerializer.Deserialize<List<CompanyHourDto>>(body);
+        
+        if (scheduleData == null || !scheduleData.Any())
+        {
+            return Results.BadRequest("Invalid schedule data");
+        }
+
+        // Get existing hours
+        var existingHours = await db.CompanyHours
+            .Where(ch => ch.CompanyId == companyId)
+            .ToListAsync();
+        
+        // Remove existing
+        db.CompanyHours.RemoveRange(existingHours);
+        
+        // Add new hours
+        foreach (var dto in scheduleData)
+        {
+            TimeSpan? openTime = null;
+            TimeSpan? closeTime = null;
+            
+            if (!string.IsNullOrEmpty(dto.OpenTime) && 
+                TimeSpan.TryParse(dto.OpenTime, out var openTs))
+            {
+                openTime = openTs;
+            }
+            
+            if (!string.IsNullOrEmpty(dto.CloseTime) && 
+                TimeSpan.TryParse(dto.CloseTime, out var closeTs))
+            {
+                closeTime = closeTs;
+            }
+            
+            if (Enum.TryParse<DayOfWeekEnum>(dto.DayOfWeek, out var dayOfWeek))
+            {
+                db.CompanyHours.Add(new CompanyHour
+                {
+                    DayOfWeek = dayOfWeek,
+                    Is24Hours = dto.Is24Hours,
+                    OpenTime = openTime,
+                    CloseTime = closeTime,
+                    CompanyId = companyId
+                });
+            }
+        }
+        
+        await db.SaveChangesAsync();
+        return Results.Ok("Schedule updated successfully");
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Error updating schedule: {ex.Message}");
+    }
+});
 
 // In Program.cs
 app.MapPut("/companyhours", async (HttpContext context, AppDbContext dbContext) =>
@@ -376,14 +514,17 @@ app.MapPut("/companyhours", async (HttpContext context, AppDbContext dbContext) 
                 closeTime = closeTs;
             }
             
-            dbContext.CompanyHours.Add(new CompanyHour
+            if (Enum.TryParse<DayOfWeekEnum>(dto.DayOfWeek, out var dayOfWeek))
             {
-                DayOfWeek = dto.DayOfWeek,
-                Is24Hours = dto.Is24Hours,
-                OpenTime = openTime,
-                CloseTime = closeTime,
-                CompanyId = companyId
-            });
+                dbContext.CompanyHours.Add(new CompanyHour
+                {
+                    DayOfWeek = dayOfWeek,
+                    Is24Hours = dto.Is24Hours,
+                    OpenTime = openTime,
+                    CloseTime = closeTime,
+                    CompanyId = companyId
+                });
+            }
         }
         
         await dbContext.SaveChangesAsync();
@@ -399,5 +540,93 @@ app.MapPut("/companyhours", async (HttpContext context, AppDbContext dbContext) 
     }
 });
 
+// Reservation endpoints
+app.MapPost("/reservation", async (HttpRequest req, AppDbContext db) =>
+{
+    try
+    {
+        var form = await req.ReadFormAsync();
+        
+        var reservation = new Reservation
+        {
+            CustomerName = form["customerName"].ToString(),
+            CustomerEmail = form["customerEmail"].ToString(),
+            CustomerPhone = form["customerPhone"].ToString(),
+            ReservationDate = DateTime.Parse(form["reservationDate"].ToString()),
+            ReservationTime = TimeSpan.Parse(form["reservationTime"].ToString()),
+            NumberOfPeople = int.Parse(form["numberOfPeople"].ToString()),
+            SpecialRequests = form["specialRequests"].ToString(),
+            CompanyId = int.Parse(form["companyId"].ToString()),
+            Status = ReservationStatus.Pending,
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        db.Reservations.Add(reservation);
+        await db.SaveChangesAsync();
+
+        return Results.Created($"/reservation/{reservation.Id}", reservation);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Error creating reservation: {ex.Message}");
+    }
+});
+
+app.MapGet("/reservation/company/{companyId}", async (AppDbContext db, int companyId) =>
+{
+    try
+    {
+        var reservations = await db.Reservations
+            .Where(r => r.CompanyId == companyId)
+            .OrderByDescending(r => r.ReservationDate)
+            .ThenBy(r => r.ReservationTime)
+            .ToListAsync();
+
+        return Results.Ok(reservations);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Error fetching reservations: {ex.Message}");
+    }
+});
+
+app.MapPut("/reservation/{id}", async (int id, HttpRequest req, AppDbContext db) =>
+{
+    try
+    {
+        var form = await req.ReadFormAsync();
+        var reservation = await db.Reservations.FindAsync(id);
+        
+        if (reservation == null)
+            return Results.NotFound("Reservation not found");
+
+        if (form.ContainsKey("status"))
+        {
+            reservation.Status = Enum.Parse<ReservationStatus>(form["status"].ToString());
+            reservation.UpdatedAt = DateTime.UtcNow;
+            
+            if (reservation.Status == ReservationStatus.Confirmed)
+                reservation.ConfirmedAt = DateTime.UtcNow;
+            else if (reservation.Status == ReservationStatus.Completed)
+                reservation.CompletedAt = DateTime.UtcNow;
+            else if (reservation.Status == ReservationStatus.Canceled)
+                reservation.CanceledAt = DateTime.UtcNow;
+        }
+
+        if (form.ContainsKey("notes"))
+            reservation.Notes = form["notes"].ToString();
+
+        if (form.ContainsKey("cancellationReason"))
+            reservation.CancellationReason = form["cancellationReason"].ToString();
+
+        await db.SaveChangesAsync();
+        return Results.Ok(reservation);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Error updating reservation: {ex.Message}");
+    }
+});
 
 app.Run();

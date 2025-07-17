@@ -10,6 +10,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import "react-native-get-random-values";
 
 import { ThemeProvider } from "./context/ThemeContext";
+import { UserProvider } from "./context/UserContext";
 import LoginScreen from "./screens/LoginScreen";
 import RegisterScreen from "./screens/RegisterScreen";
 import HomeTabs from "./screens/HomeTabs";
@@ -31,27 +32,28 @@ export default function App() {
       setIsLoggedIn(getLogIn != null ? JSON.parse(getLogIn) : false);
     })();
   }, []);
-
   return (
     <ThemeProvider>
-      <SafeAreaProvider>
-        <NavigationContainer>
-          <Stack.Navigator
-            id={undefined}
-            initialRouteName={isLoggedIn ? "Home" : "Login"}
-            screenOptions={{ headerShown: false }}
-          >
-            <Stack.Screen name="Login" component={LoginScreen} />
-            <Stack.Screen name="Register" component={RegisterScreen} />
-            <Stack.Screen name="Home" component={HomeTabs} />
-            <Stack.Screen name="Profile" component={Profile} />
-            <Stack.Screen name="EventScreen" component={EventScreen} />
-            <Stack.Screen name="Info" component={Info} />
-            <Stack.Screen name="Reservation" component={Reservation} />
-        <Stack.Screen name="Schedule" component={ScheduleScreen} />
-          </Stack.Navigator>
-        </NavigationContainer>
-      </SafeAreaProvider>
+      <UserProvider>
+        <SafeAreaProvider>
+          <NavigationContainer>
+            <Stack.Navigator
+              id={undefined}
+              initialRouteName={isLoggedIn ? "Home" : "Login"}
+              screenOptions={{ headerShown: false }}
+            >
+              <Stack.Screen name="Login" component={LoginScreen} />
+              <Stack.Screen name="Register" component={RegisterScreen} />
+              <Stack.Screen name="Home" component={HomeTabs} />
+              <Stack.Screen name="Profile" component={Profile} />
+              <Stack.Screen name="EventScreen" component={EventScreen} />
+              <Stack.Screen name="Info" component={Info} />
+              <Stack.Screen name="Reservation" component={Reservation} />
+              <Stack.Screen name="Schedule" component={ScheduleScreen} />
+            </Stack.Navigator>
+          </NavigationContainer>
+        </SafeAreaProvider>
+      </UserProvider>
     </ThemeProvider>
   );
 }

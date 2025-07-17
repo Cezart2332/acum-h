@@ -6,6 +6,7 @@ import {
   View,
   Animated,
   Alert,
+  Image,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -13,17 +14,18 @@ import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "./RootStackParamList";
 import BASE_URL from "../config";
 import { useTheme } from "../context/ThemeContext";
+import { useUser } from "../context/UserContext";
 import UniversalScreen from "../components/UniversalScreen";
 import EnhancedButton from "../components/EnhancedButton";
 import EnhancedInput from "../components/EnhancedInput";
-import { 
-  getShadow, 
-  hapticFeedback, 
+import {
+  getShadow,
+  hapticFeedback,
   TYPOGRAPHY,
   getResponsiveSpacing,
   SCREEN_DIMENSIONS,
   isValidEmail,
-  isValidPassword 
+  isValidPassword,
 } from "../utils/responsive";
 
 type RegisterScreenNavigationProp = NativeStackNavigationProp<
@@ -37,6 +39,7 @@ type Props = {
 
 export default function RegisterScreen({ navigation }: Props) {
   const { theme } = useTheme();
+  const { login } = useUser();
   const [username, setUsername] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -44,7 +47,7 @@ export default function RegisterScreen({ navigation }: Props) {
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
-  
+
   // Error states
   const [usernameError, setUsernameError] = useState("");
   const [firstNameError, setFirstNameError] = useState("");
@@ -160,8 +163,14 @@ export default function RegisterScreen({ navigation }: Props) {
     const isPasswordValid = validatePasswordField(password);
     const isConfirmPasswordValid = validateConfirmPassword(confirmPassword);
 
-    if (!isUsernameValid || !isFirstNameValid || !isLastNameValid || 
-        !isEmailValid || !isPasswordValid || !isConfirmPasswordValid) {
+    if (
+      !isUsernameValid ||
+      !isFirstNameValid ||
+      !isLastNameValid ||
+      !isEmailValid ||
+      !isPasswordValid ||
+      !isConfirmPasswordValid
+    ) {
       // Shake animation for errors
       Animated.sequence([
         Animated.timing(scaleAnim, {
@@ -175,65 +184,84 @@ export default function RegisterScreen({ navigation }: Props) {
           useNativeDriver: true,
         }),
       ]).start();
-      hapticFeedback('heavy');
+      hapticFeedback("heavy");
       return;
     }
 
     setLoading(true);
 
     try {
-      const registerData = {
-        Username: username.trim(),
-        FirstName: firstName.trim(),
-        LastName: lastName.trim(),
-        Email: email.trim(),
-        Password: password,
-      };
+      // Create form data for registration
+      const formData = new FormData();
+      formData.append("username", username.trim());
+      formData.append("firstname", firstName.trim());
+      formData.append("lastname", lastName.trim());
+      formData.append("email", email.trim());
+      formData.append("password", password);
 
-      const response = await fetch(`${BASE_URL}/register`, {
+      // Add the acoomh.png logo as the default profile image
+      const defaultImage = require("../acoomh.png");
+      const defaultImageUri = Image.resolveAssetSource(defaultImage).uri;
+
+      // Create a blob from the image
+      const response = await fetch(defaultImageUri);
+      const blob = await response.blob();
+      formData.append("default", blob, "acoomh.png");
+
+      console.log("Sending registration request to:", `${BASE_URL}/users`);
+
+      const registerResponse = await fetch(`${BASE_URL}/users`, {
         method: "POST",
         headers: {
-          "Content-Type": "application/json",
           Accept: "application/json",
         },
-        body: JSON.stringify(registerData),
+        body: formData,
       });
 
-      if (response.status === 409) {
+      console.log("Registration response status:", registerResponse.status);
+
+      if (registerResponse.status === 409) {
+        const errorData = await registerResponse.json();
         Alert.alert(
           "Cont existent",
-          "Există deja un cont cu acest email sau username. Te rog să încerci altele.",
+          errorData.Error ||
+            "Există deja un cont cu acest email sau username. Te rog să încerci altele.",
           [{ text: "OK", style: "default" }]
         );
-        setEmailError("Email-ul este deja folosit");
+        // Check if it's email or username conflict
+        if (errorData.Error && errorData.Error.includes("email")) {
+          setEmailError("Email-ul este deja folosit");
+        } else {
+          setUsernameError("Username-ul este deja folosit");
+        }
         return;
       }
 
-      if (!response.ok) {
-        throw new Error(`Server error: ${response.status}`);
+      if (!registerResponse.ok) {
+        const errorText = await registerResponse.text();
+        console.error("Registration error response:", errorText);
+        throw new Error(`Server error: ${registerResponse.status}`);
       }
 
-      const data = await response.json();
-      await AsyncStorage.setItem("user", JSON.stringify(data));
-      await AsyncStorage.setItem("loggedIn", JSON.stringify(true));
+      const userData = await registerResponse.json();
+      console.log("Registration successful, user data:", userData);
+
+      // Use the UserContext to handle login
+      await login(userData);
 
       // Success animation
-      hapticFeedback('medium');
+      hapticFeedback("medium");
       Animated.timing(scaleAnim, {
         toValue: 1.1,
         duration: 200,
         useNativeDriver: true,
       }).start(() => {
-        Alert.alert(
-          "Succes!",
-          "Contul a fost creat cu succes!",
-          [
-            {
-              text: "OK",
-              onPress: () => navigation.replace("Home"),
-            },
-          ]
-        );
+        Alert.alert("Succes!", "Contul a fost creat cu succes!", [
+          {
+            text: "OK",
+            onPress: () => navigation.replace("Home"),
+          },
+        ]);
       });
     } catch (error) {
       console.error("Register error:", error);
@@ -242,14 +270,15 @@ export default function RegisterScreen({ navigation }: Props) {
         "Nu s-a putut conecta la server. Verifică conexiunea la internet și încearcă din nou.",
         [{ text: "OK", style: "default" }]
       );
-      hapticFeedback('heavy');
+      console.log(BASE_URL);
+      hapticFeedback("heavy");
     } finally {
       setLoading(false);
     }
   };
 
   const navigateToLogin = () => {
-    hapticFeedback('light');
+    hapticFeedback("light");
     navigation.navigate("Login");
   };
 
@@ -258,7 +287,7 @@ export default function RegisterScreen({ navigation }: Props) {
       gradient={true}
       scrollable={true}
       keyboardAvoidingView={true}
-      safeAreaEdges={['top', 'bottom']}
+      safeAreaEdges={["top", "bottom"]}
     >
       {/* Background Elements */}
       <View style={styles.floatingElements}>
@@ -305,12 +334,21 @@ export default function RegisterScreen({ navigation }: Props) {
           >
             <Ionicons name="arrow-back" size={24} color={theme.colors.text} />
           </TouchableOpacity>
-          
+
           <View style={styles.headerContent}>
+            <View style={styles.logoContainer}>
+              <Image
+                source={require("../acoomh.png")}
+                style={styles.logoImage}
+                resizeMode="contain"
+              />
+            </View>
             <Text style={[styles.title, { color: theme.colors.text }]}>
               Creează cont
             </Text>
-            <Text style={[styles.subtitle, { color: theme.colors.textSecondary }]}>
+            <Text
+              style={[styles.subtitle, { color: theme.colors.textSecondary }]}
+            >
               Completează toate câmpurile pentru a-ți crea contul
             </Text>
           </View>
@@ -405,7 +443,9 @@ export default function RegisterScreen({ navigation }: Props) {
 
         {/* Footer */}
         <View style={styles.footer}>
-          <Text style={[styles.footerText, { color: theme.colors.textSecondary }]}>
+          <Text
+            style={[styles.footerText, { color: theme.colors.textSecondary }]}
+          >
             Ai deja cont?{" "}
           </Text>
           <TouchableOpacity onPress={navigateToLogin} activeOpacity={0.8}>
@@ -449,66 +489,73 @@ const styles = StyleSheet.create({
   },
   container: {
     flex: 1,
-    paddingHorizontal: getResponsiveSpacing('lg'),
-    paddingVertical: getResponsiveSpacing('xl'),
+    paddingHorizontal: getResponsiveSpacing("lg"),
+    paddingVertical: getResponsiveSpacing("xl"),
   },
   header: {
-    marginBottom: getResponsiveSpacing('xl'),
+    marginBottom: getResponsiveSpacing("xl"),
   },
   backButton: {
     width: 48,
     height: 48,
     borderRadius: 24,
-    backgroundColor: 'rgba(255,255,255,0.1)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    marginBottom: getResponsiveSpacing('lg'),
+    backgroundColor: "rgba(255,255,255,0.1)",
+    justifyContent: "center",
+    alignItems: "center",
+    marginBottom: getResponsiveSpacing("lg"),
   },
   headerContent: {
-    alignItems: 'center',
+    alignItems: "center",
+  },
+  logoContainer: {
+    marginBottom: getResponsiveSpacing("md"),
+  },
+  logoImage: {
+    width: 80,
+    height: 80,
   },
   title: {
     fontSize: TYPOGRAPHY.h1,
     fontWeight: "800",
     letterSpacing: -1,
-    textAlign: 'center',
-    marginBottom: getResponsiveSpacing('sm'),
+    textAlign: "center",
+    marginBottom: getResponsiveSpacing("sm"),
   },
   subtitle: {
     fontSize: TYPOGRAPHY.body,
-    textAlign: 'center',
+    textAlign: "center",
     lineHeight: TYPOGRAPHY.body * 1.4,
-    paddingHorizontal: getResponsiveSpacing('md'),
+    paddingHorizontal: getResponsiveSpacing("md"),
   },
   form: {
-    backgroundColor: 'rgba(255,255,255,0.05)',
+    backgroundColor: "rgba(255,255,255,0.05)",
     borderRadius: 24,
-    padding: getResponsiveSpacing('xl'),
-    marginBottom: getResponsiveSpacing('xl'),
+    padding: getResponsiveSpacing("xl"),
+    marginBottom: getResponsiveSpacing("xl"),
     borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
+    borderColor: "rgba(255,255,255,0.1)",
   },
   nameRow: {
-    flexDirection: 'row',
-    gap: getResponsiveSpacing('md'),
+    flexDirection: "row",
+    gap: getResponsiveSpacing("md"),
   },
   nameField: {
     flex: 1,
   },
   registerButton: {
-    marginTop: getResponsiveSpacing('lg'),
+    marginTop: getResponsiveSpacing("lg"),
   },
   footer: {
-    flexDirection: 'row',
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: getResponsiveSpacing('lg'),
+    flexDirection: "row",
+    justifyContent: "center",
+    alignItems: "center",
+    paddingVertical: getResponsiveSpacing("lg"),
   },
   footerText: {
     fontSize: TYPOGRAPHY.body,
   },
   footerLink: {
     fontSize: TYPOGRAPHY.body,
-    fontWeight: '600',
+    fontWeight: "600",
   },
 });
