@@ -9,7 +9,7 @@ namespace WebApplication1.Models
         public TimeSpan ReservationTime { get; set; }
         public int NumberOfPeople { get; set; }
         public string? SpecialRequests { get; set; }
-        public int CompanyId { get; set; }
+        public int LocationId { get; set; }
     }
 
     public class UpdateReservationRequest
@@ -38,6 +38,8 @@ namespace WebApplication1.Models
         public DateTime? CanceledAt { get; set; }
         public string? CancellationReason { get; set; }
         public string? Notes { get; set; }
+        public int LocationId { get; set; }
+        public string LocationName { get; set; } = string.Empty;
         public int CompanyId { get; set; }
         public string CompanyName { get; set; } = string.Empty;
         public int? UserId { get; set; }

@@ -45,9 +45,10 @@ namespace WebApplication1.Models
 
         public string? Notes { get; set; }
 
-        // Foreign key to Company (Restaurant)
-        public int CompanyId { get; set; }
-        public Company Company { get; set; } = null!;
+        // Foreign key to Location (Required - reservations are for specific locations)
+        [Required]
+        public int LocationId { get; set; }
+        public Location Location { get; set; } = null!;
 
         // Optional: Reference to user if they have an account
         public int? UserId { get; set; }

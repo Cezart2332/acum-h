@@ -1,5 +1,5 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import React, { useState, useEffect, useCallback, useMemo } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import {
   View,
   Text,
@@ -10,47 +10,46 @@ import {
   Image,
   ActivityIndicator,
   RefreshControl,
-  Alert,
+  ScrollView,
 } from "react-native";
 import { useFocusEffect } from "@react-navigation/native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "./RootStackParamList";
-import BASE_URL from "../config";
-import { cachedFetch, cachedAsyncStorage } from "../utils/apiCache";
+import { BASE_URL } from "../config";
 import { useTheme } from "../context/ThemeContext";
+import { useUser } from "../context/UserContext";
 import UniversalScreen from "../components/UniversalScreen";
-import { 
-  getResponsiveFontSize, 
-  getShadow, 
-  hapticFeedback, 
+import {
+  getResponsiveFontSize,
+  getShadow,
+  hapticFeedback,
   TYPOGRAPHY,
   getResponsiveSpacing,
-  SCREEN_DIMENSIONS 
+  SCREEN_DIMENSIONS,
 } from "../utils/responsive";
 
 type HomeNav = NativeStackNavigationProp<RootStackParamList, "Home">;
 
-interface UserData {
-  id?: number;
-  username?: string;
-  firstName?: string;
-  lastName?: string;
-  email?: string;
-  profileImage?: string;
-}
-
-interface CompanyData {
+interface LocationData {
   id: number;
   name: string;
-  email: string;
   address: string;
-  cui: number;
-  category: string;
-  profileImage: string;
-  description: string;
+  latitude: number;
+  longitude: number;
   tags: string[];
+  photo: string;
+  menuName: string;
+  hasMenu: boolean;
+  company: {
+    id: number;
+    name: string;
+    category: string;
+    description: string;
+  };
+  createdAt: string;
+  updatedAt: string;
 }
 
 interface EventData {
@@ -60,500 +59,452 @@ interface EventData {
   photo: string;
 }
 
-// Memoized header component
-const HeaderComponent = React.memo(({ 
-  eOrR, 
-  loading, 
-  userData, 
-  onProfilePress,
-  theme 
-}: {
-  eOrR: boolean;
-  loading: boolean;
-  userData: UserData | null;
-  onProfilePress: () => void;
-  theme: any;
-}) => (
-  <LinearGradient
-    colors={[theme.colors.primary, theme.colors.secondary]}
-    style={styles.headerContainer}
-  >
-    <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-      {eOrR ? "Evenimente" : "Restaurante"}
-    </Text>
-    {loading ? (
-      <View style={[styles.profilePlaceholder, { backgroundColor: theme.colors.surface }]} />
-    ) : userData?.profileImage ? (
-      <TouchableOpacity 
-        onPress={onProfilePress}
-        style={[styles.profileContainer, getShadow(3)]}
-        activeOpacity={0.8}
-      >
-        <Image
-          style={[styles.profilePic, { borderColor: theme.colors.accent }]}
-          source={{ uri: `data:image/jpg;base64,${userData.profileImage}` }}
-        />
-      </TouchableOpacity>
-    ) : (
-      <TouchableOpacity 
-        onPress={onProfilePress}
-        style={styles.profileContainer}
-        activeOpacity={0.8}
-      >
-        <View style={[styles.profilePlaceholder, { backgroundColor: theme.colors.surface }]}>
-          <Ionicons name="person-outline" size={20} color={theme.colors.textSecondary} />
-        </View>
-      </TouchableOpacity>
-    )}
-  </LinearGradient>
-));
-
-// Memoized selector component
-const SelectorComponent = React.memo(({ 
-  eOrR, 
-  onToggle,
-  theme 
-}: {
-  eOrR: boolean;
-  onToggle: (value: boolean) => void;
-  theme: any;
-}) => (
-  <View style={[styles.selectorContainer, { backgroundColor: theme.colors.surface }]}>
-    <TouchableOpacity
-      style={[
-        styles.selectContentButton,
-        eOrR && [styles.activeButton, { backgroundColor: theme.colors.accent }]
-      ]}
-      onPress={() => {
-        hapticFeedback('light');
-        onToggle(true);
-      }}
-      activeOpacity={0.8}
-    >
-      <Text style={[
-        eOrR ? styles.activeSelectorText : styles.selectorText,
-        { color: eOrR ? theme.colors.text : theme.colors.textSecondary }
-      ]}>
-        Evenimente
-      </Text>
-    </TouchableOpacity>
-    <TouchableOpacity
-      style={[
-        styles.selectContentButton,
-        !eOrR && [styles.activeButton, { backgroundColor: theme.colors.accent }]
-      ]}
-      onPress={() => {
-        hapticFeedback('light');
-        onToggle(false);
-      }}
-      activeOpacity={0.8}
-    >
-      <Text style={[
-        !eOrR ? styles.activeSelectorText : styles.selectorText,
-        { color: !eOrR ? theme.colors.text : theme.colors.textSecondary }
-      ]}>
-        Restaurante
-      </Text>
-    </TouchableOpacity>
-  </View>
-));
-
-// Memoized list item component
-const ListItemComponent = React.memo(({ 
-  item, 
-  isEvent, 
-  onPress,
-  theme 
-}: {
-  item: EventData | CompanyData;
-  isEvent: boolean;
-  onPress: () => void;
-  theme: any;
-}) => {
-  const eventItem = item as EventData;
-  const companyItem = item as CompanyData;
-
-  return (
-    <TouchableOpacity 
-      style={[styles.card, getShadow(4)]} 
-      onPress={onPress}
-      activeOpacity={0.9}
-    >
-      <ImageBackground
-        source={{
-          uri: `data:image/jpg;base64,${
-            isEvent ? eventItem.photo : companyItem.profileImage
-          }`,
-        }}
-        style={styles.cardImage}
-        imageStyle={styles.cardImageStyle}
-      >
-        <LinearGradient
-          colors={['transparent', 'rgba(0,0,0,0.4)', 'rgba(0,0,0,0.7)']}
-          style={styles.cardOverlay}
-        />
-        <View style={styles.cardTextContainer}>
-          <Text style={[styles.cardTitle, { color: theme.colors.text }]}>
-            {isEvent ? eventItem.title : companyItem.name}
-          </Text>
-
-          {!isEvent && (
-            <View style={styles.tagsContainer}>
-              {companyItem.tags?.slice(0, 3).map((tag, index) => (
-                <View key={`${item.id}-${index}`} style={[styles.tag, { 
-                  backgroundColor: theme.colors.surface,
-                  borderColor: theme.colors.accent 
-                }]}>
-                  <Text style={[styles.tagText, { color: theme.colors.textSecondary }]}>
-                    {tag}
-                  </Text>
-                </View>
-              ))}
-            </View>
-          )}
-
-          <Text style={[styles.cardDate, { color: theme.colors.textSecondary }]}>
-            {isEvent ? eventItem.description : companyItem.category}
-          </Text>
-        </View>
-      </ImageBackground>
-    </TouchableOpacity>
-  );
-});
-
 export default function HomeScreen({ navigation }: { navigation: HomeNav }) {
   const { theme } = useTheme();
-  const [userData, setUserData] = useState<UserData | null>(null);
+  const { user } = useUser();
+  const [eOrR, setEOrR] = useState(false); // false = restaurants, true = events
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [restaurants, setRestaurants] = useState<LocationData[]>([]);
   const [events, setEvents] = useState<EventData[]>([]);
-  const [restaurants, setRestaurants] = useState<CompanyData[]>([]);
-  const [eOrR, setEorR] = useState<boolean>(true);
 
-  // Memoized API functions
-  const loadUserData = useCallback(async () => {
-    try {
-      const user = await cachedAsyncStorage(
-        "user",
-        async () => {
-          const jsonValue = await AsyncStorage.getItem("user");
-          return jsonValue ? JSON.parse(jsonValue) : null;
-        },
-        5 * 60 * 1000 // 5 minutes cache
-      );
-      setUserData(user);
-    } catch (err) {
-      console.warn("Loading user data failed", err);
-    }
-  }, []);
+  const styles = createStyles(theme);
 
-  const loadEvents = useCallback(async () => {
-    try {
-      const eventData = await cachedFetch<EventData[]>(
-        `${BASE_URL}/events`,
-        { ttl: 10 * 60 * 1000 } // 10 minutes cache
-      );
-      setEvents(eventData);
-    } catch (err) {
-      console.warn("Fetching events failed", err);
-    }
-  }, []);
+  // Load data on component mount
+  useFocusEffect(
+    useCallback(() => {
+      loadData();
+    }, [])
+  );
 
-  const loadCompanies = useCallback(async () => {
+  const loadData = async () => {
     try {
-      const companyData = await cachedFetch<CompanyData[]>(
-        `${BASE_URL}/companies`,
-        { ttl: 15 * 60 * 1000 } // 15 minutes cache
-      );
-      setRestaurants(companyData);
-    } catch (e) {
-      console.error("Error fetching companies:", e);
-      Alert.alert("Error", "Could not load companies");
-    }
-  }, []);
-
-  // Memoized data loading function
-  const loadAllData = useCallback(async () => {
-    setLoading(true);
-    try {
-      await Promise.all([
-        loadUserData(),
-        loadEvents(),
-        loadCompanies(),
+      const [restaurantsData, eventsData] = await Promise.all([
+        fetch(`${BASE_URL}/locations`).then((res) => res.json()),
+        fetch(`${BASE_URL}/events`).then((res) => res.json()),
       ]);
+
+      setRestaurants(restaurantsData || []);
+      setEvents(eventsData || []);
+    } catch (error) {
+      console.error("Error loading data:", error);
     } finally {
       setLoading(false);
     }
-  }, [loadUserData, loadEvents, loadCompanies]);
+  };
 
-  // Refresh function
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
-    try {
-      await loadAllData();
-    } finally {
-      setRefreshing(false);
-    }
-  }, [loadAllData]);
+    await loadData();
+    setRefreshing(false);
+  }, []);
 
-  // Initial load
-  useEffect(() => {
-    loadAllData();
-  }, [loadAllData]);
-
-  // Refresh on screen focus (less frequently)
-  useFocusEffect(
-    useCallback(() => {
-      // Only refresh user data on focus, not all data
-      loadUserData();
-    }, [loadUserData])
+  const navigateToInfo = useCallback(
+    (location: LocationData) => {
+      hapticFeedback("medium");
+      navigation.navigate("Info", { location });
+    },
+    [navigation]
   );
 
-  // Memoized navigation handlers
-  const handleProfilePress = useCallback(() => {
-    hapticFeedback('light');
+  const navigateToEvent = useCallback(
+    (event: EventData) => {
+      hapticFeedback("medium");
+      navigation.navigate("EventScreen", { event });
+    },
+    [navigation]
+  );
+
+  const navigateToProfile = useCallback(() => {
+    hapticFeedback("light");
     navigation.navigate("Profile");
   }, [navigation]);
 
-  const handleItemPress = useCallback(
-    (item: EventData | CompanyData) => {
-      hapticFeedback('medium');
-      if (eOrR) {
-        navigation.navigate("EventScreen", { event: item as EventData });
-      } else {
-        navigation.navigate("Info", { company: item as CompanyData });
-      }
-    },
-    [navigation, eOrR]
-  );
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Bună dimineața";
+    if (hour < 18) return "Bună ziua";
+    return "Bună seara";
+  };
 
-  const handleToggle = useCallback((value: boolean) => {
-    setEorR(value);
-  }, []);
+  const getUserName = () => {
+    if (user?.firstName && user?.lastName) {
+      return `${user.firstName} ${user.lastName}`;
+    }
+    return user?.username || "Utilizator";
+  };
 
-  // Memoized data for rendering
-  const currentData = useMemo(() => {
-    return eOrR ? events : restaurants;
-  }, [eOrR, events, restaurants]);
+  const currentData = eOrR ? events : restaurants;
 
-  // Memoized render item function
-  const renderItem = useCallback(
-    ({ item }: { item: EventData | CompanyData }) => (
-      <ListItemComponent
-        item={item}
-        isEvent={eOrR}
-        onPress={() => handleItemPress(item)}
-        theme={theme}
-      />
-    ),
-    [eOrR, handleItemPress, theme]
-  );
+  const renderCard = ({ item }: { item: LocationData | EventData }) => {
+    const isEvent = "title" in item;
+    const eventItem = item as EventData;
+    const locationItem = item as LocationData;
 
-  // Memoized key extractor
-  const keyExtractor = useCallback(
-    (item: EventData | CompanyData) => item.id.toString(),
-    []
-  );
+    return (
+      <TouchableOpacity
+        style={styles.card}
+        onPress={() =>
+          isEvent ? navigateToEvent(eventItem) : navigateToInfo(locationItem)
+        }
+        activeOpacity={0.95}
+      >
+        <ImageBackground
+          source={{
+            uri: `data:image/jpg;base64,${
+              isEvent ? eventItem.photo : locationItem.photo
+            }`,
+          }}
+          style={styles.cardImage}
+          imageStyle={styles.cardImageStyle}
+        >
+          <LinearGradient
+            colors={["transparent", "rgba(0,0,0,0.7)"]}
+            style={styles.cardOverlay}
+          >
+            <View style={styles.cardContent}>
+              <View style={styles.cardBadge}>
+                <Ionicons
+                  name={isEvent ? "calendar" : "restaurant"}
+                  size={14}
+                  color="#FFFFFF"
+                />
+                <Text style={styles.cardBadgeText}>
+                  {isEvent ? "EVENT" : "RESTAURANT"}
+                </Text>
+              </View>
+              <Text style={styles.cardTitle}>
+                {isEvent ? eventItem.title : locationItem.name}
+              </Text>
+              {isEvent ? (
+                <Text style={styles.cardDescription} numberOfLines={2}>
+                  {eventItem.description}
+                </Text>
+              ) : (
+                <>
+                  <Text style={styles.cardCategory}>
+                    {locationItem.company.category}
+                  </Text>
+                  <View style={styles.cardFooter}>
+                    <Ionicons
+                      name="location-outline"
+                      size={16}
+                      color="#FFFFFF"
+                    />
+                    <Text style={styles.cardAddress} numberOfLines={1}>
+                      {locationItem.address}
+                    </Text>
+                  </View>
+                </>
+              )}
+            </View>
+          </LinearGradient>
+        </ImageBackground>
+      </TouchableOpacity>
+    );
+  };
 
-  // Memoized list performance props
-  const listProps = useMemo(
-    () => ({
-      data: currentData,
-      keyExtractor,
-      renderItem,
-      contentContainerStyle: styles.listContent,
-      showsVerticalScrollIndicator: false,
-      removeClippedSubviews: true,
-      maxToRenderPerBatch: 10,
-      windowSize: 10,
-      initialNumToRender: 8,
-      updateCellsBatchingPeriod: 50,
-      getItemLayout: undefined, // Let FlatList handle this for variable heights
-      refreshControl: (
-        <RefreshControl
-          refreshing={refreshing}
-          onRefresh={onRefresh}
-          colors={[theme.colors.accent]}
-          tintColor={theme.colors.accent}
-          progressBackgroundColor={theme.colors.surface}
-        />
-      ),
-    }),
-    [currentData, keyExtractor, renderItem, refreshing, onRefresh, theme]
-  );
-
-  return (
-    <UniversalScreen 
-      gradient={true}
-      backgroundColor={theme.colors.primary}
-      safeAreaEdges={['top', 'bottom']}
-    >
-      <HeaderComponent
-        eOrR={eOrR}
-        loading={loading}
-        userData={userData}
-        onProfilePress={handleProfilePress}
-        theme={theme}
-      />
-
-      <SelectorComponent eOrR={eOrR} onToggle={handleToggle} theme={theme} />
-
-      {loading ? (
+  if (loading) {
+    return (
+      <UniversalScreen>
         <View style={styles.loadingContainer}>
           <ActivityIndicator size="large" color={theme.colors.accent} />
-          <Text style={[styles.loadingText, { color: theme.colors.textSecondary }]}>
-            Loading {eOrR ? 'events' : 'restaurants'}...
+          <Text style={[styles.loadingText, { color: theme.colors.text }]}>
+            Se încarcă...
           </Text>
         </View>
-      ) : (
-        <FlatList {...listProps} />
-      )}
+      </UniversalScreen>
+    );
+  }
+
+  return (
+    <UniversalScreen>
+      <ScrollView
+        refreshControl={
+          <RefreshControl
+            refreshing={refreshing}
+            onRefresh={onRefresh}
+            colors={[theme.colors.accent]}
+            tintColor={theme.colors.accent}
+            progressBackgroundColor={theme.colors.surface}
+          />
+        }
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={styles.scrollContent}
+        bounces={true}
+        decelerationRate="normal"
+        scrollEventThrottle={16}
+      >
+        {/* Header */}
+        <View
+          style={[styles.header, { backgroundColor: theme.colors.surface }]}
+        >
+          <View style={styles.greetingContainer}>
+            <Text
+              style={[styles.greeting, { color: theme.colors.textSecondary }]}
+            >
+              {getGreeting()}
+            </Text>
+            <Text style={[styles.userName, { color: theme.colors.text }]}>
+              {getUserName()}
+            </Text>
+          </View>
+          <TouchableOpacity
+            style={[
+              styles.profileButton,
+              { backgroundColor: theme.colors.accent },
+            ]}
+            onPress={navigateToProfile}
+            activeOpacity={0.8}
+          >
+            {user?.profileImage ? (
+              <Image
+                source={{
+                  uri: `data:image/jpg;base64,${user.profileImage}`,
+                }}
+                style={styles.profileImage}
+              />
+            ) : (
+              <Ionicons name="person" size={20} color="#FFFFFF" />
+            )}
+          </TouchableOpacity>
+        </View>
+
+        {/* Toggle Section */}
+        <View style={styles.toggleSection}>
+          <View
+            style={[
+              styles.toggleContainer,
+              { backgroundColor: theme.colors.surface },
+            ]}
+          >
+            <TouchableOpacity
+              style={[
+                styles.toggleButton,
+                !eOrR && {
+                  backgroundColor: theme.colors.accent,
+                },
+              ]}
+              onPress={() => {
+                hapticFeedback("light");
+                setEOrR(false);
+              }}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  styles.toggleText,
+                  {
+                    color: !eOrR ? "#FFFFFF" : theme.colors.text,
+                  },
+                ]}
+              >
+                Restaurante
+              </Text>
+            </TouchableOpacity>
+            <TouchableOpacity
+              style={[
+                styles.toggleButton,
+                eOrR && {
+                  backgroundColor: theme.colors.accent,
+                },
+              ]}
+              onPress={() => {
+                hapticFeedback("light");
+                setEOrR(true);
+              }}
+              activeOpacity={0.8}
+            >
+              <Text
+                style={[
+                  styles.toggleText,
+                  {
+                    color: eOrR ? "#FFFFFF" : theme.colors.text,
+                  },
+                ]}
+              >
+                Evenimente
+              </Text>
+            </TouchableOpacity>
+          </View>
+        </View>
+
+        {/* Content Section */}
+        <View style={styles.contentSection}>
+          <FlatList
+            data={currentData}
+            renderItem={renderCard}
+            keyExtractor={(item) =>
+              `${eOrR ? "event" : "restaurant"}-${item.id}`
+            }
+            scrollEnabled={false}
+            contentContainerStyle={styles.cardContainer}
+            showsVerticalScrollIndicator={false}
+            removeClippedSubviews={true}
+            initialNumToRender={6}
+            maxToRenderPerBatch={4}
+            windowSize={8}
+          />
+        </View>
+      </ScrollView>
     </UniversalScreen>
   );
 }
 
-// Enhanced styles with responsive design
-const styles = StyleSheet.create({
-  container: {
-    flex: 1,
-  },
-  headerContainer: {
-    flexDirection: "row",
-    justifyContent: "space-between",
-    alignItems: "center",
-    paddingHorizontal: getResponsiveSpacing('lg'),
-    paddingVertical: getResponsiveSpacing('md'),
-    minHeight: 80,
-  },
-  headerTitle: {
-    fontSize: TYPOGRAPHY.h3,
-    fontWeight: "800",
-    letterSpacing: -0.5,
-    textTransform: "uppercase",
-  },
-  profileContainer: {
-    borderRadius: 22,
-    padding: 2,
-  },
-  profilePic: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    borderWidth: 2,
-  },
-  profilePlaceholder: {
-    width: 44,
-    height: 44,
-    borderRadius: 22,
-    justifyContent: "center",
-    alignItems: "center",
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.2)',
-  },
-  selectorContainer: {
-    flexDirection: "row",
-    justifyContent: "center",
-    paddingVertical: getResponsiveSpacing('sm'),
-    marginHorizontal: getResponsiveSpacing('lg'),
-    borderRadius: 16,
-    marginTop: getResponsiveSpacing('md'),
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-    ...getShadow(2),
-  },
-  selectContentButton: {
-    paddingHorizontal: getResponsiveSpacing('xl'),
-    paddingVertical: getResponsiveSpacing('md'),
-    borderRadius: 12,
-    marginHorizontal: 4,
-    minWidth: (SCREEN_DIMENSIONS.width - 80) / 2,
-    alignItems: 'center',
-  },
-  activeButton: {
-    ...getShadow(3),
-  },
-  selectorText: {
-    fontSize: TYPOGRAPHY.body,
-    fontWeight: "600",
-    letterSpacing: 0.3,
-  },
-  activeSelectorText: {
-    fontWeight: "700",
-  },
-  loadingContainer: {
-    flex: 1,
-    justifyContent: 'center',
-    alignItems: 'center',
-    paddingVertical: getResponsiveSpacing('xxl'),
-  },
-  loadingText: {
-    marginTop: getResponsiveSpacing('md'),
-    fontSize: TYPOGRAPHY.body,
-    fontWeight: '500',
-  },
-  listContent: {
-    paddingHorizontal: getResponsiveSpacing('lg'),
-    paddingBottom: getResponsiveSpacing('xxl'),
-    paddingTop: getResponsiveSpacing('md'),
-  },
-  card: {
-    marginBottom: getResponsiveSpacing('lg'),
-    borderRadius: 20,
-    overflow: "hidden",
-    backgroundColor: '#1A1A1A',
-    borderWidth: 1,
-    borderColor: 'rgba(255,255,255,0.1)',
-  },
-  cardImage: {
-    width: "100%",
-    height: Math.max(240, SCREEN_DIMENSIONS.height * 0.28),
-    justifyContent: "flex-end",
-  },
-  cardImageStyle: {
-    borderRadius: 20,
-  },
-  cardOverlay: {
-    ...StyleSheet.absoluteFillObject,
-  },
-  cardTextContainer: {
-    padding: getResponsiveSpacing('lg'),
-    paddingBottom: getResponsiveSpacing('xl'),
-  },
-  cardTitle: {
-    fontSize: TYPOGRAPHY.h5,
-    fontWeight: "700",
-    letterSpacing: 0.3,
-    lineHeight: TYPOGRAPHY.h5 * 1.3,
-    textShadowColor: "rgba(0,0,0,0.8)",
-    textShadowOffset: { width: 0, height: 2 },
-    textShadowRadius: 4,
-  },
-  cardDate: {
-    fontSize: TYPOGRAPHY.bodySmall,
-    marginTop: getResponsiveSpacing('sm'),
-    fontWeight: "500",
-    lineHeight: TYPOGRAPHY.bodySmall * 1.4,
-    textShadowColor: "rgba(0,0,0,0.6)",
-    textShadowOffset: { width: 0, height: 1 },
-    textShadowRadius: 2,
-  },
-  tagsContainer: {
-    flexDirection: "row",
-    flexWrap: "wrap",
-    marginTop: getResponsiveSpacing('sm'),
-    marginBottom: getResponsiveSpacing('xs'),
-  },
-  tag: {
-    paddingHorizontal: getResponsiveSpacing('md'),
-    paddingVertical: getResponsiveSpacing('xs'),
-    borderRadius: 20,
-    marginRight: getResponsiveSpacing('sm'),
-    marginBottom: getResponsiveSpacing('xs'),
-    borderWidth: 1,
-    ...getShadow(1),
-  },
-  tagText: {
-    fontSize: TYPOGRAPHY.caption,
-    fontWeight: "500",
-  },
-});
+const createStyles = (theme: any) =>
+  StyleSheet.create({
+    loadingContainer: {
+      flex: 1,
+      justifyContent: "center",
+      alignItems: "center",
+      gap: getResponsiveSpacing("lg"),
+    },
+    loadingText: {
+      fontSize: TYPOGRAPHY.body,
+      fontWeight: "500",
+    },
+    scrollContent: {
+      paddingBottom: getResponsiveSpacing("xxl"),
+    },
+    header: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "space-between",
+      paddingHorizontal: getResponsiveSpacing("xl"),
+      paddingVertical: getResponsiveSpacing("lg"),
+      marginBottom: getResponsiveSpacing("md"),
+      borderRadius: 16,
+      marginHorizontal: getResponsiveSpacing("lg"),
+      marginTop: getResponsiveSpacing("md"),
+      ...getShadow(2),
+    },
+    greetingContainer: {
+      flex: 1,
+    },
+    greeting: {
+      fontSize: TYPOGRAPHY.caption,
+      fontWeight: "500",
+      marginBottom: getResponsiveSpacing("xs"),
+      opacity: 0.8,
+    },
+    userName: {
+      fontSize: TYPOGRAPHY.h3,
+      fontWeight: "700",
+    },
+    profileButton: {
+      width: 42,
+      height: 42,
+      borderRadius: 21,
+      overflow: "hidden",
+      ...getShadow(3),
+    },
+    profileImage: {
+      width: "100%",
+      height: "100%",
+    },
+    profilePlaceholder: {
+      width: "100%",
+      height: "100%",
+      borderRadius: 28,
+      justifyContent: "center",
+      alignItems: "center",
+    },
+    toggleSection: {
+      paddingHorizontal: getResponsiveSpacing("xl"),
+      marginBottom: getResponsiveSpacing("xl"),
+    },
+    toggleContainer: {
+      flexDirection: "row",
+      borderRadius: 20,
+      padding: getResponsiveSpacing("xs"),
+      ...getShadow(1),
+    },
+    toggleButton: {
+      flex: 1,
+      paddingVertical: getResponsiveSpacing("md"),
+      paddingHorizontal: getResponsiveSpacing("lg"),
+      borderRadius: 16,
+      alignItems: "center",
+      minHeight: getResponsiveSpacing("xl") + 8,
+    },
+    toggleText: {
+      fontSize: TYPOGRAPHY.body,
+      fontWeight: "700",
+    },
+    contentSection: {
+      flex: 1,
+      paddingHorizontal: getResponsiveSpacing("lg"),
+    },
+    cardContainer: {
+      gap: getResponsiveSpacing("lg"),
+    },
+    card: {
+      height: 140,
+      borderRadius: 16,
+      overflow: "hidden",
+      marginBottom: getResponsiveSpacing("md"),
+      ...getShadow(2),
+    },
+    cardImage: {
+      width: "100%",
+      height: "100%",
+    },
+    cardImageStyle: {
+      borderRadius: 32,
+    },
+    cardOverlay: {
+      flex: 1,
+      justifyContent: "flex-end",
+      padding: getResponsiveSpacing("xl"),
+    },
+    cardContent: {
+      gap: getResponsiveSpacing("sm"),
+    },
+    cardBadge: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: "rgba(255,255,255,0.2)",
+      paddingHorizontal: getResponsiveSpacing("md"),
+      paddingVertical: getResponsiveSpacing("sm"),
+      borderRadius: 16,
+      alignSelf: "flex-start",
+      gap: getResponsiveSpacing("xs"),
+    },
+    cardBadgeText: {
+      fontSize: TYPOGRAPHY.caption,
+      fontWeight: "700",
+      color: "#FFFFFF",
+    },
+    cardTitle: {
+      fontSize: TYPOGRAPHY.h2,
+      fontWeight: "800",
+      color: "#FFFFFF",
+      marginTop: getResponsiveSpacing("sm"),
+    },
+    cardCategory: {
+      fontSize: TYPOGRAPHY.body,
+      fontWeight: "600",
+      color: "#FFFFFF",
+      opacity: 0.9,
+    },
+    cardDescription: {
+      fontSize: TYPOGRAPHY.body,
+      fontWeight: "500",
+      color: "#FFFFFF",
+      opacity: 0.9,
+      lineHeight: 24,
+    },
+    cardFooter: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: getResponsiveSpacing("xs"),
+      marginTop: getResponsiveSpacing("xs"),
+    },
+    cardAddress: {
+      fontSize: TYPOGRAPHY.body,
+      fontWeight: "500",
+      color: "#FFFFFF",
+      opacity: 0.8,
+      flex: 1,
+    },
+  });

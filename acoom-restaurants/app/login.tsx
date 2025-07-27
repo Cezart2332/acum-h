@@ -1,36 +1,62 @@
-import BASE_URL from "@/config";
-import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import React, { useState, useCallback } from "react";
 import { useRouter } from "expo-router";
-import { StatusBar } from "expo-status-bar";
-import React, { useState } from "react";
 import {
   Alert,
-  Keyboard,
-  Text,
-  TextInput,
-  TouchableOpacity,
-  TouchableWithoutFeedback,
-  View,
   Image,
+  View,
+  Text,
+  TouchableOpacity,
+  TextInput,
+  ScrollView,
+  KeyboardAvoidingView,
+  Platform,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { Ionicons } from "@expo/vector-icons";
+import { StatusBar } from "expo-status-bar";
+import BASE_URL from "@/config";
 
 export default function Login() {
   const router = useRouter();
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
   const [error, setError] = useState("");
+  const [loading, setLoading] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+
+  const clearError = useCallback(() => {
+    if (error) setError("");
+  }, [error]);
+
+  const validateInputs = () => {
+    if (!username.trim()) {
+      setError("Te rog să introduci email-ul sau username-ul");
+      return false;
+    }
+    if (!password.trim()) {
+      setError("Te rog să introduci parola");
+      return false;
+    }
+    if (password.length < 6) {
+      setError("Parola trebuie să conțină cel puțin 6 caractere");
+      return false;
+    }
+    return true;
+  };
 
   const onLogin = async () => {
-    if (!username.trim() || !password.trim()) {
-      setError("Trebuie completate toate câmpurile");
-      return;
-    }
+    if (!validateInputs()) return;
+
     setError("");
+    setLoading(true);
+
     try {
       const response = await fetch(`${BASE_URL}/login`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+          Accept: "application/json",
+        },
         body: JSON.stringify({
           Username: username.trim(),
           Password: password.trim(),
@@ -38,107 +64,417 @@ export default function Login() {
       });
 
       if (response.status === 401) {
-        setError("Nume sau parolă incorectă");
+        setError(
+          "Email sau parolă incorectă. Te rog să verifici datele introduse."
+        );
         return;
       }
 
+      if (!response.ok) {
+        throw new Error(`Server error: ${response.status}`);
+      }
+
       const data = await response.json();
+      console.log("Login response data:", data);
+
+      // Save user data
       await AsyncStorage.setItem("company", JSON.stringify(data));
+      await AsyncStorage.setItem("user", JSON.stringify(data));
       await AsyncStorage.setItem("loggedIn", JSON.stringify(true));
-      router.replace("/company-profile");
-    } catch {
-      Alert.alert("Error", "A apărut o eroare, încearcă din nou");
+
+      console.log("Data saved to AsyncStorage");
+
+      // Small delay to ensure data is written
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      // Navigate to main screen
+      router.replace("/dashboard" as any);
+    } catch (error) {
+      console.error("Login error:", error);
+      setError("A apărut o eroare de conexiune. Te rog să încerci din nou.");
+    } finally {
+      setLoading(false);
     }
   };
 
+  const handleForgotPassword = () => {
+    Alert.alert(
+      "Recuperare parolă",
+      "Pentru a-ți recupera parola, te rog să contactezi echipa de suport.",
+      [{ text: "OK", style: "default" }]
+    );
+  };
+
+  const handleUsernameChange = useCallback(
+    (text: string) => {
+      setUsername(text);
+      clearError();
+    },
+    [clearError]
+  );
+
+  const handlePasswordChange = useCallback(
+    (text: string) => {
+      setPassword(text);
+      clearError();
+    },
+    [clearError]
+  );
+
   return (
-    <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
-      <View className="flex-1 bg-[#0F0817]">
-        <StatusBar style="light" />
+    <View style={{ flex: 1, backgroundColor: "#0F0817" }}>
+      <StatusBar style="light" />
 
-        {/* Background Gradient */}
-        <View className="absolute top-0 left-0 right-0 h-1/3 bg-violet-900 rounded-b-[50px]" />
+      <KeyboardAvoidingView
+        style={{ flex: 1 }}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+      >
+        <ScrollView
+          style={{ flex: 1 }}
+          contentContainerStyle={{ flexGrow: 1 }}
+          keyboardShouldPersistTaps="handled"
+        >
+          {/* Background Design Elements */}
+          <View
+            style={{
+              position: "absolute",
+              top: 0,
+              left: 0,
+              right: 0,
+              height: 200,
+              backgroundColor: "#6B46C1",
+              borderBottomLeftRadius: 50,
+              borderBottomRightRadius: 50,
+            }}
+          />
 
-        <View className="flex-1 justify-center p-6">
-          {/* Logo Section */}
-          <View className="items-center mb-10">
-            <View className="bg-violet-600 p-4 rounded-2xl mb-4 shadow-lg shadow-violet-800">
-              <Image
-                source={require("../../acoomh.png")}
-                style={{ width: 48, height: 48 }}
-                resizeMode="contain"
-              />
-            </View>
-            <Text className="text-3xl font-bold text-white">
-              AcoomH Business
-            </Text>
-            <Text className="text-violet-300 mt-1">
-              Conectează-te la contul tău
-            </Text>
-          </View>
+          <View
+            style={{
+              position: "absolute",
+              top: 80,
+              right: 40,
+              width: 80,
+              height: 80,
+              backgroundColor: "#7C3AED",
+              borderRadius: 40,
+              opacity: 0.3,
+            }}
+          />
 
-          {/* Login Form */}
-          <View className="bg-[#1A1A1A] rounded-2xl p-6 shadow-lg shadow-black">
-            {/* Username */}
-            <View className="flex-row items-center bg-[#2A1A4A] rounded-xl px-4 py-3 mb-4 border border-violet-700">
-              <Ionicons name="person-outline" size={20} color="#A78BFA" />
-              <TextInput
-                className="flex-1 ml-3 h-10 text-white"
-                placeholder="Email sau Username"
-                placeholderTextColor="#8B5CF6"
-                value={username}
-                onChangeText={setUsername}
-                autoCapitalize="none"
-              />
-            </View>
+          <View
+            style={{
+              position: "absolute",
+              top: 160,
+              left: 20,
+              width: 40,
+              height: 40,
+              backgroundColor: "#8B5CF6",
+              borderRadius: 20,
+              opacity: 0.5,
+            }}
+          />
 
-            {/* Password */}
-            <View className="flex-row items-center bg-[#2A1A4A] rounded-xl px-4 py-3 mb-4 border border-violet-700">
-              <Ionicons name="lock-closed-outline" size={20} color="#A78BFA" />
-              <TextInput
-                className="flex-1 ml-3 h-10 text-white"
-                placeholder="Parolă"
-                placeholderTextColor="#8B5CF6"
-                secureTextEntry
-                value={password}
-                onChangeText={setPassword}
-              />
-            </View>
-
-            {error ? (
-              <View className="bg-red-900/30 p-3 rounded-lg mb-4 border border-red-700">
-                <Text className="text-red-400 text-center">{error}</Text>
-              </View>
-            ) : null}
-
-            <TouchableOpacity
-              onPress={onLogin}
-              className="bg-gradient-to-r from-violet-600 to-indigo-700 rounded-xl py-4 items-center mb-4 shadow-lg shadow-violet-800/50"
+          {/* Content Container */}
+          <View
+            style={{
+              flex: 1,
+              paddingHorizontal: 24,
+              paddingTop: 60,
+              paddingBottom: 40,
+            }}
+          >
+            {/* Logo Section */}
+            <View
+              style={{
+                alignItems: "center",
+                marginBottom: 48,
+                marginTop: 40,
+              }}
             >
-              <Text className="text-white font-bold text-lg">
-                Autentificare
+              <View
+                style={{
+                  backgroundColor: "#6B46C1",
+                  padding: 16,
+                  borderRadius: 20,
+                  marginBottom: 16,
+                  shadowColor: "#6B46C1",
+                  shadowOffset: { width: 0, height: 8 },
+                  shadowOpacity: 0.3,
+                  shadowRadius: 16,
+                  elevation: 8,
+                }}
+              >
+                <Image
+                  source={require("../assets/icon.png")}
+                  style={{ width: 48, height: 48 }}
+                  resizeMode="contain"
+                />
+              </View>
+              <Text
+                style={{
+                  fontSize: 32,
+                  fontWeight: "bold",
+                  color: "white",
+                  textAlign: "center",
+                }}
+              >
+                AcoomH Business
               </Text>
-            </TouchableOpacity>
+              <Text
+                style={{
+                  fontSize: 16,
+                  color: "#A78BFA",
+                  marginTop: 4,
+                  textAlign: "center",
+                }}
+              >
+                Conectează-te la contul tău
+              </Text>
+            </View>
 
-            <View className="flex-row justify-center mt-2">
-              <Text className="text-gray-400">Nu ai cont? </Text>
+            {/* Form Container */}
+            <View
+              style={{
+                backgroundColor: "#1A1A1A",
+                borderRadius: 20,
+                padding: 24,
+                marginBottom: 24,
+                shadowColor: "#000",
+                shadowOffset: { width: 0, height: 8 },
+                shadowOpacity: 0.3,
+                shadowRadius: 16,
+                elevation: 8,
+              }}
+            >
+              {/* Email/Username Input */}
+              <View style={{ marginBottom: 20 }}>
+                <Text
+                  style={{
+                    color: "#A78BFA",
+                    marginBottom: 8,
+                    fontWeight: "500",
+                  }}
+                >
+                  Email sau Username
+                </Text>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    backgroundColor: "#2A1A4A",
+                    borderRadius: 12,
+                    paddingHorizontal: 16,
+                    paddingVertical: 12,
+                    borderWidth: 1,
+                    borderColor: "#7C3AED",
+                  }}
+                >
+                  <Ionicons name="person-outline" size={20} color="#A78BFA" />
+                  <TextInput
+                    style={{
+                      flex: 1,
+                      marginLeft: 12,
+                      height: 40,
+                      color: "white",
+                      fontSize: 16,
+                    }}
+                    placeholder="Introdu email-ul sau username-ul"
+                    placeholderTextColor="#7C3AED"
+                    value={username}
+                    onChangeText={handleUsernameChange}
+                    autoCapitalize="none"
+                    autoCorrect={false}
+                    keyboardType="email-address"
+                    textContentType="username"
+                    autoComplete="username"
+                  />
+                </View>
+              </View>
+
+              {/* Password Input */}
+              <View style={{ marginBottom: 20 }}>
+                <Text
+                  style={{
+                    color: "#A78BFA",
+                    marginBottom: 8,
+                    fontWeight: "500",
+                  }}
+                >
+                  Parolă
+                </Text>
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                    backgroundColor: "#2A1A4A",
+                    borderRadius: 12,
+                    paddingHorizontal: 16,
+                    paddingVertical: 12,
+                    borderWidth: 1,
+                    borderColor: "#7C3AED",
+                  }}
+                >
+                  <Ionicons
+                    name="lock-closed-outline"
+                    size={20}
+                    color="#A78BFA"
+                  />
+                  <TextInput
+                    style={{
+                      flex: 1,
+                      marginLeft: 12,
+                      height: 40,
+                      color: "white",
+                      fontSize: 16,
+                    }}
+                    placeholder="Introdu parola"
+                    placeholderTextColor="#7C3AED"
+                    secureTextEntry={!showPassword}
+                    value={password}
+                    onChangeText={handlePasswordChange}
+                    textContentType="password"
+                    autoComplete="current-password"
+                  />
+                  <TouchableOpacity
+                    onPress={() => setShowPassword(!showPassword)}
+                    style={{ padding: 8 }}
+                  >
+                    <Ionicons
+                      name={showPassword ? "eye-off-outline" : "eye-outline"}
+                      size={20}
+                      color="#A78BFA"
+                    />
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              {/* Error Message */}
+              {error ? (
+                <View
+                  style={{
+                    backgroundColor: "rgba(239, 68, 68, 0.1)",
+                    padding: 12,
+                    borderRadius: 8,
+                    marginBottom: 20,
+                    borderWidth: 1,
+                    borderColor: "rgba(239, 68, 68, 0.3)",
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: "#EF4444",
+                      fontSize: 14,
+                      textAlign: "center",
+                    }}
+                  >
+                    {error}
+                  </Text>
+                </View>
+              ) : null}
+
+              {/* Login Button */}
+              <TouchableOpacity
+                onPress={onLogin}
+                disabled={loading}
+                style={{
+                  backgroundColor: loading ? "#6B46C1" : "#8B5CF6",
+                  borderRadius: 12,
+                  paddingVertical: 16,
+                  alignItems: "center",
+                  marginBottom: 16,
+                  shadowColor: "#8B5CF6",
+                  shadowOffset: { width: 0, height: 4 },
+                  shadowOpacity: 0.3,
+                  shadowRadius: 8,
+                  elevation: 4,
+                }}
+              >
+                {loading ? (
+                  <Text
+                    style={{
+                      color: "white",
+                      fontSize: 16,
+                      fontWeight: "600",
+                    }}
+                  >
+                    Se conectează...
+                  </Text>
+                ) : (
+                  <Text
+                    style={{
+                      color: "white",
+                      fontSize: 16,
+                      fontWeight: "600",
+                    }}
+                  >
+                    Conectează-te
+                  </Text>
+                )}
+              </TouchableOpacity>
+
+              {/* Forgot Password */}
+              <TouchableOpacity onPress={handleForgotPassword}>
+                <Text
+                  style={{
+                    color: "#A78BFA",
+                    textAlign: "center",
+                    fontSize: 14,
+                  }}
+                >
+                  Ai uitat parola?
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            {/* Sign Up Link */}
+            <View
+              style={{
+                flexDirection: "row",
+                justifyContent: "center",
+                alignItems: "center",
+              }}
+            >
+              <Text style={{ color: "#9CA3AF", fontSize: 14 }}>
+                Nu ai cont?{" "}
+              </Text>
               <TouchableOpacity onPress={() => router.push("/signup")}>
-                <Text className="text-violet-400 font-bold">
+                <Text
+                  style={{
+                    color: "#A78BFA",
+                    fontWeight: "600",
+                    fontSize: 14,
+                  }}
+                >
                   Înregistrează-te
                 </Text>
               </TouchableOpacity>
             </View>
           </View>
-        </View>
 
-        {/* Decorative Elements */}
-        <View className="absolute bottom-0 left-0 right-0 h-20 bg-violet-900 rounded-t-[50px]" />
-        <View className="absolute bottom-10 left-0 right-0 flex-row justify-center">
-          {[1, 2, 3].map((i) => (
-            <View key={i} className="w-2 h-2 bg-violet-600 rounded-full mx-1" />
-          ))}
-        </View>
-      </View>
-    </TouchableWithoutFeedback>
+          {/* Decorative dots */}
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "center",
+              marginBottom: 20,
+            }}
+          >
+            {[...Array(5)].map((_, i) => (
+              <View
+                key={i}
+                style={{
+                  width: 8,
+                  height: 8,
+                  borderRadius: 4,
+                  backgroundColor: "#6B46C1",
+                  marginHorizontal: 4,
+                  opacity: 0.3,
+                }}
+              />
+            ))}
+          </View>
+        </ScrollView>
+      </KeyboardAvoidingView>
+    </View>
   );
 }

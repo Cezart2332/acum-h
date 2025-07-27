@@ -7,15 +7,18 @@ import {
   Alert,
   Modal,
   Platform,
-  SafeAreaView,
   ScrollView,
   Switch,
   Text,
   TouchableOpacity,
   View,
+  Animated,
+  Dimensions,
 } from "react-native";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import BASE_URL from "@/config";
+
+const { width: screenWidth } = Dimensions.get("window");
 
 interface DaySchedule {
   day: string;
@@ -95,6 +98,8 @@ export default function Schedule() {
   );
   const [selectedDayIndex, setSelectedDayIndex] = useState(0);
   const [tempTime, setTempTime] = useState(new Date());
+  const [fadeAnim] = useState(new Animated.Value(0));
+  const [slideAnim] = useState(new Animated.Value(50));
 
   // Fetch company ID and load schedule
   useEffect(() => {
@@ -107,6 +112,20 @@ export default function Schedule() {
       }
     };
     getCompanyAndLoadSchedule();
+
+    // Start animations
+    Animated.parallel([
+      Animated.timing(fadeAnim, {
+        toValue: 1,
+        duration: 800,
+        useNativeDriver: true,
+      }),
+      Animated.timing(slideAnim, {
+        toValue: 0,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+    ]).start();
   }, []);
 
   const loadSchedule = async (companyId: number) => {
@@ -266,91 +285,267 @@ export default function Schedule() {
   };
 
   return (
-    <SafeAreaView className="flex-1 bg-gradient-to-br from-violet-900 via-purple-900 to-indigo-900">
-      {/* Header */}
-      <View className="flex-row items-center justify-between p-6 border-b border-violet-800/30">
-        <TouchableOpacity
-          onPress={() => router.back()}
-          className="p-2 rounded-full bg-violet-800/20"
+    <View style={{ flex: 1, backgroundColor: "#000000" }}>
+      {/* Hero Header */}
+      <Animated.View
+        style={{
+          opacity: fadeAnim,
+        }}
+      >
+        <View
+          style={{
+            backgroundColor: "#8B5CF6",
+            paddingTop: 60,
+            paddingHorizontal: 24,
+            paddingBottom: 30,
+          }}
         >
-          <Ionicons name="arrow-back" size={24} color="white" />
-        </TouchableOpacity>
-        <Text className="text-white text-xl font-bold">Program</Text>
-        <View className="w-10" />
-      </View>
-
-      <ScrollView className="flex-1 p-6" showsVerticalScrollIndicator={false}>
-        {/* Schedule Card */}
-        <View className="bg-gradient-to-r from-violet-800/40 to-indigo-900/30 rounded-2xl p-6 shadow-md shadow-violet-900/20">
-          <View className="mb-6">
-            <Text className="text-white text-2xl font-bold mb-2">
+          {/* Header Actions */}
+          <View
+            style={{
+              flexDirection: "row",
+              justifyContent: "space-between",
+              alignItems: "center",
+              marginBottom: 20,
+            }}
+          >
+            <TouchableOpacity
+              onPress={() => router.back()}
+              style={{
+                backgroundColor: "rgba(255, 255, 255, 0.1)",
+                padding: 12,
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: "rgba(255, 255, 255, 0.2)",
+              }}
+            >
+              <Ionicons name="arrow-back" size={20} color="white" />
+            </TouchableOpacity>
+            <Text
+              style={{
+                color: "white",
+                fontSize: 24,
+                fontWeight: "bold",
+              }}
+            >
               Program Restaurant
             </Text>
-            <Text className="text-violet-300">
-              Configurează orele de funcționare
-            </Text>
+            <View style={{ width: 44 }} />
           </View>
 
-          {/* Schedule List */}
+          <Text
+            style={{
+              color: "rgba(255, 255, 255, 0.7)",
+              fontSize: 16,
+              textAlign: "center",
+            }}
+          >
+            Configurează orele de funcționare
+          </Text>
+        </View>
+      </Animated.View>
+
+      <ScrollView
+        style={{ flex: 1 }}
+        showsVerticalScrollIndicator={false}
+        contentContainerStyle={{ padding: 24 }}
+      >
+        {/* Schedule Days */}
+        <Animated.View
+          style={{
+            transform: [{ translateY: slideAnim }],
+            opacity: fadeAnim,
+          }}
+        >
           {schedule.map((day, index) => (
             <View
               key={day.day}
-              className="mb-6 p-4 bg-violet-800/20 rounded-xl border border-violet-700/30"
+              style={{
+                backgroundColor: "#1F1F1F",
+                borderRadius: 20,
+                padding: 20,
+                marginBottom: 16,
+                borderWidth: 1,
+                borderColor: "rgba(139, 92, 246, 0.2)",
+              }}
             >
               {/* Day Header */}
-              <View className="flex-row justify-between items-center mb-4">
-                <Text className="text-white text-lg font-semibold">
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 16,
+                }}
+              >
+                <Text
+                  style={{
+                    color: "white",
+                    fontSize: 18,
+                    fontWeight: "bold",
+                  }}
+                >
                   {day.dayName}
                 </Text>
-                <Switch
-                  value={day.isOpen}
-                  onValueChange={() => handleDayToggle(index)}
-                  trackColor={{ false: "#4C1D95", true: "#A855F7" }}
-                  thumbColor={day.isOpen ? "#FFFFFF" : "#E5E7EB"}
-                />
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                  }}
+                >
+                  <Text
+                    style={{
+                      color: day.isOpen ? "#10B981" : "#EF4444",
+                      fontSize: 14,
+                      fontWeight: "600",
+                      marginRight: 12,
+                    }}
+                  >
+                    {day.isOpen ? "Deschis" : "Închis"}
+                  </Text>
+                  <Switch
+                    value={day.isOpen}
+                    onValueChange={() => handleDayToggle(index)}
+                    trackColor={{ false: "#374151", true: "#8B5CF6" }}
+                    thumbColor={day.isOpen ? "#FFFFFF" : "#9CA3AF"}
+                    ios_backgroundColor="#374151"
+                  />
+                </View>
               </View>
 
               {day.isOpen && (
-                <View className="space-y-4">
+                <View>
                   {/* 24 Hours Toggle */}
-                  <View className="flex-row justify-between items-center">
-                    <Text className="text-violet-300">24 ore</Text>
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      justifyContent: "space-between",
+                      alignItems: "center",
+                      marginBottom: 16,
+                      backgroundColor: "rgba(139, 92, 246, 0.1)",
+                      padding: 16,
+                      borderRadius: 12,
+                      borderWidth: 1,
+                      borderColor: "rgba(139, 92, 246, 0.3)",
+                    }}
+                  >
+                    <View>
+                      <Text
+                        style={{
+                          color: "white",
+                          fontSize: 16,
+                          fontWeight: "600",
+                        }}
+                      >
+                        Program 24 ore
+                      </Text>
+                      <Text
+                        style={{
+                          color: "rgba(255, 255, 255, 0.7)",
+                          fontSize: 12,
+                          marginTop: 2,
+                        }}
+                      >
+                        Deschis toată ziua
+                      </Text>
+                    </View>
                     <Switch
                       value={day.is24Hours}
                       onValueChange={() => handle24HoursToggle(index)}
-                      trackColor={{ false: "#4C1D95", true: "#A855F7" }}
-                      thumbColor={day.is24Hours ? "#FFFFFF" : "#E5E7EB"}
+                      trackColor={{ false: "#374151", true: "#8B5CF6" }}
+                      thumbColor={day.is24Hours ? "#FFFFFF" : "#9CA3AF"}
+                      ios_backgroundColor="#374151"
                     />
                   </View>
 
-                  {/* Time Inputs */}
+                  {/* Time Selection */}
                   {!day.is24Hours && (
-                    <View className="flex-row items-center justify-between">
-                      <View className="flex-1">
-                        <Text className="text-violet-300 text-sm mb-2">
+                    <View
+                      style={{
+                        flexDirection: "row",
+                        justifyContent: "space-between",
+                        alignItems: "center",
+                      }}
+                    >
+                      {/* Open Time */}
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          style={{
+                            color: "rgba(255, 255, 255, 0.7)",
+                            fontSize: 14,
+                            fontWeight: "600",
+                            marginBottom: 8,
+                          }}
+                        >
                           Ora deschiderii
                         </Text>
                         <TouchableOpacity
-                          className="bg-violet-900/40 p-3 rounded-lg border border-violet-700/30"
                           onPress={() => openTimePicker(index, "open")}
+                          style={{
+                            backgroundColor: "rgba(139, 92, 246, 0.2)",
+                            borderWidth: 1,
+                            borderColor: "rgba(139, 92, 246, 0.5)",
+                            borderRadius: 12,
+                            padding: 16,
+                            alignItems: "center",
+                          }}
                         >
-                          <Text className="text-white text-center font-medium">
+                          <Text
+                            style={{
+                              color: "white",
+                              fontSize: 16,
+                              fontWeight: "600",
+                            }}
+                          >
                             {day.openTime}
                           </Text>
                         </TouchableOpacity>
                       </View>
 
-                      <Text className="text-violet-300 mx-4 text-xl">-</Text>
+                      {/* Separator */}
+                      <View
+                        style={{
+                          paddingHorizontal: 16,
+                          paddingTop: 24,
+                        }}
+                      >
+                        <Ionicons
+                          name="arrow-forward"
+                          size={20}
+                          color="#8B5CF6"
+                        />
+                      </View>
 
-                      <View className="flex-1">
-                        <Text className="text-violet-300 text-sm mb-2">
+                      {/* Close Time */}
+                      <View style={{ flex: 1 }}>
+                        <Text
+                          style={{
+                            color: "rgba(255, 255, 255, 0.7)",
+                            fontSize: 14,
+                            fontWeight: "600",
+                            marginBottom: 8,
+                          }}
+                        >
                           Ora închiderii
                         </Text>
                         <TouchableOpacity
-                          className="bg-violet-900/40 p-3 rounded-lg border border-violet-700/30"
                           onPress={() => openTimePicker(index, "close")}
+                          style={{
+                            backgroundColor: "rgba(139, 92, 246, 0.2)",
+                            borderWidth: 1,
+                            borderColor: "rgba(139, 92, 246, 0.5)",
+                            borderRadius: 12,
+                            padding: 16,
+                            alignItems: "center",
+                          }}
                         >
-                          <Text className="text-white text-center font-medium">
+                          <Text
+                            style={{
+                              color: "white",
+                              fontSize: 16,
+                              fontWeight: "600",
+                            }}
+                          >
                             {day.closeTime}
                           </Text>
                         </TouchableOpacity>
@@ -360,10 +555,34 @@ export default function Schedule() {
 
                   {/* 24 Hours Display */}
                   {day.is24Hours && (
-                    <View className="bg-violet-900/40 p-3 rounded-lg border border-violet-700/30">
-                      <Text className="text-white text-center font-medium">
-                        24 ore - Închis
-                      </Text>
+                    <View
+                      style={{
+                        backgroundColor: "rgba(16, 185, 129, 0.2)",
+                        borderWidth: 1,
+                        borderColor: "rgba(16, 185, 129, 0.5)",
+                        borderRadius: 12,
+                        padding: 16,
+                        alignItems: "center",
+                      }}
+                    >
+                      <View
+                        style={{
+                          flexDirection: "row",
+                          alignItems: "center",
+                        }}
+                      >
+                        <Ionicons name="time" size={20} color="#10B981" />
+                        <Text
+                          style={{
+                            color: "#10B981",
+                            fontSize: 16,
+                            fontWeight: "600",
+                            marginLeft: 8,
+                          }}
+                        >
+                          24 ore - Deschis non-stop
+                        </Text>
+                      </View>
                     </View>
                   )}
                 </View>
@@ -371,10 +590,34 @@ export default function Schedule() {
 
               {/* Closed Display */}
               {!day.isOpen && (
-                <View className="bg-red-900/40 p-3 rounded-lg border border-red-700/30">
-                  <Text className="text-red-300 text-center font-medium">
-                    Închis
-                  </Text>
+                <View
+                  style={{
+                    backgroundColor: "rgba(239, 68, 68, 0.2)",
+                    borderWidth: 1,
+                    borderColor: "rgba(239, 68, 68, 0.5)",
+                    borderRadius: 12,
+                    padding: 16,
+                    alignItems: "center",
+                  }}
+                >
+                  <View
+                    style={{
+                      flexDirection: "row",
+                      alignItems: "center",
+                    }}
+                  >
+                    <Ionicons name="close-circle" size={20} color="#EF4444" />
+                    <Text
+                      style={{
+                        color: "#EF4444",
+                        fontSize: 16,
+                        fontWeight: "600",
+                        marginLeft: 8,
+                      }}
+                    >
+                      Închis
+                    </Text>
+                  </View>
                 </View>
               )}
             </View>
@@ -384,46 +627,120 @@ export default function Schedule() {
           <TouchableOpacity
             onPress={handleSave}
             disabled={loading}
-            className={`mt-6 p-4 rounded-xl items-center ${
-              loading
-                ? "bg-gray-600/50"
-                : "bg-gradient-to-r from-violet-600 to-purple-600"
-            }`}
+            style={{
+              marginTop: 20,
+              marginBottom: 40,
+            }}
           >
-            {loading ? (
-              <ActivityIndicator color="white" />
-            ) : (
-              <Text className="text-white text-lg font-semibold">
-                {hasExistingSchedule
-                  ? "Actualizează Programul"
-                  : "Creează Programul"}
-              </Text>
-            )}
+            <View
+              style={{
+                backgroundColor: loading ? "#4B5563" : "#8B5CF6",
+                borderRadius: 16,
+                padding: 20,
+                alignItems: "center",
+                shadowColor: "#8B5CF6",
+                shadowOffset: { width: 0, height: 8 },
+                shadowOpacity: 0.3,
+                shadowRadius: 12,
+                elevation: 8,
+              }}
+            >
+              {loading ? (
+                <ActivityIndicator size="small" color="white" />
+              ) : (
+                <View
+                  style={{
+                    flexDirection: "row",
+                    alignItems: "center",
+                  }}
+                >
+                  <Ionicons name="save-outline" size={20} color="white" />
+                  <Text
+                    style={{
+                      color: "white",
+                      fontSize: 18,
+                      fontWeight: "bold",
+                      marginLeft: 8,
+                    }}
+                  >
+                    {hasExistingSchedule
+                      ? "Actualizează Programul"
+                      : "Salvează Programul"}
+                  </Text>
+                </View>
+              )}
+            </View>
           </TouchableOpacity>
-        </View>
+        </Animated.View>
       </ScrollView>
 
-      {/* Time Picker Modal */}
+      {/* Time Picker Modal for iOS */}
       {Platform.OS === "ios" && showTimePicker && (
         <Modal transparent={true} animationType="slide">
-          <View className="flex-1 justify-end bg-black/50">
-            <View className="bg-violet-900 rounded-t-3xl">
-              <View className="flex-row justify-between items-center p-4 border-b border-violet-700/30">
+          <View
+            style={{
+              flex: 1,
+              justifyContent: "flex-end",
+              backgroundColor: "rgba(0, 0, 0, 0.5)",
+            }}
+          >
+            <View
+              style={{
+                backgroundColor: "#1F1F1F",
+                borderTopLeftRadius: 24,
+                borderTopRightRadius: 24,
+                borderWidth: 1,
+                borderColor: "rgba(139, 92, 246, 0.3)",
+              }}
+            >
+              {/* Modal Header */}
+              <View
+                style={{
+                  flexDirection: "row",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  padding: 20,
+                  borderBottomWidth: 1,
+                  borderBottomColor: "rgba(139, 92, 246, 0.2)",
+                }}
+              >
                 <TouchableOpacity onPress={() => setShowTimePicker(false)}>
-                  <Text className="text-violet-300 text-lg">Anulează</Text>
+                  <Text
+                    style={{
+                      color: "#8B5CF6",
+                      fontSize: 16,
+                      fontWeight: "600",
+                    }}
+                  >
+                    Anulează
+                  </Text>
                 </TouchableOpacity>
-                <Text className="text-white text-lg font-semibold">
+                <Text
+                  style={{
+                    color: "white",
+                    fontSize: 18,
+                    fontWeight: "bold",
+                  }}
+                >
                   {timePickerType === "open"
                     ? "Ora deschiderii"
                     : "Ora închiderii"}
                 </Text>
                 <TouchableOpacity onPress={() => confirmTimeChange()}>
-                  <Text className="text-violet-300 text-lg font-semibold">
-                    Gata
+                  <Text
+                    style={{
+                      color: "#8B5CF6",
+                      fontSize: 16,
+                      fontWeight: "bold",
+                    }}
+                  >
+                    Confirmă
                   </Text>
                 </TouchableOpacity>
               </View>
-              <View className="pb-6">
+
+              {/* Time Picker */}
+              <View style={{ paddingBottom: 30 }}>
                 <DateTimePicker
                   value={tempTime}
                   mode="time"
@@ -449,6 +766,6 @@ export default function Schedule() {
           is24Hour={true}
         />
       )}
-    </SafeAreaView>
+    </View>
   );
 }

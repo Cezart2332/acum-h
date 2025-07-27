@@ -23,7 +23,7 @@ import HomeScreen from "./HomeScreen";
 import SearchScreen from "./SearchScreen";
 import SettingsScreen from "./SettingsScreen";
 import MapsScreen from "./MapsScreen";
-import AIChatScreen from "./AIChatScreenAdvanced";
+import AIChatScreen from "./AIChatScreen";
 
 const Tab = createBottomTabNavigator();
 const { width } = Dimensions.get("window");
@@ -45,13 +45,18 @@ const CustomTabBar: React.FC<BottomTabBarProps> = ({
   const { theme } = useTheme();
 
   return (
-    <View style={[styles.container, { paddingBottom: insets.bottom, backgroundColor: theme.colors.surface }]}>
+    <View
+      style={[
+        styles.container,
+        { paddingBottom: insets.bottom, backgroundColor: theme.colors.surface },
+      ]}
+    >
       {state.routes.map((route, index) => {
         const { options } = descriptors[route.key];
         const label = options.tabBarLabel ?? options.title ?? route.name;
 
         const isFocused = state.index === index;
-        const iconName = iconMap[route.name] || "circle";
+        const iconName = iconMap[route.name] || "ellipse-outline";
 
         const onPress = () => {
           const event = navigation.emit({
@@ -76,12 +81,18 @@ const CustomTabBar: React.FC<BottomTabBarProps> = ({
             <Ionicons
               name={iconName as any}
               size={24}
-              color={isFocused ? theme.colors.accent : theme.colors.textTertiary}
+              color={
+                isFocused ? theme.colors.accent : theme.colors.textTertiary
+              }
             />
             <Text
               style={[
                 styles.label,
-                { color: isFocused ? theme.colors.accent : theme.colors.textTertiary },
+                {
+                  color: isFocused
+                    ? theme.colors.accent
+                    : theme.colors.textTertiary,
+                },
               ]}
             >
               {typeof label === "string" ? label : route.name}
@@ -95,9 +106,12 @@ const CustomTabBar: React.FC<BottomTabBarProps> = ({
 
 export default function HomeTabs() {
   const { theme } = useTheme();
-  
+
   return (
-    <SafeAreaView style={[styles.safeArea, { backgroundColor: theme.colors.surface }]} edges={["bottom"]}>
+    <SafeAreaView
+      style={[styles.safeArea, { backgroundColor: theme.colors.surface }]}
+      edges={["bottom"]}
+    >
       <Tab.Navigator
         id={undefined}
         screenOptions={{ headerShown: false }}
@@ -105,7 +119,7 @@ export default function HomeTabs() {
       >
         <Tab.Screen name="Main" component={HomeScreen} />
         <Tab.Screen name="Search" component={SearchScreen} />
-        <Tab.Screen name="AIChat" component={AIChatScreen} />
+        <Tab.Screen name="AIchat" component={AIChatScreen} />
         <Tab.Screen name="Settings" component={SettingsScreen} />
         <Tab.Screen name="Map" component={MapsScreen} />
       </Tab.Navigator>

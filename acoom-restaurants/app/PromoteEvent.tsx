@@ -35,6 +35,8 @@ const PromoteEvent = () => {
         if (!companyData) throw new Error("Company data not found");
 
         const company = JSON.parse(companyData);
+        if (!company?.id) throw new Error("Company ID not found");
+
         const formData = new FormData();
         formData.append("id", company.id.toString());
 

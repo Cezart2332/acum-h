@@ -1,6 +1,6 @@
-import { Dimensions, Platform, PixelRatio } from 'react-native';
+import { Dimensions, Platform, PixelRatio } from "react-native";
 
-const { width: screenWidth, height: screenHeight } = Dimensions.get('window');
+const { width: screenWidth, height: screenHeight } = Dimensions.get("window");
 
 // Screen breakpoints
 export const BREAKPOINTS = {
@@ -13,17 +13,19 @@ export const BREAKPOINTS = {
 // Device types
 export const DEVICE_TYPES = {
   isSmallDevice: screenWidth < BREAKPOINTS.small,
-  isMediumDevice: screenWidth >= BREAKPOINTS.small && screenWidth < BREAKPOINTS.medium,
-  isLargeDevice: screenWidth >= BREAKPOINTS.medium && screenWidth < BREAKPOINTS.large,
+  isMediumDevice:
+    screenWidth >= BREAKPOINTS.small && screenWidth < BREAKPOINTS.medium,
+  isLargeDevice:
+    screenWidth >= BREAKPOINTS.medium && screenWidth < BREAKPOINTS.large,
   isXLargeDevice: screenWidth >= BREAKPOINTS.large,
   isTablet: screenWidth >= BREAKPOINTS.medium,
 };
 
 // Platform utilities
 export const PLATFORM = {
-  isIOS: Platform.OS === 'ios',
-  isAndroid: Platform.OS === 'android',
-  isWeb: Platform.OS === 'web',
+  isIOS: Platform.OS === "ios",
+  isAndroid: Platform.OS === "android",
+  isWeb: Platform.OS === "web",
 };
 
 // Get responsive font size
@@ -31,11 +33,11 @@ export const getResponsiveFontSize = (size: number): number => {
   const baseWidth = 375; // iPhone 6/7/8 width as base
   const ratio = screenWidth / baseWidth;
   const newSize = size * ratio;
-  
+
   // Ensure the font doesn't get too small or too large
   const minSize = size * 0.8;
   const maxSize = size * 1.2;
-  
+
   return Math.max(minSize, Math.min(maxSize, newSize));
 };
 
@@ -62,6 +64,7 @@ export const SPACING = {
   lg: 24,
   xl: 32,
   xxl: 48,
+  xxxl: 64,
 };
 
 // Get responsive spacing
@@ -74,14 +77,14 @@ export const getResponsiveSpacing = (size: keyof typeof SPACING): number => {
 export const getShadow = (elevation: number = 4) => {
   if (PLATFORM.isIOS) {
     return {
-      shadowColor: '#000',
+      shadowColor: "#000",
       shadowOffset: { width: 0, height: elevation / 2 },
-      shadowOpacity: 0.25,
-      shadowRadius: elevation,
+      shadowOpacity: elevation <= 2 ? 0.15 : elevation <= 4 ? 0.2 : 0.25,
+      shadowRadius: elevation * 1.5,
     };
   } else {
     return {
-      elevation,
+      elevation: elevation + 2, // Slightly more pronounced on Android
     };
   }
 };
@@ -136,59 +139,63 @@ export const ANIMATION = {
     slow: 500,
   },
   easing: {
-    easeInOut: 'easeInOut',
-    easeIn: 'easeIn',
-    easeOut: 'easeOut',
+    easeInOut: "easeInOut",
+    easeIn: "easeIn",
+    easeOut: "easeOut",
   },
 };
 
 // Haptic feedback utility (safe version that won't crash)
-export const hapticFeedback = (type: 'light' | 'medium' | 'heavy' = 'medium') => {
+export const hapticFeedback = (
+  type: "light" | "medium" | "heavy" = "medium"
+) => {
   try {
     if (PLATFORM.isIOS) {
       // Try to use expo-haptics for iOS
       try {
-        const Haptics = require('expo-haptics');
+        const Haptics = require("expo-haptics");
         if (Haptics && Haptics.impactAsync) {
           switch (type) {
-            case 'light':
+            case "light":
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
               break;
-            case 'medium':
+            case "medium":
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
               break;
-            case 'heavy':
+            case "heavy":
               Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Heavy);
               break;
           }
         }
       } catch (hapticsError) {
         // Silently fail if expo-haptics is not available
-        console.warn('expo-haptics not available:', hapticsError);
+        console.warn("expo-haptics not available:", hapticsError);
       }
     } else if (PLATFORM.isAndroid) {
       // Use React Native's built-in Vibration for Android
       try {
-        const { Vibration } = require('react-native');
-        const duration = type === 'light' ? 25 : type === 'medium' ? 50 : 75;
+        const { Vibration } = require("react-native");
+        const duration = type === "light" ? 25 : type === "medium" ? 50 : 75;
         if (Vibration && Vibration.vibrate) {
           Vibration.vibrate(duration);
         }
       } catch (vibrationError) {
-        console.warn('Vibration not available:', vibrationError);
+        console.warn("Vibration not available:", vibrationError);
       }
     }
   } catch (error) {
     // Silently ignore all haptic feedback errors
-    console.warn('Haptic feedback error:', error);
+    console.warn("Haptic feedback error:", error);
   }
 };
 
 // Color utilities
 export const adjustOpacity = (color: string, opacity: number): string => {
-  if (color.startsWith('#')) {
+  if (color.startsWith("#")) {
     const hex = color.slice(1);
-    const alpha = Math.round(opacity * 255).toString(16).padStart(2, '0');
+    const alpha = Math.round(opacity * 255)
+      .toString(16)
+      .padStart(2, "0");
     return `${color}${alpha}`;
   }
   return color;
@@ -220,7 +227,7 @@ export const throttle = (func: Function, limit: number) => {
     if (!inThrottle) {
       func(...args);
       inThrottle = true;
-      setTimeout(() => inThrottle = false, limit);
+      setTimeout(() => (inThrottle = false), limit);
     }
   };
 };

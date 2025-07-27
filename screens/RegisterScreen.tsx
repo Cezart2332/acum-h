@@ -12,7 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "./RootStackParamList";
-import BASE_URL from "../config";
+import { BASE_URL } from "../config";
 import { useTheme } from "../context/ThemeContext";
 import { useUser } from "../context/UserContext";
 import UniversalScreen from "../components/UniversalScreen";

@@ -1,0 +1,340 @@
+import { useEffect, useRef, useState, useCallback } from "react";
+import PythonAIService from "../services/PythonAIService";
+import CacheService from "../services/CacheService";
+import PdfParser from "../services/PdfParser";
+
+interface MenuPreloadStatus {
+  isPreloading: boolean;
+  companiesTotal: number;
+  companiesProcessed: number;
+  lastRefresh: Date | null;
+  errors: string[];
+}
+
+interface UseMenuPreloaderConfig {
+  refreshIntervalMinutes?: number;
+  enableBackgroundRefresh?: boolean;
+  retryFailedParsing?: boolean;
+}
+
+export const useMenuPreloader = (config: UseMenuPreloaderConfig = {}) => {
+  const {
+    refreshIntervalMinutes = 60,
+    enableBackgroundRefresh = true,
+    retryFailedParsing = true,
+  } = config;
+
+  const [status, setStatus] = useState<MenuPreloadStatus>({
+    isPreloading: false,
+    companiesTotal: 0,
+    companiesProcessed: 0,
+    lastRefresh: null,
+    errors: [],
+  });
+
+  const intervalRef = useRef<NodeJS.Timeout | null>(null);
+  const isMountedRef = useRef(true);
+
+  /**
+   * Parse and cache a single menu
+   */
+  const parseAndCacheMenu = useCallback(
+    async (companyId: number): Promise<boolean> => {
+      // Validate company ID
+      if (!companyId || companyId <= 0) {
+        console.warn(`Invalid company ID: ${companyId}, skipping...`);
+        return false;
+      }
+
+      try {
+        console.log(`Parsing menu for company ${companyId}...`);
+        const startTime = Date.now();
+
+        // Fetch PDF data
+        const pdfBuffer = await MenuAIService.fetchMenuData(companyId);
+        if (!pdfBuffer) {
+          throw new Error(`No PDF data found for company ${companyId}`);
+        }
+
+        // Parse PDF to extract text and sections
+        const parsedData = await PdfParser.extractTextFromPDF(pdfBuffer);
+
+        // Transform to cache format
+        const cacheData = {
+          rawText: parsedData.text,
+          sections: parsedData.sections,
+          stats: {
+            pageCount: parsedData.metadata.pageCount,
+            extractedAt: parsedData.metadata.extractedAt,
+            confidence: parsedData.metadata.confidence,
+          },
+        };
+
+        // Cache the parsed data
+        await CacheService.cacheParsedMenuData(companyId, cacheData);
+
+        // Cache parsing status
+        await CacheService.cacheMenuStatus(companyId, {
+          lastParsed: new Date().toISOString(),
+          success: true,
+          parseTime: Date.now() - startTime,
+        });
+
+        console.log(
+          `Successfully parsed and cached menu for company ${companyId} in ${
+            Date.now() - startTime
+          }ms`
+        );
+        return true;
+      } catch (error) {
+        console.error(`Failed to parse menu for company ${companyId}:`, error);
+
+        // Cache failure status
+        await CacheService.cacheMenuStatus(companyId, {
+          lastParsed: new Date().toISOString(),
+          success: false,
+          error: error.message,
+          parseTime: 0,
+        });
+
+        return false;
+      }
+    },
+    []
+  );
+
+  /**
+   * Preload all company menus
+   */
+  const preloadAllMenus = useCallback(async (): Promise<void> => {
+    if (!isMountedRef.current) return;
+
+    console.log("🚀 Starting menu preload...");
+
+    setStatus((prev) => ({
+      ...prev,
+      isPreloading: true,
+      companiesProcessed: 0,
+      errors: [],
+    }));
+
+    try {
+      // Fetch all companies
+      const companies = await MenuAIService.fetchCompanies();
+      console.log(`Found ${companies.length} companies to process`);
+
+      // Filter out invalid companies (ID 0 or missing ID)
+      const validCompanies = companies.filter(
+        (company) =>
+          company &&
+          company.id &&
+          typeof company.id === "number" &&
+          company.id > 0
+      );
+
+      if (validCompanies.length !== companies.length) {
+        console.warn(
+          `Filtered out ${
+            companies.length - validCompanies.length
+          } invalid companies`
+        );
+      }
+
+      console.log(
+        `Processing ${
+          validCompanies.length
+        } valid companies (IDs: ${validCompanies.map((c) => c.id).join(", ")})`
+      );
+
+      if (!isMountedRef.current) return;
+
+      setStatus((prev) => ({
+        ...prev,
+        companiesTotal: validCompanies.length,
+      }));
+
+      // Process companies in batches to avoid overwhelming the system
+      const batchSize = 3;
+      const errors: string[] = [];
+      let processed = 0;
+
+      for (let i = 0; i < validCompanies.length; i += batchSize) {
+        if (!isMountedRef.current) break;
+
+        const batch = validCompanies.slice(i, i + batchSize);
+        console.log(
+          `Processing batch ${Math.floor(i / batchSize) + 1}: companies ${batch
+            .map((c) => c.id)
+            .join(", ")}`
+        );
+
+        // Process batch in parallel
+        const batchPromises = batch.map(async (company) => {
+          const success = await parseAndCacheMenu(company.id);
+          if (!success) {
+            errors.push(
+              `Failed to parse menu for ${company.name} (ID: ${company.id})`
+            );
+          }
+          return success;
+        });
+
+        await Promise.allSettled(batchPromises);
+        processed += batch.length;
+
+        if (isMountedRef.current) {
+          setStatus((prev) => ({
+            ...prev,
+            companiesProcessed: processed,
+            errors,
+          }));
+        }
+
+        // Small delay between batches to prevent overwhelming
+        await new Promise((resolve) => setTimeout(resolve, 500));
+      }
+
+      if (isMountedRef.current) {
+        setStatus((prev) => ({
+          ...prev,
+          isPreloading: false,
+          lastRefresh: new Date(),
+        }));
+
+        console.log(
+          `✅ Menu preload completed. Processed: ${processed}/${validCompanies.length}, Errors: ${errors.length}`
+        );
+      }
+    } catch (error) {
+      console.error("❌ Menu preload failed:", error);
+
+      if (isMountedRef.current) {
+        setStatus((prev) => ({
+          ...prev,
+          isPreloading: false,
+          errors: [...prev.errors, `Preload failed: ${error.message}`],
+        }));
+      }
+    }
+  }, [parseAndCacheMenu]);
+
+  /**
+   * Refresh a single company's menu if needed
+   */
+  const refreshCompanyMenu = useCallback(
+    async (companyId: number): Promise<boolean> => {
+      // Validate company ID
+      if (!companyId || companyId <= 0) {
+        console.warn(
+          `Invalid company ID for refresh: ${companyId}, skipping...`
+        );
+        return false;
+      }
+
+      const isCached = await CacheService.isMenuCached(companyId);
+
+      if (!isCached) {
+        console.log(`Menu not cached for company ${companyId}, parsing...`);
+        return await parseAndCacheMenu(companyId);
+      }
+
+      return true;
+    },
+    [parseAndCacheMenu]
+  );
+
+  /**
+   * Background refresh task
+   */
+  const scheduleBackgroundRefresh = useCallback(() => {
+    if (!enableBackgroundRefresh) return;
+
+    if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+
+    intervalRef.current = setInterval(async () => {
+      if (!isMountedRef.current) return;
+
+      console.log("🔄 Starting background menu refresh...");
+
+      try {
+        // Check which companies need refresh
+        const companies = await MenuAIService.fetchCompanies();
+
+        // Filter out invalid companies
+        const validCompanies = companies.filter(
+          (company) =>
+            company &&
+            company.id &&
+            typeof company.id === "number" &&
+            company.id > 0
+        );
+
+        const refreshNeeded: number[] = [];
+
+        for (const company of validCompanies) {
+          const isCached = await CacheService.isMenuCached(company.id);
+          if (!isCached) {
+            refreshNeeded.push(company.id);
+          }
+        }
+
+        if (refreshNeeded.length > 0) {
+          console.log(
+            `Found ${refreshNeeded.length} companies needing menu refresh`
+          );
+
+          // Refresh in small batches
+          for (const companyId of refreshNeeded) {
+            if (!isMountedRef.current) break;
+            await parseAndCacheMenu(companyId);
+
+            // Small delay between refreshes
+            await new Promise((resolve) => setTimeout(resolve, 1000));
+          }
+
+          console.log("✅ Background refresh completed");
+        } else {
+          console.log("✅ All menus are up to date");
+        }
+      } catch (error) {
+        console.error("❌ Background refresh failed:", error);
+      }
+    }, refreshIntervalMinutes * 60 * 1000);
+
+    console.log(
+      `⏰ Scheduled background refresh every ${refreshIntervalMinutes} minutes`
+    );
+  }, [enableBackgroundRefresh, refreshIntervalMinutes, parseAndCacheMenu]);
+
+  /**
+   * Initialize preloading on mount
+   */
+  useEffect(() => {
+    isMountedRef.current = true;
+
+    // Start initial preload
+    preloadAllMenus();
+
+    // Schedule background refresh
+    scheduleBackgroundRefresh();
+
+    // Cleanup
+    return () => {
+      isMountedRef.current = false;
+      if (intervalRef.current) {
+        clearInterval(intervalRef.current);
+      }
+    };
+  }, [preloadAllMenus, scheduleBackgroundRefresh]);
+
+  return {
+    status,
+    preloadAllMenus,
+    refreshCompanyMenu,
+    parseAndCacheMenu,
+  };
+};
+
+export default useMenuPreloader;

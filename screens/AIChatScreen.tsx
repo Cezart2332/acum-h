@@ -25,7 +25,11 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useTheme } from "../context/ThemeContext";
 import UniversalScreen from "../components/UniversalScreen";
-import { AI_BASE_URL } from "../config";
+import { BASE_URL } from "../config";
+import PythonAIService, {
+  MenuRecommendation,
+} from "../services/PythonAIService";
+import { useDebounce, useInputValidation } from "../hooks/useInputHelpers";
 
 const { width, height } = Dimensions.get("window");
 
@@ -39,6 +43,7 @@ interface Message {
   timestamp: Date;
   intent?: string;
   searchResults?: SearchResults;
+  recommendations?: MenuRecommendation[];
   isLoading?: boolean;
   error?: boolean;
   processingTime?: number;
@@ -107,7 +112,10 @@ interface SystemHealth {
   backend_url: string;
 }
 
-const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
+const AIChatScreen: React.FC<{ navigation: any; route: any }> = ({
+  navigation,
+  route,
+}) => {
   const { theme } = useTheme();
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputText, setInputText] = useState("");
@@ -117,7 +125,13 @@ const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const [isTyping, setIsTyping] = useState(false);
   const [systemHealth, setSystemHealth] = useState<SystemHealth | null>(null);
   const [connectionError, setConnectionError] = useState(false);
+  const [conversationHistory, setConversationHistory] = useState<string[]>([]);
+  const [inputError, setInputError] = useState<string>("");
 
+  // Get company from route params (optional)
+  const company = route?.params?.company || null;
+
+  // Refs
   const scrollViewRef = useRef<ScrollView>(null);
   const inputRef = useRef<TextInput>(null);
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -126,6 +140,27 @@ const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const isMountedRef = useRef(true);
   const typingAnimationRef = useRef<Animated.CompositeAnimation | null>(null);
 
+  // Input validation and debouncing
+  const { validateMessage } = useInputValidation();
+
+  // Debounced send function to prevent spam
+  const debouncedSendMessage = useDebounce(
+    useCallback(
+      (text: string) => {
+        const validation = validateMessage(text);
+        if (!validation.isValid) {
+          setInputError(validation.error || "Mesaj invalid");
+          return;
+        }
+        setInputError("");
+        sendMessageInternal(text);
+      },
+      [validateMessage]
+    ),
+    500 // 500ms debounce
+  );
+
+  // Enhanced useEffect with proper cleanup
   useEffect(() => {
     isMountedRef.current = true;
 
@@ -134,6 +169,9 @@ const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
     // Check system health
     checkSystemHealth();
+
+    // Load backend data (companies and events)
+    loadBackendData();
 
     // Start entrance animation
     Animated.parallel([
@@ -150,15 +188,21 @@ const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       }),
     ]).start();
 
-    // Cleanup function
+    // Cleanup function with comprehensive cleanup
     return () => {
       isMountedRef.current = false;
+      debouncedSendMessage.cancel(); // Cancel any pending debounced calls
+
       if (typingAnimationRef.current) {
         typingAnimationRef.current.stop();
+        typingAnimationRef.current = null;
       }
+
       typingAnim.stopAnimation();
+      fadeAnim.stopAnimation();
+      slideAnim.stopAnimation();
     };
-  }, []);
+  }, [debouncedSendMessage]);
 
   useEffect(() => {
     // Scroll to bottom when new messages arrive
@@ -175,25 +219,114 @@ const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
   const checkSystemHealth = useCallback(async () => {
     try {
-      const response = await fetch(`${AI_BASE_URL}/health`);
-      const health: SystemHealth = await response.json();
+      console.log("Checking Python AI service health...");
+
+      // Check Python AI service health
+      const isAIAvailable = await PythonAIService.isAvailable();
+      let aiStatus = "healthy";
+      let aiConnection = "connected";
+
+      if (!isAIAvailable) {
+        console.warn("Python AI service is not available");
+        aiStatus = "degraded";
+        aiConnection = "disconnected";
+      }
+
       if (isMountedRef.current) {
-        setSystemHealth(health);
-        setConnectionError(false);
+        setSystemHealth({
+          status: isAIAvailable ? "healthy" : "degraded",
+          ai_system: {
+            status: aiStatus,
+            backend_connection: aiConnection,
+            data_cache: {
+              restaurants_count: 0,
+              events_count: 0,
+              last_updated: new Date().toISOString(),
+            },
+          },
+          backend_url: BASE_URL,
+        });
+        setConnectionError(!isAIAvailable);
       }
     } catch (error) {
       console.warn("Failed to check system health:", error);
       if (isMountedRef.current) {
         setConnectionError(true);
+        // Set a degraded status when health check fails
+        setSystemHealth({
+          status: "degraded",
+          ai_system: {
+            status: "degraded",
+            backend_connection: "disconnected",
+            data_cache: {
+              restaurants_count: 0,
+              events_count: 0,
+              last_updated: new Date().toISOString(),
+            },
+          },
+          backend_url: BASE_URL,
+        });
       }
     }
   }, []);
 
+  const loadBackendData = useCallback(async () => {
+    try {
+      console.log("Loading backend data...");
+
+      // Load companies and events from backend using PythonAIService
+      const [companies, events] = await Promise.all([
+        PythonAIService.fetchCompanies(),
+        PythonAIService.fetchEvents(),
+      ]);
+
+      console.log(
+        `Loaded ${companies.length} companies and ${events.length} events from backend`
+      );
+
+      // Update system health with real data
+      if (isMountedRef.current) {
+        setSystemHealth((prev) =>
+          prev
+            ? {
+                ...prev,
+                ai_system: {
+                  ...prev.ai_system,
+                  data_cache: {
+                    restaurants_count: companies.length,
+                    events_count: events.length,
+                    last_updated: new Date().toISOString(),
+                  },
+                },
+              }
+            : null
+        );
+      }
+
+      return { companies, events };
+    } catch (error) {
+      console.warn("Failed to load backend data:", error);
+      return { companies: [], events: [] };
+    }
+  }, []);
+
   const initializeChat = useCallback(async () => {
+    try {
+      // Initialize Python AI service
+      console.log("Initializing Python AI service...");
+      await PythonAIService.initialize();
+      console.log("Python AI service initialized successfully");
+    } catch (error) {
+      console.warn("Python AI service initialization failed:", error);
+      // Continue with fallback functionality
+    }
+
     // Add welcome message with system info
     const welcomeMessage: Message = {
       id: "welcome",
-      text: "Salut! 👋 Mă bucur să te văd! Sunt aici să te ajut să găsești cele mai bune restaurante și evenimente din oraș. Cu ce te pot ajuta?",
+      text: company
+        ? `Salut! 👋 Sunt asistentul tău AI pentru ${company.name}. Te pot ajuta cu recomandări de meniu, întrebări dietetice și informații despre felurile noastre de mâncare. Cu ce te pot ajuta?`
+        : "Salut! 👋 Mă bucur să te văd! Sunt aici să te ajut să găsești cele mai bune restaurante și evenimente din oraș. Cu ce te pot ajuta?",
       isUser: false,
       timestamp: new Date(),
       intent: "greeting",
@@ -203,201 +336,274 @@ const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       setMessages([welcomeMessage]);
     }
 
-    // Load suggestions
-    try {
-      const response = await fetch(`${AI_BASE_URL}/api/suggestions`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          context: "initial_load",
-          user_id: "react_native_user"
-        })
-      });
-      const data = await response.json();
-      if (data.suggestions && isMountedRef.current) {
-        setSuggestions(data.suggestions);
+    // Only load suggestions if we have a company and backend data is available
+    if (company && company.id) {
+      try {
+        console.log("Loading suggestions for company:", company.name);
+
+        // Verify backend connectivity first
+        const companies = await PythonAIService.fetchCompanies();
+        if (companies.length > 0) {
+          // Set context-aware suggestions for restaurant
+          const companySuggestions = [
+            {
+              id: 1,
+              text: "Ce îmi recomanzi din meniu?",
+              category: "recommendation",
+              icon: "🍽️",
+            },
+            {
+              id: 2,
+              text: "Ce opțiuni vegetariene aveți?",
+              category: "dietary",
+              icon: "🥗",
+            },
+            {
+              id: 3,
+              text: "Care este felul cel mai popular?",
+              category: "popular",
+              icon: "⭐",
+            },
+            {
+              id: 4,
+              text: "Caut ceva picant",
+              category: "preference",
+              icon: "🌶️",
+            },
+          ];
+
+          if (isMountedRef.current) {
+            setSuggestions(companySuggestions);
+          }
+        } else {
+          // Backend not available - show error
+          if (isMountedRef.current) {
+            setInputError(
+              "Îmi pare rău, nu am sugestii momentan. Te rog încearcă din nou mai târziu."
+            );
+            setSuggestions([]);
+          }
+        }
+      } catch (error) {
+        console.warn("Failed to load suggestions:", error);
+        if (isMountedRef.current) {
+          setInputError(
+            "Îmi pare rău, nu am sugestii momentan. Te rog încearcă din nou mai târziu."
+          );
+          setSuggestions([]);
+        }
       }
-    } catch (error) {
-      console.warn("Failed to load suggestions:", error);
-      // Fallback suggestions
+    } else {
+      // No company context - no suggestions
       if (isMountedRef.current) {
-        setSuggestions([
-          {
-            id: 1,
-            text: "Ce restaurante bune sunt în centru?",
-            category: "restaurant",
-            icon: "🍽️",
-          },
-          {
-            id: 2,
-            text: "Arată-mi evenimente din weekend",
-            category: "events",
-            icon: "🎉",
-          },
-          {
-            id: 3,
-            text: "Vreau pizza bună și ieftină",
-            category: "food",
-            icon: "🍕",
-          },
-          {
-            id: 4,
-            text: "Ce concerte sunt în oraș?",
-            category: "events",
-            icon: "🎵",
-          },
-          {
-            id: 5,
-            text: "Restaurant românesc traditional",
-            category: "restaurant",
-            icon: "🏛️",
-          },
-          {
-            id: 6,
-            text: "Unde pot să mănânc sushi?",
-            category: "food",
-            icon: "🍣",
-          },
-        ]);
+        setSuggestions([]);
       }
     }
-  }, []);
+  }, [company]);
 
-  const sendMessage = useCallback(async (text: string) => {
-    if (!text.trim()) return;
+  const sendMessage = useCallback(
+    (text: string) => {
+      if (!text.trim() || isLoading) return;
+      debouncedSendMessage(text);
+    },
+    [debouncedSendMessage, isLoading]
+  );
 
-    const userMessage: Message = {
-      id: Date.now().toString(),
-      text: text.trim(),
-      isUser: true,
-      timestamp: new Date(),
-    };
-
-    const loadingMessage: Message = {
-      id: Date.now().toString() + "_loading",
-      text: "",
-      isUser: false,
-      timestamp: new Date(),
-      isLoading: true,
-    };
-
-    if (isMountedRef.current) {
-      setMessages((prev) => [...prev, userMessage, loadingMessage]);
-      setInputText("");
-      setIsLoading(true);
-      setShowSuggestions(false);
-      setIsTyping(true);
-    }
-
-    // Start typing animation
-    typingAnimationRef.current = Animated.loop(
-      Animated.sequence([
-        Animated.timing(typingAnim, {
-          toValue: 1,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-        Animated.timing(typingAnim, {
-          toValue: 0,
-          duration: 500,
-          useNativeDriver: true,
-        }),
-      ])
-    );
-    typingAnimationRef.current.start();
-
-    try {
-      const response = await fetch(`${AI_BASE_URL}/api/chat`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          message: text.trim(),
-          user_id: "react_native_user",
-        }),
-      });
-
-      const data: ChatResponse = await response.json();
-
-      // Stop typing animation
-      if (typingAnimationRef.current) {
-        typingAnimationRef.current.stop();
-        typingAnimationRef.current = null;
-      }
-      typingAnim.stopAnimation();
-      if (isMountedRef.current) {
-        setIsTyping(false);
-      }
-
-      if (data.success) {
-        const aiMessage: Message = {
-          id: Date.now().toString(),
-          text: data.response,
-          isUser: false,
-          timestamp: new Date(),
-          intent: data.intent,
-          searchResults: data.search_results,
-          processingTime: data.metadata?.response_time,
-        };
-
-        if (isMountedRef.current) {
-          setMessages((prev) => prev.slice(0, -1).concat([aiMessage]));
-        }
-
-        // Haptic feedback for successful response
-        Vibration.vibrate(50);
-
-        // Clear connection error if request was successful
-        if (isMountedRef.current) {
-          setConnectionError(false);
-        }
-      } else {
-        throw new Error(data.error || "Failed to get response");
-      }
-    } catch (error) {
-      console.error("Chat error:", error);
-
-      // Check if it's a connection error
-      const isConnectionError =
-        error instanceof TypeError &&
-        error.message.includes("Network request failed");
-      if (isMountedRef.current) {
-        setConnectionError(isConnectionError);
-      }
-
-      const errorMessage: Message = {
+  const sendMessageInternal = useCallback(
+    async (text: string) => {
+      const userMessage: Message = {
         id: Date.now().toString(),
-        text: isConnectionError
-          ? "Nu pot să mă conectez la serverul AI. Te rog verifică conexiunea și încearcă din nou."
-          : "Îmi pare rău, am întâmpinat o problemă tehnică. Te rog să încerci din nou.",
+        text: text.trim(),
+        isUser: true,
+        timestamp: new Date(),
+      };
+
+      const loadingMessage: Message = {
+        id: Date.now().toString() + "_loading",
+        text: "",
         isUser: false,
         timestamp: new Date(),
-        error: true,
+        isLoading: true,
       };
 
       if (isMountedRef.current) {
-        setMessages((prev) => prev.slice(0, -1).concat([errorMessage]));
+        setMessages((prev) => [...prev, userMessage, loadingMessage]);
+        setInputText("");
+        setIsLoading(true);
+        setShowSuggestions(false);
+        setIsTyping(true);
+        setInputError(""); // Clear any input errors
       }
 
-      // Haptic feedback for error
-      Vibration.vibrate([100, 50, 100]);
-    } finally {
-      if (isMountedRef.current) {
-        setIsLoading(false);
+      // Add to conversation history
+      setConversationHistory((prev) => [...prev, text.trim()]);
+
+      // Start typing animation
+      typingAnimationRef.current = Animated.loop(
+        Animated.sequence([
+          Animated.timing(typingAnim, {
+            toValue: 1,
+            duration: 500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(typingAnim, {
+            toValue: 0,
+            duration: 500,
+            useNativeDriver: true,
+          }),
+        ])
+      );
+      typingAnimationRef.current.start();
+
+      try {
+        let aiResponse = "";
+        let intent = "general_chat";
+        let recommendations: MenuRecommendation[] = [];
+
+        // If we have a company, use PythonAI service
+        if (company && company.id) {
+          try {
+            // Analyze user intent first
+            const intentAnalysis = await PythonAIService.analyzeUserIntent(
+              text.trim()
+            );
+            intent = intentAnalysis.intent;
+
+            if (intent === "menu_recommendation") {
+              // Get menu recommendations
+              const menuResponse = await PythonAIService.getMenuRecommendations(
+                company.id,
+                text.trim(),
+                [] // You can add dietary restrictions extraction here
+              );
+              recommendations = menuResponse.recommendations;
+              aiResponse = menuResponse.explanation;
+            } else {
+              // Get conversational response about menu
+              aiResponse = await PythonAIService.getChatResponse(
+                company.id,
+                text.trim(),
+                conversationHistory.slice(-5) // Keep last 5 messages for context
+              );
+            }
+          } catch (menuError) {
+            console.error("MenuAI error:", menuError);
+            // Set specific error based on the error type
+            if (menuError.message?.includes("meniul")) {
+              setInputError(
+                "Îmi pare rău, nu pot procesa meniul acum. Încearcă mai târziu."
+              );
+            } else {
+              // For menu errors, fall back to general search
+              console.log("Menu error, falling back to general search");
+              aiResponse = await PythonAIService.getChatResponse(
+                null, // No specific company
+                text.trim(),
+                conversationHistory.slice(-5)
+              );
+            }
+
+            if (!aiResponse) {
+              return; // Exit early if no response and error set
+            }
+          }
+        } else {
+          // For queries without company context, use enhanced routing
+          aiResponse = await PythonAIService.getChatResponse(
+            null, // No specific company - will trigger intelligent routing
+            text.trim(),
+            conversationHistory.slice(-5)
+          );
+        }
+
+        // Stop typing animation safely
+        if (typingAnimationRef.current) {
+          typingAnimationRef.current.stop();
+          typingAnimationRef.current = null;
+        }
+
+        if (isMountedRef.current) {
+          typingAnim.stopAnimation();
+          setIsTyping(false);
+        }
+
+        // Only add AI message if we have actual response content
+        if (aiResponse.trim()) {
+          const aiMessage: Message = {
+            id: Date.now().toString(),
+            text: aiResponse,
+            isUser: false,
+            timestamp: new Date(),
+            intent: intent,
+            recommendations:
+              recommendations.length > 0 ? recommendations : undefined,
+          };
+
+          if (isMountedRef.current) {
+            setMessages((prev) => prev.slice(0, -1).concat([aiMessage]));
+          }
+
+          // Haptic feedback for successful response
+          Vibration.vibrate(50);
+
+          // Clear connection error if request was successful
+          if (isMountedRef.current) {
+            setConnectionError(false);
+          }
+        } else {
+          // Remove loading message if no response
+          if (isMountedRef.current) {
+            setMessages((prev) => prev.slice(0, -1));
+          }
+        }
+      } catch (error) {
+        console.error("Chat error:", error);
+
+        // Enhanced error classification
+        const isConnectionError =
+          error instanceof TypeError &&
+          (error.message.includes("Network request failed") ||
+            error.message.includes("fetch"));
+
+        const isTimeoutError =
+          error.message?.includes("timeout") ||
+          error.message?.includes("AbortError");
+
+        if (isMountedRef.current) {
+          setConnectionError(isConnectionError || isTimeoutError);
+        }
+
+        let errorMessageText =
+          "Scuze, am întâmpinat o problemă tehnică. Te rog încearcă din nou.";
+
+        if (isConnectionError) {
+          errorMessageText =
+            "Nu pot să mă conectez la serverul AI. Te rog verifică conexiunea și încearcă din nou.";
+        } else if (isTimeoutError) {
+          errorMessageText =
+            "Cererea a expirat. Te rog încearcă din nou cu un mesaj mai scurt.";
+        }
+
+        // Stop typing animation safely
+        if (typingAnimationRef.current) {
+          typingAnimationRef.current.stop();
+          typingAnimationRef.current = null;
+        }
+
+        if (isMountedRef.current) {
+          typingAnim.stopAnimation();
+          setIsTyping(false);
+          setMessages((prev) => prev.slice(0, -1)); // Remove loading message
+          setInputError(errorMessageText); // Show error inline instead of chat message
+        }
+      } finally {
+        if (isMountedRef.current) {
+          setIsLoading(false);
+        }
       }
-      if (typingAnimationRef.current) {
-        typingAnimationRef.current.stop();
-        typingAnimationRef.current = null;
-      }
-      typingAnim.stopAnimation();
-      if (isMountedRef.current) {
-        setIsTyping(false);
-      }
-    }
-  }, []);
+    },
+    [company, conversationHistory]
+  );
 
   const handleSuggestionPress = useCallback(
     (suggestion: Suggestion) => {
@@ -438,7 +644,7 @@ const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
   const getRestaurantMenu = useCallback(async (restaurantId: number) => {
     try {
       const response = await fetch(
-        `${AI_BASE_URL}/companies/${restaurantId}/menu`
+        `${BASE_URL}/companies/${restaurantId}/menu`
       );
       if (response.ok) {
         Alert.alert("Succes", "Meniul este disponibil pentru descărcare!");
@@ -456,16 +662,17 @@ const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
   const getRestaurantDetails = useCallback(async (restaurantId: number) => {
     try {
-      const response = await fetch(
-        `${AI_BASE_URL}/companies/details/${restaurantId}`
-      );
+      const response = await fetch(`${BASE_URL}/companies`);
       const data = await response.json();
-      if (data.success) {
-        const company = data.company;
+
+      const company = data.find((c: any) => c.id === restaurantId);
+      if (company) {
         Alert.alert(
           company.name,
-          `Descriere: ${company.description}\nCategorie: ${company.category}\nAdresă: ${company.address}\nContact: ${company.email}\nCUI: ${company.cui}\nLatitudine: ${company.latitude}\nLongitudine: ${company.longitude}`
+          `Descriere: ${company.description}\nCategorie: ${company.category}\nAdresă: ${company.address}\nEmail: ${company.email}\nCUI: ${company.cui}\nLatitudine: ${company.latitude}\nLongitudine: ${company.longitude}`
         );
+      } else {
+        Alert.alert("Eroare", "Restaurantul nu a fost găsit.");
       }
     } catch (error) {
       Alert.alert("Eroare", "Nu am putut să accesez detaliile restaurantului.");
@@ -474,10 +681,11 @@ const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
   const getEventDetails = useCallback(async (eventId: number) => {
     try {
-      const response = await fetch(`${AI_BASE_URL}/events/details/${eventId}`);
+      const response = await fetch(`${BASE_URL}/events`);
       const data = await response.json();
-      if (data.success) {
-        const event = data.event;
+
+      const event = data.find((e: any) => e.id === eventId);
+      if (event) {
         Alert.alert(
           event.title,
           `Descriere: ${event.description}\nCompanie: ${
@@ -486,6 +694,8 @@ const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             event.tags?.join(", ") || "Nu sunt disponibile"
           }`
         );
+      } else {
+        Alert.alert("Eroare", "Evenimentul nu a fost găsit.");
       }
     } catch (error) {
       Alert.alert("Eroare", "Nu am putut să accesez detaliile evenimentului.");
@@ -681,6 +891,98 @@ const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
     [theme, handleRestaurantPress, handleEventPress]
   );
 
+  const renderMenuRecommendations = useCallback(
+    (recommendations: MenuRecommendation[]) => {
+      return (
+        <View style={styles.recommendationsContainer}>
+          <View style={styles.recommendationsHeader}>
+            <Ionicons
+              name="restaurant-outline"
+              size={20}
+              color={theme.colors.primary}
+            />
+            <Text
+              style={[
+                styles.recommendationsTitle,
+                { color: theme.colors.primary },
+              ]}
+            >
+              Menu Recommendations
+            </Text>
+          </View>
+          {recommendations.map((rec, index) => (
+            <View
+              key={index}
+              style={[
+                styles.recommendationCard,
+                {
+                  backgroundColor: theme.colors.surface,
+                  borderColor: theme.colors.border + "30",
+                },
+              ]}
+            >
+              <View style={styles.recommendationHeader}>
+                <Text style={[styles.dishName, { color: theme.colors.text }]}>
+                  {rec.dishName}
+                </Text>
+                <View
+                  style={[
+                    styles.categoryBadge,
+                    { backgroundColor: theme.colors.primary + "20" },
+                  ]}
+                >
+                  <Text
+                    style={[
+                      styles.categoryText,
+                      { color: theme.colors.primary },
+                    ]}
+                  >
+                    {rec.category}
+                  </Text>
+                </View>
+              </View>
+
+              <Text
+                style={[
+                  styles.dishDescription,
+                  { color: theme.colors.textSecondary },
+                ]}
+              >
+                {rec.description}
+              </Text>
+
+              <Text
+                style={[
+                  styles.recommendationReason,
+                  { color: theme.colors.text },
+                ]}
+              >
+                <Ionicons
+                  name="bulb-outline"
+                  size={16}
+                  color={theme.colors.accent}
+                />{" "}
+                {rec.reason}
+              </Text>
+
+              {rec.estimatedPrice && (
+                <Text
+                  style={[
+                    styles.priceInfo,
+                    { color: theme.colors.textTertiary },
+                  ]}
+                >
+                  Price: {rec.estimatedPrice}
+                </Text>
+              )}
+            </View>
+          ))}
+        </View>
+      );
+    },
+    [theme]
+  );
+
   const renderMessage = useCallback(
     (message: Message) => {
       if (message.isLoading) {
@@ -805,6 +1107,9 @@ const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
             {message.searchResults &&
               renderSearchResults(message.searchResults)}
+
+            {message.recommendations &&
+              renderMenuRecommendations(message.recommendations)}
           </View>
 
           <Text
@@ -823,6 +1128,7 @@ const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
       formatTime,
       getIntentIcon,
       renderSearchResults,
+      renderMenuRecommendations,
     ]
   );
 
@@ -889,7 +1195,10 @@ const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
 
   return (
     <UniversalScreen
-      style={StyleSheet.flatten([styles.container, { backgroundColor: theme.colors.primary }])}
+      style={StyleSheet.flatten([
+        styles.container,
+        { backgroundColor: theme.colors.primary },
+      ])}
     >
       <StatusBar barStyle={theme.statusBarStyle} />
 
@@ -978,7 +1287,7 @@ const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
           </Animated.View>
         )}
 
-        {/* Input Area with tab spacing */}
+        {/* Input Area with enhanced error handling */}
         <View
           style={[
             styles.inputContainer,
@@ -988,35 +1297,81 @@ const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
             },
           ]}
         >
+          {/* Input Error Display */}
+          {inputError && (
+            <View
+              style={[
+                styles.errorContainer,
+                {
+                  borderColor: theme.colors.error,
+                },
+              ]}
+            >
+              <Ionicons name="warning" size={16} color={theme.colors.error} />
+              <Text style={[styles.errorText, { color: theme.colors.error }]}>
+                {inputError}
+              </Text>
+              <TouchableOpacity
+                onPress={() => setInputError("")}
+                style={styles.errorClose}
+              >
+                <Ionicons name="close" size={16} color={theme.colors.error} />
+              </TouchableOpacity>
+            </View>
+          )}
+
           <View
             style={[
               styles.inputWrapper,
-              { backgroundColor: theme.colors.surface },
+              {
+                backgroundColor: theme.colors.surface,
+                borderColor: inputError
+                  ? theme.colors.error
+                  : inputText.length > 1000
+                  ? theme.colors.warning
+                  : "transparent",
+                borderWidth: inputError || inputText.length > 1000 ? 1 : 0,
+              },
             ]}
           >
             <TextInput
               ref={inputRef}
               style={[styles.textInput, { color: theme.colors.text }]}
-              placeholder="Întreabă-mă orice despre restaurante și evenimente..."
+              placeholder={
+                company
+                  ? "Întreabă-mă despre meniu, opțiuni dietetice sau recomandări de feluri de mâncare..."
+                  : "Întreabă-mă orice despre restaurante și evenimente..."
+              }
               placeholderTextColor={theme.colors.textSecondary}
               value={inputText}
-              onChangeText={setInputText}
+              onChangeText={(text) => {
+                setInputText(text);
+                if (inputError) setInputError(""); // Clear error on typing
+              }}
               multiline
               maxLength={1000}
               editable={!isLoading}
+              onSubmitEditing={() => {
+                if (!isLoading && inputText.trim()) {
+                  sendMessage(inputText);
+                }
+              }}
             />
 
             <TouchableOpacity
               style={[
                 styles.sendButton,
                 {
-                  backgroundColor: inputText.trim()
-                    ? theme.colors.accent
-                    : theme.colors.surface,
+                  backgroundColor:
+                    inputText.trim() && !isLoading && !inputError
+                      ? theme.colors.accent
+                      : theme.colors.surface,
+                  opacity:
+                    inputText.trim() && !isLoading && !inputError ? 1 : 0.5,
                 },
               ]}
               onPress={() => sendMessage(inputText)}
-              disabled={isLoading || !inputText.trim()}
+              disabled={isLoading || !inputText.trim() || !!inputError}
               activeOpacity={0.8}
             >
               {isLoading ? (
@@ -1026,7 +1381,7 @@ const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
                   name="send"
                   size={20}
                   color={
-                    inputText.trim()
+                    inputText.trim() && !inputError
                       ? theme.colors.text
                       : theme.colors.textTertiary
                   }
@@ -1034,6 +1389,23 @@ const AIChatScreen: React.FC<{ navigation: any }> = ({ navigation }) => {
               )}
             </TouchableOpacity>
           </View>
+
+          {/* Character count */}
+          <Text
+            style={[
+              styles.characterCount,
+              {
+                color:
+                  inputText.length > 1000
+                    ? theme.colors.error
+                    : inputText.length > 900
+                    ? theme.colors.warning
+                    : theme.colors.textTertiary,
+              },
+            ]}
+          >
+            {inputText.length}/1000
+          </Text>
         </View>
       </KeyboardAvoidingView>
     </UniversalScreen>
@@ -1278,6 +1650,92 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginLeft: 12,
+  },
+
+  // Menu Recommendations Styles
+  recommendationsContainer: {
+    marginTop: 12,
+    paddingTop: 12,
+    borderTopWidth: 1,
+    borderTopColor: "rgba(255, 255, 255, 0.1)",
+  },
+  recommendationsHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    marginBottom: 12,
+  },
+  recommendationsTitle: {
+    fontSize: 16,
+    fontWeight: "600",
+    marginLeft: 8,
+  },
+  recommendationCard: {
+    padding: 12,
+    borderRadius: 12,
+    marginBottom: 8,
+    borderWidth: 1,
+  },
+  recommendationHeader: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    marginBottom: 8,
+  },
+  dishName: {
+    fontSize: 16,
+    fontWeight: "600",
+    flex: 1,
+  },
+  categoryBadge: {
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+  },
+  categoryText: {
+    fontSize: 12,
+    fontWeight: "500",
+    textTransform: "capitalize",
+  },
+  dishDescription: {
+    fontSize: 14,
+    marginBottom: 8,
+    lineHeight: 20,
+  },
+  recommendationReason: {
+    fontSize: 14,
+    fontStyle: "italic",
+    marginBottom: 4,
+  },
+  priceInfo: {
+    fontSize: 12,
+    fontWeight: "500",
+  },
+
+  // Error handling styles
+  errorContainer: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: 16,
+    paddingVertical: 8,
+    backgroundColor: "rgba(255, 0, 0, 0.1)",
+    borderRadius: 8,
+    marginBottom: 8,
+    borderWidth: 1,
+  },
+  errorText: {
+    fontSize: 12,
+    marginLeft: 8,
+    flex: 1,
+  },
+  errorClose: {
+    padding: 4,
+    marginLeft: 8,
+  },
+  characterCount: {
+    fontSize: 10,
+    textAlign: "right",
+    paddingHorizontal: 16,
+    paddingTop: 4,
   },
 });
 

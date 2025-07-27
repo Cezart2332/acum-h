@@ -8,6 +8,26 @@ export interface EventData {
   likes?: number;
 }
 
+export interface LocationData {
+  id: number;
+  name: string;
+  address: string;
+  latitude: number;
+  longitude: number;
+  tags: string[];
+  photo: string;
+  menuName: string;
+  hasMenu: boolean;
+  company: {
+    id: number;
+    name: string;
+    category: string;
+    description: string;
+  };
+  createdAt: string;
+  updatedAt: string;
+}
+
 export interface CompanyData {
   id?: number;
   name?: string;
@@ -30,7 +50,8 @@ export type RootStackParamList = {
   Profile: undefined;
   Map: undefined;
   EventScreen: { event: EventData };
-  Info: { company: CompanyData };
-  Reservation: { company: CompanyData };
-  Schedule: { company: CompanyData };
+  Info: { location: LocationData };
+  Reservation: { location: LocationData };
+  Schedule: { location: LocationData };
+  ReservationsHistory: undefined;
 };

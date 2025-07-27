@@ -17,10 +17,10 @@ import MapView, {
   PROVIDER_GOOGLE,
 } from "react-native-maps";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import type { RootStackParamList } from "./RootStackParamList";
+import type { RootStackParamList, LocationData } from "./RootStackParamList";
 import * as Location from "expo-location";
 import haversine from "haversine-distance";
-import BASE_URL from "../config";
+import { BASE_URL } from "../config";
 import { SafeAreaView } from "react-native-safe-area-context";
 
 // Dark map style optimized for black/violet theme
@@ -76,27 +76,13 @@ const DARK_MAP_STYLE = [
 
 type MapNav = NativeStackNavigationProp<RootStackParamList, "Map">;
 
-interface CompanyData {
-  id: number;
-  name: string;
-  category: string;
-  profileImage: string;
-  latitude: number;
-  longitude: number;
-  address: string;
-  email?: string;
-  cui?: number;
-  description?: string;
-  tags?: string[];
-}
-
 export default function MapsScreen({ navigation }: { navigation: MapNav }) {
   const mapRef = useRef<MapView>(null);
   const { width, height } = Dimensions.get("window");
   const [location, setLocation] = useState<Location.LocationObject | null>(
     null
   );
-  const [companies, setCompanies] = useState<CompanyData[]>([]);
+  const [locations, setLocations] = useState<LocationData[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
@@ -117,13 +103,13 @@ export default function MapsScreen({ navigation }: { navigation: MapNav }) {
         const currentLocation = await Location.getCurrentPositionAsync({});
         setLocation(currentLocation);
 
-        // Fetch companies
-        const response = await fetch(`${BASE_URL}/companies`);
+        // Fetch locations
+        const response = await fetch(`${BASE_URL}/locations`);
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
-        const companiesData = await response.json();
-        setCompanies(companiesData);
+        const locationsData = await response.json();
+        setLocations(locationsData);
       } catch (error) {
         console.error("Error loading map data:", error);
         Alert.alert("Eroare", "Nu s-au putut încărca datele hărții");
@@ -135,15 +121,15 @@ export default function MapsScreen({ navigation }: { navigation: MapNav }) {
 
   // Auto-fit to show all markers
   useEffect(() => {
-    if (!loading && location && companies.length > 0 && mapRef.current) {
+    if (!loading && location && locations.length > 0 && mapRef.current) {
       const coordinates = [
         {
           latitude: location.coords.latitude,
           longitude: location.coords.longitude,
         },
-        ...companies.map((company) => ({
-          latitude: company.latitude,
-          longitude: company.longitude,
+        ...locations.map((locationItem) => ({
+          latitude: locationItem.latitude,
+          longitude: locationItem.longitude,
         })),
       ];
 
@@ -155,7 +141,7 @@ export default function MapsScreen({ navigation }: { navigation: MapNav }) {
         });
       }, 1000);
     }
-  }, [loading, location, companies]);
+  }, [loading, location, locations]);
 
   if (loading || !location) {
     return (
@@ -173,20 +159,25 @@ export default function MapsScreen({ navigation }: { navigation: MapNav }) {
     longitudeDelta: 0.05,
   };
 
-  const renderCalloutContent = (company: CompanyData, distance: string) => (
+  const renderCalloutContent = (
+    locationItem: LocationData,
+    distance: string
+  ) => (
     <View style={styles.callout}>
       <ImageBackground
         source={{
-          uri: `data:image/jpg;base64,${company.profileImage}`,
+          uri: `data:image/jpg;base64,${locationItem.photo}`,
         }}
         style={styles.calloutImage}
         imageStyle={styles.calloutImageStyle}
       >
         <View style={styles.overlay} />
-        <Text style={styles.calloutTitle}>{company.name}</Text>
+        <Text style={styles.calloutTitle}>{locationItem.name}</Text>
       </ImageBackground>
       <View style={styles.calloutInfo}>
-        <Text style={styles.calloutCategory}>{company.category}</Text>
+        <Text style={styles.calloutCategory}>
+          {locationItem.company.category}
+        </Text>
         <Text style={styles.calloutDistance}>{distance} km</Text>
       </View>
     </View>
@@ -207,54 +198,58 @@ export default function MapsScreen({ navigation }: { navigation: MapNav }) {
         pitchEnabled={false}
         toolbarEnabled={false}
       >
-        {companies.map((company) => {
+        {locations.map((locationItem) => {
           const distance = (
             haversine(
               { lat: location.coords.latitude, lng: location.coords.longitude },
-              { lat: company.latitude, lng: company.longitude }
+              { lat: locationItem.latitude, lng: locationItem.longitude }
             ) / 1000
           ).toFixed(1);
 
           return (
             <Marker
-              key={company.id}
+              key={locationItem.id}
               coordinate={{
-                latitude: company.latitude,
-                longitude: company.longitude,
+                latitude: locationItem.latitude,
+                longitude: locationItem.longitude,
               }}
               pinColor="#A78BFA"
             >
               {Platform.OS === "ios" ? (
                 <Callout
                   tooltip={true}
-                  onPress={() => navigation.navigate("Info", { company })}
+                  onPress={() =>
+                    navigation.navigate("Info", { location: locationItem })
+                  }
                 >
-                  {renderCalloutContent(company, distance)}
+                  {renderCalloutContent(locationItem, distance)}
                 </Callout>
               ) : (
                 // Android callout - use default bubble style with better styling
                 <Callout
-                  onPress={() => navigation.navigate("Info", { company })}
+                  onPress={() =>
+                    navigation.navigate("Info", { location: locationItem })
+                  }
                   style={styles.androidCallout}
                 >
                   <View style={styles.androidCalloutContent}>
                     <View style={styles.androidCalloutImageContainer}>
                       <ImageBackground
                         source={{
-                          uri: `data:image/jpg;base64,${company.profileImage}`,
+                          uri: `data:image/jpg;base64,${locationItem.photo}`,
                         }}
                         style={styles.androidCalloutImage}
                         imageStyle={styles.androidCalloutImageStyle}
                       >
                         <View style={styles.androidCalloutOverlay} />
                         <Text style={styles.androidCalloutTitle}>
-                          {company.name}
+                          {locationItem.name}
                         </Text>
                       </ImageBackground>
                     </View>
                     <View style={styles.androidCalloutInfo}>
                       <Text style={styles.androidCalloutCategory}>
-                        {company.category}
+                        {locationItem.company.category}
                       </Text>
                       <Text style={styles.androidCalloutDistance}>
                         {distance} km

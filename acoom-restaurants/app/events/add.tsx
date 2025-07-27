@@ -32,7 +32,9 @@ export default function AddEventScreen() {
       const raw = await AsyncStorage.getItem("company");
       if (raw) {
         const comp = JSON.parse(raw);
-        setCompanyId(comp.id.toString());
+        if (comp?.id) {
+          setCompanyId(comp.id.toString());
+        }
       }
     })();
   }, []);

@@ -60,25 +60,43 @@ export default function Reservations() {
       );
 
       if (response.ok) {
-        const apiReservations = await response.json();
+        const responseText = await response.text();
+        if (responseText.trim() === "") {
+          // Empty response, use empty array
+          setReservations([]);
+          return;
+        }
+
+        const apiReservations = JSON.parse(responseText);
 
         // Transform API data to match our local format
         const transformedReservations: Reservation[] = apiReservations.map(
-          (res: any) => ({
-            id: res.id,
-            customerName: res.customerName,
-            date: new Date(res.reservationDate).toLocaleDateString("ro-RO", {
-              day: "numeric",
-              month: "long",
-            }),
-            time: res.reservationTime.substring(0, 5), // Extract HH:MM from time string
-            people: res.numberOfPeople,
-            status: res.status.toLowerCase(),
-            specialRequests: res.specialRequests,
-            timestamp: new Date(
-              res.reservationDate + "T" + res.reservationTime
-            ).getTime(),
-          })
+          (res: any) => {
+            // Convert enum value to string
+            const statusMap: { [key: number]: string } = {
+              0: "pending",
+              1: "confirmed",
+              2: "completed",
+              3: "canceled",
+              4: "noshow",
+            };
+
+            return {
+              id: res.id,
+              customerName: res.customerName,
+              date: new Date(res.reservationDate).toLocaleDateString("ro-RO", {
+                day: "numeric",
+                month: "long",
+              }),
+              time: res.reservationTime.substring(0, 5), // Extract HH:MM from time string
+              people: res.numberOfPeople,
+              status: statusMap[res.status] || "pending",
+              specialRequests: res.specialRequests,
+              timestamp: new Date(
+                res.reservationDate + "T" + res.reservationTime
+              ).getTime(),
+            };
+          }
         );
 
         setReservations(transformedReservations);
@@ -776,7 +794,9 @@ export default function Reservations() {
               <FlatList
                 data={filteredReservations}
                 renderItem={renderReservation}
-                keyExtractor={(item) => item.id.toString()}
+                keyExtractor={(item, index) =>
+                  item.id?.toString() || index.toString()
+                }
                 scrollEnabled={false}
               />
             </View>

@@ -16,7 +16,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import BASE_URL from "../config";
+import { BASE_URL } from "../config";
 import { useTheme } from "../context/ThemeContext";
 import { useUser } from "../context/UserContext";
 import UniversalScreen from "../components/UniversalScreen";
@@ -68,7 +68,7 @@ const Profile: React.FC<{ navigation?: any }> = ({ navigation }) => {
   const [stats, setStats] = useState({
     eventsLiked: 0,
     restaurantsVisited: 0,
-    reviewsWritten: 0,
+    reservationsMade: 0,
   });
 
   // Animation refs
@@ -103,10 +103,24 @@ const Profile: React.FC<{ navigation?: any }> = ({ navigation }) => {
   const loadUserStats = async () => {
     try {
       if (user?.id) {
+        // Load real reservations count
+        let reservationsCount = 0;
+        try {
+          const response = await fetch(
+            `${BASE_URL}/reservation/user/${user.id}`
+          );
+          if (response.ok) {
+            const reservations = await response.json();
+            reservationsCount = reservations.length;
+          }
+        } catch (error) {
+          console.warn("Could not load reservations:", error);
+        }
+
         setStats({
           eventsLiked: Math.floor(Math.random() * 50),
           restaurantsVisited: Math.floor(Math.random() * 25),
-          reviewsWritten: Math.floor(Math.random() * 15),
+          reservationsMade: reservationsCount,
         });
       }
     } catch (error) {
@@ -391,9 +405,9 @@ const Profile: React.FC<{ navigation?: any }> = ({ navigation }) => {
                 theme.colors.warning
               )}
               {renderStatCard(
-                "Recenzii scrise",
-                stats.reviewsWritten,
-                "star",
+                "Rezervări făcute",
+                stats.reservationsMade,
+                "calendar",
                 theme.colors.success
               )}
             </View>
@@ -404,6 +418,33 @@ const Profile: React.FC<{ navigation?: any }> = ({ navigation }) => {
             <Text style={[styles.sectionTitle, { color: theme.colors.text }]}>
               Setări
             </Text>
+
+            <TouchableOpacity
+              style={[
+                styles.settingItem,
+                { backgroundColor: theme.colors.surface },
+              ]}
+              onPress={() => navigation?.navigate("ReservationsHistory")}
+              activeOpacity={0.8}
+            >
+              <View style={styles.settingItemLeft}>
+                <Ionicons
+                  name="calendar"
+                  size={24}
+                  color={theme.colors.accent}
+                />
+                <Text
+                  style={[styles.settingItemText, { color: theme.colors.text }]}
+                >
+                  Istoricul rezervărilor
+                </Text>
+              </View>
+              <Ionicons
+                name="chevron-forward"
+                size={20}
+                color={theme.colors.textTertiary}
+              />
+            </TouchableOpacity>
 
             <TouchableOpacity
               style={[

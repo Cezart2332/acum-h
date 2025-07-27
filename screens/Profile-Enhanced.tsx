@@ -11,11 +11,12 @@ import {
   Alert,
   Animated,
   RefreshControl,
+  ViewStyle,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
-import BASE_URL from "../config";
+import { BASE_URL } from "../config";
 import { useTheme } from "../context/ThemeContext";
 import UniversalScreen from "../components/UniversalScreen";
 import EnhancedButton from "../components/EnhancedButton";
@@ -39,6 +40,7 @@ interface UserData {
 interface CompanyData {
   id: number;
   name?: string;
+  username?: string;
   email?: string;
   category?: string;
   profileImage?: string;
@@ -541,7 +543,10 @@ const Profile: React.FC<{ navigation?: any }> = ({ navigation }) => {
             title="Deconectare"
             onPress={handleLogout}
             variant="outline"
-            style={[styles.logoutButton, { borderColor: theme.colors.error }]}
+            style={{
+              ...styles.logoutButton,
+              borderColor: theme.colors.error,
+            }}
             textStyle={{ color: theme.colors.error }}
             icon={
               <Ionicons

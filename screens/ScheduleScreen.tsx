@@ -15,7 +15,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
-import type { RootStackParamList } from "./RootStackParamList";
+import type { RootStackParamList, LocationData } from "./RootStackParamList";
 import { useTheme } from "../context/ThemeContext";
 import UniversalScreen from "../components/UniversalScreen";
 import {
@@ -24,7 +24,7 @@ import {
   TYPOGRAPHY,
   SCREEN_DIMENSIONS,
 } from "../utils/responsive";
-import BASE_URL from "../config";
+import { BASE_URL } from "../config";
 
 type ScheduleNav = NativeStackNavigationProp<RootStackParamList, "Schedule">;
 type ScheduleRoute = RouteProp<RootStackParamList, "Schedule">;
@@ -66,7 +66,16 @@ const DAYS = [
 
 const ScheduleScreen: React.FC<Props> = ({ navigation, route }) => {
   const { theme } = useTheme();
-  const { company } = route.params;
+  const { location } = route.params || {};
+
+  // Early return if location is not provided
+  if (!location) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <Text>Error: Restaurant information not found</Text>
+      </View>
+    );
+  }
 
   const [schedule, setSchedule] = useState<DaySchedule[]>([]);
   const [loading, setLoading] = useState(true);
@@ -102,18 +111,18 @@ const ScheduleScreen: React.FC<Props> = ({ navigation, route }) => {
       setLoading(true);
       setError(null);
 
-      console.log("Company object:", company); // Debug log
-      console.log("Company ID:", company.id); // Debug log
+      console.log("Location object:", location); // Debug log
+      console.log("Location ID:", location.id); // Debug log
 
-      // Temporary fallback for testing - use company ID 1 if not provided
-      const companyId = company.id || 1;
-      console.log("Using company ID:", companyId); // Debug log
+      // Use location ID for fetching schedule
+      const locationId = location.id;
+      console.log("Using location ID:", locationId); // Debug log
       console.log(
         "Fetching from URL:",
-        `${BASE_URL}/companyhours/${companyId}`
+        `${BASE_URL}/locations/${locationId}/hours`
       ); // Debug log
 
-      const response = await fetch(`${BASE_URL}/companyhours/${companyId}`);
+      const response = await fetch(`${BASE_URL}/locations/${locationId}/hours`);
 
       console.log("Response status:", response.status); // Debug log
       console.log("Response ok:", response.ok); // Debug log
@@ -155,8 +164,9 @@ const ScheduleScreen: React.FC<Props> = ({ navigation, route }) => {
         return {
           day: day.day,
           dayName: day.dayName,
-          isOpen: hourData.openTime !== "" || hourData.is24Hours,
-          is24Hours: hourData.is24Hours,
+          isOpen:
+            !hourData.isClosed && (hourData.openTime || hourData.is24Hours),
+          is24Hours: hourData.is24Hours || false,
           openTime: hourData.openTime || "09:00",
           closeTime: hourData.closeTime || "18:00",
         };
@@ -188,12 +198,15 @@ const ScheduleScreen: React.FC<Props> = ({ navigation, route }) => {
     setRefreshing(false);
   };
 
-  const formatTime = (timeString: string) => {
+  const formatTime = (timeString: string | null | undefined) => {
     try {
+      if (!timeString || timeString === "") {
+        return "Închis";
+      }
       const [hours, minutes] = timeString.split(":");
       return `${hours}:${minutes}`;
     } catch {
-      return timeString;
+      return timeString || "Închis";
     }
   };
 
@@ -246,7 +259,7 @@ const ScheduleScreen: React.FC<Props> = ({ navigation, route }) => {
 
           <View style={styles.headerTextContainer}>
             <Text style={styles.headerTitle}>Program Restaurant</Text>
-            <Text style={styles.headerSubtitle}>{company.name}</Text>
+            <Text style={styles.headerSubtitle}>{location.name}</Text>
           </View>
 
           <TouchableOpacity onPress={onRefresh} style={styles.refreshButton}>

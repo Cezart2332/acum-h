@@ -10,7 +10,8 @@ namespace WebApplication1.Models
         }
 
         public DbSet<Company> Companies { get; set; }
-        public DbSet<CompanyHour> CompanyHours { get; set; }
+        public DbSet<Location> Locations { get; set; }
+        public DbSet<LocationHour> LocationHours { get; set; }
         public DbSet<Event> Events { get; set; }
         public DbSet<User> Users { get; set; }
         public DbSet<Reservation> Reservations { get; set; }
@@ -22,21 +23,33 @@ namespace WebApplication1.Models
             // Configure Companies
             modelBuilder.Entity<Company>().ToTable("companies");
             
-            // Configure CompanyHours
-            modelBuilder.Entity<CompanyHour>().ToTable("companyhours");
-            modelBuilder.Entity<CompanyHour>()
-                .Property(ch => ch.DayOfWeek)
+            // Configure Locations
+            modelBuilder.Entity<Location>().ToTable("locations");
+            modelBuilder.Entity<Location>()
+                .HasOne(l => l.Company)
+                .WithMany(c => c.Locations)
+                .HasForeignKey(l => l.CompanyId)
+                .OnDelete(DeleteBehavior.Cascade);
+                
+            modelBuilder.Entity<Location>()
+                .HasIndex(l => new { l.CompanyId, l.Name })
+                .IsUnique();
+            
+            // Configure LocationHours
+            modelBuilder.Entity<LocationHour>().ToTable("location_hours");
+            modelBuilder.Entity<LocationHour>()
+                .Property(lh => lh.DayOfWeek)
                 .HasConversion<string>()
                 .IsRequired();
                 
-            modelBuilder.Entity<CompanyHour>()
-                .HasIndex(ch => new { ch.CompanyId, ch.DayOfWeek })
+            modelBuilder.Entity<LocationHour>()
+                .HasIndex(lh => new { lh.LocationId, lh.DayOfWeek })
                 .IsUnique();
                 
-            modelBuilder.Entity<CompanyHour>()
-                .HasOne(ch => ch.Company)
-                .WithMany(c => c.CompanyHours)
-                .HasForeignKey(ch => ch.CompanyId)
+            modelBuilder.Entity<LocationHour>()
+                .HasOne(lh => lh.Location)
+                .WithMany(l => l.LocationHours)
+                .HasForeignKey(lh => lh.LocationId)
                 .OnDelete(DeleteBehavior.Cascade);
             
             // Configure Events
@@ -46,6 +59,19 @@ namespace WebApplication1.Models
                 .WithMany(c => c.Events)
                 .HasForeignKey(e => e.CompanyId)
                 .OnDelete(DeleteBehavior.Cascade);
+                
+            // Explicitly ignore any LocationId property that EF might try to infer
+            modelBuilder.Entity<Event>().Ignore("LocationId");
+            
+    
+            // Configure Address and City column types
+            modelBuilder.Entity<Event>()
+                .Property(e => e.Address)
+                .HasColumnType("varchar(500)");
+                
+            modelBuilder.Entity<Event>()
+                .Property(e => e.City)
+                .HasColumnType("varchar(200)");
             
             // Configure Users
             modelBuilder.Entity<User>().ToTable("users");
@@ -58,9 +84,9 @@ namespace WebApplication1.Models
                 .IsRequired();
                 
             modelBuilder.Entity<Reservation>()
-                .HasOne(r => r.Company)
-                .WithMany()
-                .HasForeignKey(r => r.CompanyId)
+                .HasOne(r => r.Location)
+                .WithMany(l => l.Reservations)
+                .HasForeignKey(r => r.LocationId)
                 .OnDelete(DeleteBehavior.Cascade);
                 
             modelBuilder.Entity<Reservation>()
@@ -70,7 +96,7 @@ namespace WebApplication1.Models
                 .OnDelete(DeleteBehavior.SetNull);
                 
             modelBuilder.Entity<Reservation>()
-                .HasIndex(r => new { r.CompanyId, r.ReservationDate, r.ReservationTime })
+                .HasIndex(r => new { r.LocationId, r.ReservationDate, r.ReservationTime })
                 .IsUnique(false);
                 
             modelBuilder.Entity<Reservation>()

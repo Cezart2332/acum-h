@@ -12,24 +12,28 @@ import {
   TouchableWithoutFeedback,
   Modal,
   Animated,
+  KeyboardAvoidingView,
+  Dimensions,
+  StatusBar,
+  ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
-import type { RootStackParamList } from "./RootStackParamList";
+import type { RootStackParamList, LocationData } from "./RootStackParamList";
 import { useTheme } from "../context/ThemeContext";
-import UniversalScreen from "../components/UniversalScreen";
-import EnhancedButton from "../components/EnhancedButton";
-import EnhancedInput from "../components/EnhancedInput";
 import {
   getShadow,
   hapticFeedback,
   TYPOGRAPHY,
   SCREEN_DIMENSIONS,
+  getResponsiveSpacing,
+  getResponsiveFontSize,
 } from "../utils/responsive";
-import BASE_URL from "../config";
+import { BASE_URL } from "../config";
 
 type ReservationNav = NativeStackNavigationProp<
   RootStackParamList,
@@ -44,71 +48,195 @@ interface Props {
 
 const Reservation: React.FC<Props> = ({ navigation, route }) => {
   const { theme } = useTheme();
-  const { company } = route.params;
+  const { location } = route.params || {};
+
+  // Early return if location is not provided
+  if (!location) {
+    return (
+      <View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
+        <Text>Error: Restaurant information not found</Text>
+      </View>
+    );
+  }
   const [date, setDate] = useState(new Date());
-  const [time, setTime] = useState(new Date());
-  const [people, setPeople] = useState("");
+  const [time, setTime] = useState(() => {
+    const now = new Date();
+    // Set to next hour if it's past 30 minutes, otherwise current hour
+    const hour = now.getMinutes() > 30 ? now.getHours() + 1 : now.getHours();
+    const defaultTime = new Date();
+    defaultTime.setHours(Math.max(12, hour), 0, 0, 0); // Default to 12:00 PM or later
+    return defaultTime;
+  });
+  const [people, setPeople] = useState("2");
   const [specialRequest, setSpecialRequest] = useState("");
   const [showDatePicker, setShowDatePicker] = useState(false);
   const [showTimePicker, setShowTimePicker] = useState(false);
   const [loading, setLoading] = useState(false);
   const [user, setUser] = useState<any>(null);
   const [availableTimes, setAvailableTimes] = useState<string[]>([]);
+  const [restaurantSchedule, setRestaurantSchedule] = useState<any>(null);
 
-  // Animation refs
+  // Animation refs for smooth interactions
   const fadeAnim = useRef(new Animated.Value(0)).current;
-  const slideAnim = useRef(new Animated.Value(30)).current;
+  const slideAnim = useRef(new Animated.Value(50)).current;
+  const scaleAnim = useRef(new Animated.Value(0.9)).current;
+  const headerOpacity = useRef(new Animated.Value(0)).current;
+  const formOpacity = useRef(new Animated.Value(0)).current;
 
   const styles = createStyles(theme);
 
+  // Calculate max date (1 week from now)
+  const maxDate = new Date();
+  maxDate.setDate(maxDate.getDate() + 7);
+
   useEffect(() => {
-    // Load user information
-    const loadUser = async () => {
-      try {
-        const userData = await AsyncStorage.getItem("user");
-        if (userData) {
-          setUser(JSON.parse(userData));
-        }
-      } catch (error) {
-        console.error("Error loading user:", error);
-      }
-    };
-
     loadUser();
-
-    // Start entrance animations
-    Animated.parallel([
-      Animated.timing(fadeAnim, {
-        toValue: 1,
-        duration: 1000,
-        useNativeDriver: true,
-      }),
-      Animated.timing(slideAnim, {
-        toValue: 0,
-        duration: 800,
-        useNativeDriver: true,
-      }),
-    ]).start();
+    loadRestaurantSchedule();
+    startAnimations();
   }, []);
 
-  // Load available times when date changes
   useEffect(() => {
     if (date) {
       loadAvailableTimes();
     }
   }, [date]);
 
+  const loadRestaurantSchedule = async () => {
+    try {
+      const response = await fetch(
+        `${BASE_URL}/locations/${location.id}/hours`
+      );
+      if (response.ok) {
+        const hoursArray = await response.json();
+        console.log("Hours API response:", hoursArray);
+
+        // If it's an array, find today's hours or use the first available day
+        if (Array.isArray(hoursArray) && hoursArray.length > 0) {
+          const today = new Date().toLocaleDateString("en-US", {
+            weekday: "long",
+          });
+          const todayHours =
+            hoursArray.find((h) => h.dayOfWeek === today) || hoursArray[0];
+
+          setRestaurantSchedule({
+            openTime: todayHours.openTime || "10:00",
+            closeTime: todayHours.closeTime || "22:00",
+            days: [1, 2, 3, 4, 5, 6, 0], // Monday to Sunday
+            isClosed: todayHours.isClosed || false,
+          });
+        } else {
+          // Fallback to default schedule
+          setRestaurantSchedule({
+            openTime: "10:00",
+            closeTime: "22:00",
+            days: [1, 2, 3, 4, 5, 6, 0], // Monday to Sunday
+            isClosed: false,
+          });
+        }
+      }
+    } catch (error) {
+      console.error("Error loading restaurant schedule:", error);
+      // Set default schedule if API fails
+      setRestaurantSchedule({
+        openTime: "10:00",
+        closeTime: "22:00",
+        days: [1, 2, 3, 4, 5, 6, 0], // Monday to Sunday
+      });
+    }
+  };
+
+  const startAnimations = () => {
+    Animated.sequence([
+      Animated.timing(headerOpacity, {
+        toValue: 1,
+        duration: 600,
+        useNativeDriver: true,
+      }),
+      Animated.parallel([
+        Animated.timing(fadeAnim, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(slideAnim, {
+          toValue: 0,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(scaleAnim, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(formOpacity, {
+          toValue: 1,
+          duration: 1000,
+          useNativeDriver: true,
+        }),
+      ]),
+    ]).start();
+  };
+
+  const loadUser = async () => {
+    try {
+      const userData = await AsyncStorage.getItem("user");
+      if (userData) {
+        setUser(JSON.parse(userData));
+      }
+    } catch (error) {
+      console.error("Error loading user:", error);
+    }
+  };
+
+  const isRestaurantOpen = (selectedDate: Date) => {
+    if (!restaurantSchedule) return true;
+
+    const dayOfWeek = selectedDate.getDay();
+    return restaurantSchedule.days?.includes(dayOfWeek) ?? true;
+  };
+
+  const getValidTimeRange = () => {
+    if (!restaurantSchedule) {
+      return { minTime: new Date(), maxTime: new Date() };
+    }
+
+    const today = new Date();
+    const [openHour, openMinute] = (restaurantSchedule.openTime || "09:00")
+      .split(":")
+      .map(Number);
+    const [closeHour, closeMinute] = (restaurantSchedule.closeTime || "18:00")
+      .split(":")
+      .map(Number);
+
+    const minTime = new Date(today);
+    minTime.setHours(openHour, openMinute, 0, 0);
+
+    const maxTime = new Date(today);
+    maxTime.setHours(closeHour - 1, 30, 0, 0); // Last reservation 30 min before close
+
+    return { minTime, maxTime };
+  };
+
+  const isTimeValid = (selectedTime: Date) => {
+    if (!restaurantSchedule) return true;
+
+    const { minTime, maxTime } = getValidTimeRange();
+    const timeOnly = new Date();
+    timeOnly.setHours(selectedTime.getHours(), selectedTime.getMinutes(), 0, 0);
+
+    return timeOnly >= minTime && timeOnly <= maxTime;
+  };
+
   const loadAvailableTimes = async () => {
     try {
       const response = await fetch(
-        `${BASE_URL}/reservation/available-times/${company.id}?date=${
+        `${BASE_URL}/reservation/available-times/${location.id}?date=${
           date.toISOString().split("T")[0]
         }`
       );
       if (response.ok) {
         const times = await response.json();
         const formattedTimes = times.map((timeSpan: string) => {
-          // Convert TimeSpan format (HH:MM:SS) to HH:MM
           return timeSpan.substring(0, 5);
         });
         setAvailableTimes(formattedTimes);
@@ -118,22 +246,43 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
     }
   };
 
-  // Calculate max date (1 week from now)
-  const maxDate = new Date();
-  maxDate.setDate(maxDate.getDate() + 7);
-
   const handleDateChange = (event: any, selectedDate?: Date) => {
     if (Platform.OS === "android") {
       setShowDatePicker(false);
     }
-    if (selectedDate) setDate(selectedDate);
+
+    if (selectedDate) {
+      if (!isRestaurantOpen(selectedDate)) {
+        Alert.alert(
+          "Restaurant Closed",
+          "The restaurant is closed on this day. Please select another date.",
+          [{ text: "OK" }]
+        );
+        return;
+      }
+      setDate(selectedDate);
+    }
   };
 
   const handleTimeChange = (event: any, selectedTime?: Date) => {
     if (Platform.OS === "android") {
       setShowTimePicker(false);
     }
-    if (selectedTime) setTime(selectedTime);
+
+    if (selectedTime) {
+      if (!isTimeValid(selectedTime)) {
+        const { minTime, maxTime } = getValidTimeRange();
+        Alert.alert(
+          "Invalid Time",
+          `Please select a time between ${formatTime(minTime)} and ${formatTime(
+            maxTime
+          )} when the restaurant is open.`,
+          [{ text: "OK" }]
+        );
+        return;
+      }
+      setTime(selectedTime);
+    }
   };
 
   const formatTime = (date: Date) => {
@@ -142,46 +291,63 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
 
   const handleSubmit = async () => {
     if (!people) {
-      Alert.alert("Eroare", "Vă rugăm introduceți numărul de persoane");
+      Alert.alert("Error", "Please enter the number of people");
       return;
     }
 
-    if (!user) {
+    if (!user?.id) {
+      Alert.alert("Error", "User information not found");
+      return;
+    }
+
+    if (!location?.id) {
+      Alert.alert("Error", "Restaurant information not found");
+      return;
+    }
+
+    // Validate selected date
+    if (!isRestaurantOpen(date)) {
       Alert.alert(
-        "Eroare",
-        "Trebuie să fiți conectat pentru a face o rezervare"
+        "Invalid Date",
+        "The restaurant is closed on the selected date. Please choose another day.",
+        [{ text: "OK" }]
+      );
+      return;
+    }
+
+    // Validate selected time
+    if (!isTimeValid(time)) {
+      const { minTime, maxTime } = getValidTimeRange();
+      Alert.alert(
+        "Invalid Time",
+        `The restaurant is closed at the selected time. Please choose a time between ${formatTime(
+          minTime
+        )} and ${formatTime(maxTime)}.`,
+        [{ text: "OK" }]
       );
       return;
     }
 
     setLoading(true);
-    try {
-      // Create reservation request
-      const reservationRequest = {
-        customerName:
-          user.name || user.firstName + " " + user.lastName || "Client",
-        customerEmail: user.email || "",
-        customerPhone: user.phone || "",
-        reservationDate: date.toISOString().split("T")[0],
-        reservationTime: time.toTimeString().split(" ")[0],
-        numberOfPeople: parseInt(people),
-        specialRequests: specialRequest || "",
-        companyId: company.id,
-      };
+    hapticFeedback("medium");
 
-      // Make API call to create reservation
+    try {
       const formData = new FormData();
-      formData.append("customerName", reservationRequest.customerName);
-      formData.append("customerEmail", reservationRequest.customerEmail);
-      formData.append("customerPhone", reservationRequest.customerPhone);
-      formData.append("reservationDate", reservationRequest.reservationDate);
-      formData.append("reservationTime", reservationRequest.reservationTime);
+      formData.append("userId", user.id.toString());
+      formData.append("locationId", location.id.toString());
+      formData.append("customerName", user.username || "");
+      formData.append("customerEmail", user.email || "");
+      formData.append("customerPhone", user.phone || "");
+      formData.append("reservationDate", date.toISOString().split("T")[0]);
       formData.append(
-        "numberOfPeople",
-        reservationRequest.numberOfPeople.toString()
+        "reservationTime",
+        `${time.getHours().toString().padStart(2, "0")}:${time
+          .getMinutes()
+          .toString()
+          .padStart(2, "0")}:00`
       );
-      formData.append("specialRequests", reservationRequest.specialRequests);
-      formData.append("companyId", reservationRequest.companyId.toString());
+      formData.append("numberOfPeople", people);
+      formData.append("specialRequests", specialRequest || "");
 
       const response = await fetch(`${BASE_URL}/reservation`, {
         method: "POST",
@@ -191,12 +357,12 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
       if (response.ok) {
         const reservation = await response.json();
         Alert.alert(
-          "Rezervare confirmată",
-          `Rezervare la ${
-            company.name
-          } pentru ${people} persoane pe data de ${date.toLocaleDateString()} la ora ${formatTime(
+          "Reservation Confirmed",
+          `Reservation at ${
+            location.name
+          } for ${people} people on ${date.toLocaleDateString()} at ${formatTime(
             time
-          )}. Cerințe speciale: ${specialRequest || "Niciuna"}`,
+          )}. Special requests: ${specialRequest || "None"}`,
           [
             {
               text: "OK",
@@ -206,247 +372,381 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
         );
       } else {
         const error = await response.text();
-        Alert.alert("Eroare", error || "Nu s-a putut crea rezervarea");
+        Alert.alert("Error", error || "Could not create reservation");
       }
     } catch (error) {
-      Alert.alert("Eroare", "Nu s-a putut crea rezervarea");
+      Alert.alert("Error", "Could not create reservation");
     } finally {
       setLoading(false);
     }
   };
 
-  // Close both pickers
-  const closePickers = () => {
-    setShowDatePicker(false);
-    setShowTimePicker(false);
-  };
-
   return (
-    <UniversalScreen>
+    <View style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#6366F1" />
+
+      {/* Modern Header with Gradient */}
       <Animated.View
-        style={[
-          { flex: 1 },
-          {
-            opacity: fadeAnim,
-            transform: [{ translateY: slideAnim }],
-          },
-        ]}
+        style={[styles.headerGradient, { opacity: headerOpacity }]}
       >
-        <ScrollView
-          contentContainerStyle={styles.scrollContent}
-          showsVerticalScrollIndicator={false}
+        <LinearGradient
+          colors={[theme.colors.primary, theme.colors.accent]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.gradient}
         >
-          {/* Header */}
-          <View style={styles.header}>
+          <View style={styles.headerContent}>
             <TouchableOpacity
               onPress={() => {
                 hapticFeedback("light");
                 navigation.goBack();
               }}
-              style={styles.backButton}
+              style={styles.backButtonModern}
+              activeOpacity={0.8}
             >
-              <Ionicons
-                name="arrow-back"
-                size={28}
-                color={theme.colors.primary}
-              />
+              <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
             </TouchableOpacity>
-            <Text style={styles.headerTitle}>Rezervări</Text>
+
+            <View style={styles.headerTextContainer}>
+              <Text style={styles.headerTitle}>Reserve Table</Text>
+              <Text style={styles.headerSubtitle}>{location.name}</Text>
+            </View>
+
+            <View style={styles.headerSpacer} />
           </View>
+        </LinearGradient>
+      </Animated.View>
 
-          {/* Content Card */}
-          <View style={styles.card}>
-            <View style={styles.companyHeader}>
-              <Text style={styles.companyName}>{company.name}</Text>
-              <Text style={styles.companyCategory}>{company.category}</Text>
-            </View>
-
-            {/* Date Picker */}
-            <View style={styles.section}>
-              <Text style={styles.label}>Dată</Text>
-              <TouchableOpacity
-                onPress={() => {
-                  closePickers();
-                  setShowDatePicker(true);
-                }}
-                style={styles.inputContainer}
-              >
-                <Ionicons name="calendar" size={24} color="#A78BFA" />
-                <Text style={styles.inputText}>
-                  {date.toLocaleDateString()}
-                </Text>
-              </TouchableOpacity>
-              <Text style={styles.dateHint}>
-                Maxim 1 săptămână în avans ({maxDate.toLocaleDateString()})
-              </Text>
-            </View>
-
-            {/* Time Picker */}
-            <View style={styles.section}>
-              <Text style={styles.label}>Oră</Text>
-              <TouchableOpacity
-                onPress={() => {
-                  closePickers();
-                  setShowTimePicker(true);
-                }}
-                style={styles.inputContainer}
-              >
-                <Ionicons name="time" size={24} color="#A78BFA" />
-                <Text style={styles.inputText}>{formatTime(time)}</Text>
-              </TouchableOpacity>
-              {availableTimes.length > 0 && (
-                <View style={styles.availableTimesContainer}>
-                  <Text style={styles.availableTimesLabel}>
-                    Ore disponibile:
-                  </Text>
-                  <ScrollView
-                    horizontal
-                    showsHorizontalScrollIndicator={false}
-                    style={styles.timeScrollView}
-                  >
-                    {availableTimes.map((timeSlot) => (
-                      <TouchableOpacity
-                        key={timeSlot}
-                        style={[
-                          styles.timeSlot,
-                          formatTime(time) === timeSlot &&
-                            styles.timeSlotSelected,
-                        ]}
-                        onPress={() => {
-                          const [hours, minutes] = timeSlot.split(":");
-                          const newTime = new Date(time);
-                          newTime.setHours(parseInt(hours), parseInt(minutes));
-                          setTime(newTime);
-                        }}
-                      >
-                        <Text
-                          style={[
-                            styles.timeSlotText,
-                            formatTime(time) === timeSlot &&
-                              styles.timeSlotTextSelected,
-                          ]}
-                        >
-                          {timeSlot}
-                        </Text>
-                      </TouchableOpacity>
-                    ))}
-                  </ScrollView>
-                </View>
-              )}
-            </View>
-
-            {/* People Selector */}
-            <View style={styles.section}>
-              <Text style={styles.label}>Număr de persoane</Text>
-              <View style={styles.inputContainer}>
-                <Ionicons name="people" size={24} color="#A78BFA" />
-                <TextInput
-                  style={styles.input}
-                  value={people}
-                  onChangeText={setPeople}
-                  placeholder="Ex: 2"
-                  placeholderTextColor="#6D6D78"
-                  keyboardType="numeric"
-                />
-              </View>
-            </View>
-
-            {/* Special Requests */}
-            <View style={styles.section}>
-              <Text style={styles.label}>Cerințe speciale</Text>
-              <View style={[styles.inputContainer, styles.multilineContainer]}>
-                <Ionicons name="create" size={24} color="#A78BFA" />
-                <TextInput
-                  style={[styles.input, styles.multilineInput]}
-                  value={specialRequest}
-                  onChangeText={setSpecialRequest}
-                  placeholder="Alergii, loc preferat, etc."
-                  placeholderTextColor="#6D6D78"
-                  multiline
-                />
-              </View>
-            </View>
-
-            {/* Submit Button */}
-            <TouchableOpacity
+      <KeyboardAvoidingView
+        style={styles.keyboardView}
+        behavior={Platform.OS === "ios" ? "padding" : "height"}
+        keyboardVerticalOffset={Platform.OS === "ios" ? 0 : 20}
+      >
+        <TouchableWithoutFeedback onPress={Keyboard.dismiss}>
+          <ScrollView
+            style={styles.scrollView}
+            contentContainerStyle={styles.scrollContent}
+            showsVerticalScrollIndicator={false}
+            keyboardShouldPersistTaps="handled"
+            bounces={true}
+            scrollEventThrottle={16}
+          >
+            <Animated.View
               style={[
-                styles.submitButton,
-                loading && styles.submitButtonDisabled,
+                styles.formContainer,
+                {
+                  opacity: formOpacity,
+                  transform: [{ translateY: slideAnim }, { scale: scaleAnim }],
+                },
               ]}
-              onPress={handleSubmit}
-              disabled={loading}
             >
-              <Text style={styles.submitButtonText}>
-                {loading ? "Se procesează..." : "Confirmă Rezervarea"}
-              </Text>
-            </TouchableOpacity>
-          </View>
-        </ScrollView>
+              {/* Floating Form Card */}
+              <View style={styles.floatingCard}>
+                {/* Date Selection */}
+                <View style={styles.inputSection}>
+                  <Text style={styles.modernLabel}>Select Date</Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      hapticFeedback("light");
+                      setShowDatePicker(true);
+                    }}
+                    style={[
+                      styles.modernInput,
+                      !isRestaurantOpen(date) && styles.invalidInput,
+                    ]}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.inputIcon}>
+                      <Ionicons
+                        name="calendar-outline"
+                        size={22}
+                        color={
+                          isRestaurantOpen(date)
+                            ? theme.colors.primary
+                            : theme.colors.error
+                        }
+                      />
+                    </View>
+                    <Text
+                      style={[
+                        styles.inputValue,
+                        !isRestaurantOpen(date) && styles.invalidText,
+                      ]}
+                    >
+                      {date.toLocaleDateString("en-US", {
+                        weekday: "short",
+                        month: "short",
+                        day: "numeric",
+                      })}
+                    </Text>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={20}
+                      color={theme.colors.textSecondary}
+                    />
+                  </TouchableOpacity>
+                  {!isRestaurantOpen(date) && (
+                    <Text style={styles.validationError}>
+                      Restaurant is closed on this day
+                    </Text>
+                  )}
+                </View>
 
-        {/* iOS Picker Modal */}
-        {Platform.OS === "ios" && (showDatePicker || showTimePicker) && (
-          <Modal transparent={true} animationType="slide">
-            <View style={styles.modalContainer}>
+                {/* Time Selection */}
+                <View style={styles.inputSection}>
+                  <Text style={styles.modernLabel}>Select Time</Text>
+                  <TouchableOpacity
+                    onPress={() => {
+                      hapticFeedback("light");
+                      setShowTimePicker(true);
+                    }}
+                    style={[
+                      styles.modernInput,
+                      !isTimeValid(time) && styles.invalidInput,
+                    ]}
+                    activeOpacity={0.7}
+                  >
+                    <View style={styles.inputIcon}>
+                      <Ionicons
+                        name="time-outline"
+                        size={22}
+                        color={
+                          isTimeValid(time)
+                            ? theme.colors.primary
+                            : theme.colors.error
+                        }
+                      />
+                    </View>
+                    <Text
+                      style={[
+                        styles.inputValue,
+                        !isTimeValid(time) && styles.invalidText,
+                      ]}
+                    >
+                      {formatTime(time)}
+                    </Text>
+                    <Ionicons
+                      name="chevron-forward"
+                      size={20}
+                      color={theme.colors.textSecondary}
+                    />
+                  </TouchableOpacity>
+                  {!isTimeValid(time) && (
+                    <Text style={styles.validationError}>
+                      Restaurant is closed at this time
+                    </Text>
+                  )}
+                  {restaurantSchedule && (
+                    <Text style={styles.scheduleInfo}>
+                      Restaurant hours: {restaurantSchedule.openTime} -{" "}
+                      {restaurantSchedule.closeTime}
+                    </Text>
+                  )}
+                </View>
+
+                {/* Guest Count */}
+                <View style={styles.inputSection}>
+                  <Text style={styles.modernLabel}>Number of Guests</Text>
+                  <View style={styles.guestSelector}>
+                    <TouchableOpacity
+                      onPress={() => {
+                        const currentNum = parseInt(people || "1", 10);
+                        const num = Math.max(1, currentNum - 1);
+                        setPeople(num.toString());
+                        hapticFeedback("light");
+                      }}
+                      style={styles.guestButton}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons
+                        name="remove"
+                        size={18}
+                        color={theme.colors.primary}
+                      />
+                    </TouchableOpacity>
+
+                    <View style={styles.guestDisplay}>
+                      <Text style={styles.guestCount}>{people || "1"}</Text>
+                      <Text style={styles.guestLabel}>
+                        {parseInt(people || "1", 10) === 1 ? "Guest" : "Guests"}
+                      </Text>
+                    </View>
+
+                    <TouchableOpacity
+                      onPress={() => {
+                        const currentNum = parseInt(people || "1", 10);
+                        const num = Math.min(20, currentNum + 1);
+                        setPeople(num.toString());
+                        hapticFeedback("light");
+                      }}
+                      style={styles.guestButton}
+                      activeOpacity={0.7}
+                    >
+                      <Ionicons
+                        name="add"
+                        size={18}
+                        color={theme.colors.primary}
+                      />
+                    </TouchableOpacity>
+                  </View>
+                </View>
+
+                {/* Special Requests */}
+                <View style={styles.inputSection}>
+                  <Text style={styles.modernLabel}>Special Requests</Text>
+                  <View style={styles.textAreaContainer}>
+                    <TextInput
+                      style={styles.textArea}
+                      placeholder="Any special requirements or notes..."
+                      placeholderTextColor={theme.colors.textSecondary}
+                      value={specialRequest}
+                      onChangeText={setSpecialRequest}
+                      multiline
+                      numberOfLines={3}
+                      textAlignVertical="top"
+                    />
+                  </View>
+                </View>
+              </View>
+
+              {/* Floating Action Button */}
+              <TouchableOpacity
+                onPress={handleSubmit}
+                style={[
+                  styles.submitButton,
+                  (loading || !isTimeValid(time) || !isRestaurantOpen(date)) &&
+                    styles.submitButtonDisabled,
+                ]}
+                disabled={
+                  loading ||
+                  !people ||
+                  parseInt(people || "0") < 1 ||
+                  !isTimeValid(time) ||
+                  !isRestaurantOpen(date)
+                }
+                activeOpacity={0.9}
+              >
+                <LinearGradient
+                  colors={
+                    loading || !isTimeValid(time) || !isRestaurantOpen(date)
+                      ? [theme.colors.textSecondary, theme.colors.textSecondary]
+                      : [theme.colors.accent, theme.colors.primary]
+                  }
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 0 }}
+                  style={styles.submitGradient}
+                >
+                  {loading ? (
+                    <ActivityIndicator size="small" color="#FFFFFF" />
+                  ) : (
+                    <>
+                      <Text style={styles.submitText}>Reserve Table</Text>
+                      <Ionicons
+                        name="checkmark-circle"
+                        size={24}
+                        color="#FFFFFF"
+                      />
+                    </>
+                  )}
+                </LinearGradient>
+              </TouchableOpacity>
+            </Animated.View>
+          </ScrollView>
+        </TouchableWithoutFeedback>
+      </KeyboardAvoidingView>
+
+      {/* Date Picker Modal */}
+      {Platform.OS === "ios" && showDatePicker && (
+        <Modal transparent animationType="slide">
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
               <View style={styles.modalHeader}>
-                <TouchableOpacity onPress={closePickers}>
-                  <Text style={styles.doneButton}>Gata</Text>
+                <TouchableOpacity
+                  onPress={() => setShowDatePicker(false)}
+                  style={styles.modalButton}
+                >
+                  <Text style={styles.modalButtonText}>Done</Text>
                 </TouchableOpacity>
               </View>
-              <View style={styles.pickerContainer}>
-                {showDatePicker && (
-                  <DateTimePicker
-                    value={date}
-                    mode="date"
-                    display="spinner"
-                    onChange={handleDateChange}
-                    minimumDate={new Date()}
-                    maximumDate={maxDate} // Added max date
-                    textColor="#FFFFFF"
-                    themeVariant="dark"
-                  />
-                )}
-                {showTimePicker && (
-                  <DateTimePicker
-                    value={time}
-                    mode="time"
-                    display="spinner"
-                    onChange={handleTimeChange}
-                    is24Hour={true}
-                    textColor="#FFFFFF"
-                    themeVariant="dark"
-                  />
-                )}
-              </View>
+              <DateTimePicker
+                value={date}
+                mode="date"
+                display="spinner"
+                onChange={handleDateChange}
+                minimumDate={new Date()}
+                maximumDate={maxDate}
+                textColor={theme.colors.text}
+              />
             </View>
-          </Modal>
-        )}
+          </View>
+        </Modal>
+      )}
 
-        {/* Android Pickers */}
-        {Platform.OS === "android" && showDatePicker && (
-          <DateTimePicker
-            value={date}
-            mode="date"
-            display="spinner"
-            onChange={handleDateChange}
-            minimumDate={new Date()}
-            maximumDate={maxDate} // Added max date
-            textColor="#FFFFFF"
-            themeVariant="dark"
-          />
-        )}
-        {Platform.OS === "android" && showTimePicker && (
-          <DateTimePicker
-            value={time}
-            mode="time"
-            display="spinner"
-            onChange={handleTimeChange}
-            is24Hour={true}
-            textColor="#FFFFFF"
-            themeVariant="dark"
-          />
-        )}
-      </Animated.View>
-    </UniversalScreen>
+      {/* Time Picker Modal */}
+      {Platform.OS === "ios" && showTimePicker && (
+        <Modal transparent animationType="slide">
+          <View style={styles.modalOverlay}>
+            <View style={styles.modalContent}>
+              <View style={styles.modalHeader}>
+                <TouchableOpacity
+                  onPress={() => setShowTimePicker(false)}
+                  style={styles.modalButton}
+                >
+                  <Text style={styles.modalButtonText}>Done</Text>
+                </TouchableOpacity>
+              </View>
+              <DateTimePicker
+                value={time}
+                mode="time"
+                display="spinner"
+                onChange={handleTimeChange}
+                is24Hour={true}
+                textColor={theme.colors.text}
+                minuteInterval={30}
+                minimumDate={
+                  restaurantSchedule
+                    ? (() => {
+                        const { minTime } = getValidTimeRange();
+                        return minTime;
+                      })()
+                    : undefined
+                }
+                maximumDate={
+                  restaurantSchedule
+                    ? (() => {
+                        const { maxTime } = getValidTimeRange();
+                        return maxTime;
+                      })()
+                    : undefined
+                }
+              />
+            </View>
+          </View>
+        </Modal>
+      )}
+
+      {/* Android Date/Time Pickers */}
+      {Platform.OS === "android" && showDatePicker && (
+        <DateTimePicker
+          value={date}
+          mode="date"
+          display="default"
+          onChange={handleDateChange}
+          minimumDate={new Date()}
+          maximumDate={maxDate}
+        />
+      )}
+      {Platform.OS === "android" && showTimePicker && (
+        <DateTimePicker
+          value={time}
+          mode="time"
+          display="default"
+          onChange={handleTimeChange}
+          is24Hour={true}
+          minuteInterval={30}
+        />
+      )}
+    </View>
   );
 };
 
@@ -454,179 +754,239 @@ const createStyles = (theme: any) =>
   StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: theme.colors.surface,
+      backgroundColor: theme.colors.background,
     },
-    scrollContent: {
-      paddingBottom: 40,
+
+    // Modern Header Styles
+    headerGradient: {
+      height: 120,
+      paddingTop: Platform.OS === "ios" ? 50 : 20,
     },
-    header: {
+    gradient: {
+      flex: 1,
+    },
+    headerContent: {
       flexDirection: "row",
       alignItems: "center",
-      padding: 16,
-      paddingTop: 8,
+      paddingHorizontal: getResponsiveSpacing("lg"),
+      paddingTop: getResponsiveSpacing("sm"),
+      paddingBottom: getResponsiveSpacing("lg"),
     },
-    backButton: {
-      padding: 8,
-      marginRight: 16,
-    },
-    headerTitle: {
-      fontSize: 24,
-      fontWeight: "700",
-      color: theme.colors.primary,
-    },
-    card: {
-      margin: 16,
-      backgroundColor: theme.colors.card,
-      borderRadius: 20,
-      padding: 24,
-      shadowColor: "#6C3AFF",
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.2,
-      shadowRadius: 12,
-      elevation: 8,
-    },
-    companyHeader: {
-      borderBottomWidth: 1,
-      borderBottomColor: "#2D2D2D",
-      paddingBottom: 16,
-      marginBottom: 16,
-    },
-    companyName: {
-      fontSize: 22,
-      fontWeight: "700",
-      color: "#E0E0FF",
-      marginBottom: 4,
-    },
-    companyCategory: {
-      fontSize: 16,
-      color: "#A78BFA",
-      fontWeight: "500",
-    },
-    section: {
-      marginBottom: 24,
-    },
-    label: {
-      fontSize: 16,
-      fontWeight: "600",
-      color: "#C4B5FD",
-      marginBottom: 8,
-      marginLeft: 8,
-    },
-    inputContainer: {
-      flexDirection: "row",
-      alignItems: "center",
-      backgroundColor: "#2A1A4A",
-      borderRadius: 16,
-      paddingHorizontal: 16,
-      paddingVertical: 14,
-      borderWidth: 1,
-      borderColor: "#44337A",
-    },
-    multilineContainer: {
-      alignItems: "flex-start",
-      minHeight: 100,
-    },
-    input: {
-      flex: 1,
-      fontSize: 16,
-      color: "#E0E0FF",
-      marginLeft: 12,
-      paddingVertical: 2,
-    },
-    multilineInput: {
-      textAlignVertical: "top",
-    },
-    inputText: {
-      flex: 1,
-      fontSize: 16,
-      color: "#E0E0FF",
-      marginLeft: 12,
-    },
-    submitButton: {
-      backgroundColor: "#6C3AFF",
-      borderRadius: 16,
-      paddingVertical: 16,
+    backButtonModern: {
+      width: 36,
+      height: 36,
+      borderRadius: 18,
+      backgroundColor: "rgba(255,255,255,0.2)",
       alignItems: "center",
       justifyContent: "center",
-      marginTop: 16,
-      shadowColor: "#6C3AFF",
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.4,
-      shadowRadius: 8,
+    },
+    headerTextContainer: {
+      flex: 1,
+      marginLeft: getResponsiveSpacing("lg"),
+    },
+    headerTitle: {
+      fontSize: TYPOGRAPHY.h2,
+      fontWeight: "700",
+      color: "#FFFFFF",
+      marginBottom: 2,
+    },
+    headerSubtitle: {
+      fontSize: TYPOGRAPHY.body,
+      color: "rgba(255,255,255,0.8)",
+      fontWeight: "500",
+    },
+    headerSpacer: {
+      width: 40,
+    },
+
+    // Layout Styles
+    keyboardView: {
+      flex: 1,
+    },
+    scrollView: {
+      flex: 1,
+    },
+    scrollContent: {
+      paddingBottom: getResponsiveSpacing("xxxl"),
+    },
+    formContainer: {
+      flex: 1,
+      paddingHorizontal: getResponsiveSpacing("lg"),
+      paddingTop: getResponsiveSpacing("xl"),
+    },
+
+    // Modern Card Styles
+    floatingCard: {
+      backgroundColor: theme.colors.surface,
+      borderRadius: 20,
+      padding: getResponsiveSpacing("lg"),
+      marginBottom: getResponsiveSpacing("lg"),
+      ...getShadow(4),
+      elevation: 4,
+    },
+
+    // Input Section Styles
+    inputSection: {
+      marginBottom: getResponsiveSpacing("lg"),
+    },
+    modernLabel: {
+      fontSize: TYPOGRAPHY.h4,
+      fontWeight: "600",
+      color: theme.colors.text,
+      marginBottom: getResponsiveSpacing("md"),
+      letterSpacing: 0.5,
+    },
+    scheduleInfo: {
+      fontSize: TYPOGRAPHY.caption,
+      color: theme.colors.textSecondary,
+      marginTop: getResponsiveSpacing("xs"),
+      fontStyle: "italic",
+    },
+    invalidInput: {
+      borderColor: theme.colors.error,
+      backgroundColor: theme.colors.error + "08",
+    },
+    invalidText: {
+      color: theme.colors.error,
+    },
+    validationError: {
+      fontSize: TYPOGRAPHY.caption,
+      color: theme.colors.error,
+      marginTop: getResponsiveSpacing("xs"),
+      marginLeft: getResponsiveSpacing("xs"),
+    },
+    modernInput: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: theme.colors.background,
+      borderRadius: 12,
+      padding: getResponsiveSpacing("md"),
+      borderWidth: 1.5,
+      borderColor: theme.colors.border + "40",
+      minHeight: 48,
+    },
+    inputIcon: {
+      width: 28,
+      height: 28,
+      borderRadius: 14,
+      backgroundColor: theme.colors.primary + "20",
+      alignItems: "center",
+      justifyContent: "center",
+      marginRight: getResponsiveSpacing("sm"),
+    },
+    inputValue: {
+      flex: 1,
+      fontSize: TYPOGRAPHY.body,
+      fontWeight: "500",
+      color: theme.colors.text,
+    },
+
+    // Guest Selector Styles
+    guestSelector: {
+      flexDirection: "row",
+      alignItems: "center",
+      backgroundColor: theme.colors.background,
+      borderRadius: 12,
+      padding: getResponsiveSpacing("xs"),
+      borderWidth: 1.5,
+      borderColor: theme.colors.border + "40",
+      minHeight: 48,
+    },
+    guestButton: {
+      width: 32,
+      height: 32,
+      borderRadius: 16,
+      backgroundColor: theme.colors.primary + "20",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    guestDisplay: {
+      flex: 1,
+      alignItems: "center",
+      paddingHorizontal: getResponsiveSpacing("md"),
+    },
+    guestCount: {
+      fontSize: TYPOGRAPHY.h3,
+      fontWeight: "700",
+      color: theme.colors.text,
+    },
+    guestLabel: {
+      fontSize: TYPOGRAPHY.caption,
+      color: theme.colors.textSecondary,
+      fontWeight: "500",
+      marginTop: 2,
+    },
+
+    // Text Area Styles
+    textAreaContainer: {
+      backgroundColor: theme.colors.background,
+      borderRadius: 12,
+      borderWidth: 1.5,
+      borderColor: theme.colors.border + "40",
+      minHeight: 80,
+    },
+    textArea: {
+      padding: getResponsiveSpacing("md"),
+      fontSize: TYPOGRAPHY.body,
+      color: theme.colors.text,
+      fontWeight: "500",
+      lineHeight: 20,
+    },
+
+    // Submit Button Styles
+    submitButton: {
+      borderRadius: 20,
+      overflow: "hidden",
+      marginTop: getResponsiveSpacing("lg"),
+      ...getShadow(6),
       elevation: 6,
+    },
+    submitGradient: {
+      flexDirection: "row",
+      alignItems: "center",
+      justifyContent: "center",
+      paddingVertical: getResponsiveSpacing("lg"),
+      paddingHorizontal: getResponsiveSpacing("xl"),
+      minHeight: 56,
+      gap: getResponsiveSpacing("sm"),
+    },
+    submitText: {
+      fontSize: TYPOGRAPHY.h4,
+      fontWeight: "700",
+      color: "#FFFFFF",
+      letterSpacing: 0.5,
     },
     submitButtonDisabled: {
       opacity: 0.6,
     },
-    submitButtonText: {
-      fontSize: 18,
-      fontWeight: "700",
-      color: "#FFFFFF",
-    },
-    modalContainer: {
+
+    // Modal Styles
+    modalOverlay: {
       flex: 1,
-      justifyContent: "flex-end",
       backgroundColor: "rgba(0,0,0,0.5)",
+      justifyContent: "flex-end",
+    },
+    modalContent: {
+      backgroundColor: theme.colors.surface,
+      borderTopLeftRadius: 24,
+      borderTopRightRadius: 24,
+      paddingBottom: Platform.OS === "ios" ? 40 : 20,
     },
     modalHeader: {
       flexDirection: "row",
       justifyContent: "flex-end",
-      padding: 16,
-      backgroundColor: "#1A1A1A",
-      borderTopLeftRadius: 20,
-      borderTopRightRadius: 20,
+      padding: getResponsiveSpacing("lg"),
+      borderBottomWidth: 1,
+      borderBottomColor: theme.colors.border + "30",
     },
-    doneButton: {
-      color: "#A78BFA",
-      fontSize: 18,
+    modalButton: {
+      paddingVertical: getResponsiveSpacing("sm"),
+      paddingHorizontal: getResponsiveSpacing("lg"),
+    },
+    modalButtonText: {
+      fontSize: TYPOGRAPHY.body,
       fontWeight: "600",
-      padding: 8,
-    },
-    pickerContainer: {
-      backgroundColor: "#1A1A1A",
-      paddingBottom: 20,
-    },
-    // NEW: Date hint text style
-    dateHint: {
-      fontSize: 12,
-      color: "#A78BFA",
-      marginTop: 6,
-      marginLeft: 8,
-      fontStyle: "italic",
-    },
-    // Available times styles
-    availableTimesContainer: {
-      marginTop: 12,
-    },
-    availableTimesLabel: {
-      fontSize: 14,
-      color: "#A78BFA",
-      marginBottom: 8,
-      marginLeft: 8,
-    },
-    timeScrollView: {
-      paddingHorizontal: 8,
-    },
-    timeSlot: {
-      backgroundColor: "#2A1A4A",
-      borderRadius: 12,
-      paddingHorizontal: 16,
-      paddingVertical: 8,
-      marginRight: 8,
-      borderWidth: 1,
-      borderColor: "#44337A",
-    },
-    timeSlotSelected: {
-      backgroundColor: "#6C3AFF",
-      borderColor: "#A78BFA",
-    },
-    timeSlotText: {
-      color: "#C4B5FD",
-      fontSize: 14,
-      fontWeight: "600",
-    },
-    timeSlotTextSelected: {
-      color: "#FFFFFF",
+      color: theme.colors.primary,
     },
   });
 

@@ -14,7 +14,6 @@ public class CompanyHour
 
     public TimeSpan? OpenTime { get; set; }
 
-
     public TimeSpan? CloseTime { get; set; }
 
     public int CompanyId { get; set; }

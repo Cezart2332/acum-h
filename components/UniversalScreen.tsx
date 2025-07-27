@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 import {
   View,
   StatusBar,
@@ -6,11 +6,13 @@ import {
   ScrollView,
   StyleSheet,
   ViewStyle,
-} from 'react-native';
-import { SafeAreaView } from 'react-native-safe-area-context';
-import { LinearGradient } from 'expo-linear-gradient';
-import { useTheme } from '../context/ThemeContext';
-import { PLATFORM, getKeyboardBehavior, getShadow } from '../utils/responsive';
+  RefreshControl,
+  RefreshControlProps,
+} from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
+import { LinearGradient } from "expo-linear-gradient";
+import { useTheme } from "../context/ThemeContext";
+import { PLATFORM, getKeyboardBehavior, getShadow } from "../utils/responsive";
 
 interface UniversalScreenProps {
   children: React.ReactNode;
@@ -18,13 +20,14 @@ interface UniversalScreenProps {
   gradient?: boolean;
   scrollable?: boolean;
   keyboardAvoidingView?: boolean;
-  safeAreaEdges?: ('top' | 'bottom' | 'left' | 'right')[];
-  statusBarStyle?: 'light-content' | 'dark-content';
+  safeAreaEdges?: ("top" | "bottom" | "left" | "right")[];
+  statusBarStyle?: "light-content" | "dark-content";
   showStatusBar?: boolean;
   backgroundColor?: string;
   paddingHorizontal?: number;
   paddingVertical?: number;
   contentContainerStyle?: ViewStyle;
+  refreshControl?: React.ReactElement<RefreshControlProps>;
 }
 
 const UniversalScreen: React.FC<UniversalScreenProps> = ({
@@ -33,13 +36,14 @@ const UniversalScreen: React.FC<UniversalScreenProps> = ({
   gradient = false,
   scrollable = false,
   keyboardAvoidingView = false,
-  safeAreaEdges = ['top', 'bottom'],
+  safeAreaEdges = ["top", "bottom"],
   statusBarStyle,
   showStatusBar = true,
   backgroundColor,
   paddingHorizontal = 0,
   paddingVertical = 0,
   contentContainerStyle,
+  refreshControl,
 }) => {
   const { theme } = useTheme();
 
@@ -75,6 +79,7 @@ const UniversalScreen: React.FC<UniversalScreenProps> = ({
           keyboardDismissMode="on-drag"
           scrollEventThrottle={16}
           nestedScrollEnabled={true}
+          refreshControl={refreshControl}
         >
           {children}
         </ScrollView>
@@ -120,9 +125,7 @@ const UniversalScreen: React.FC<UniversalScreenProps> = ({
   return (
     <SafeAreaView style={styles.safeArea} edges={safeAreaEdges}>
       {StatusBarComponent}
-      {renderWithGradient(
-        renderWithKeyboardAvoidingView(renderContent())
-      )}
+      {renderWithGradient(renderWithKeyboardAvoidingView(renderContent()))}
     </SafeAreaView>
   );
 };
