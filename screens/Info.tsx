@@ -38,10 +38,23 @@ interface Props {
 }
 
 interface EventData {
-  id: string;
+  id: number;
   title: string;
   description?: string;
+  eventDate: string;
+  startTime: string;
+  endTime: string;
+  address: string;
+  city: string;
   photo: string;
+  isActive: boolean;
+  latitude?: number;
+  longitude?: number;
+  createdAt: string;
+  companyId: number;
+  tags?: string[];
+  company?: string;
+  likes?: number;
 }
 
 interface CompanyData {
@@ -180,6 +193,12 @@ const Info: React.FC<Props> = ({ navigation, route }) => {
             {item.description && (
               <Text style={styles.eventDesc}>{item.description}</Text>
             )}
+            {item.likes !== undefined && item.likes > 0 && (
+              <View style={styles.eventLikes}>
+                <Ionicons name="heart" size={14} color="#ff6b6b" />
+                <Text style={styles.eventLikesText}>{item.likes} likes</Text>
+              </View>
+            )}
           </View>
         </ImageBackground>
       </View>
@@ -224,20 +243,44 @@ const Info: React.FC<Props> = ({ navigation, route }) => {
               <Ionicons name="location-outline" size={20} color="#A78BFA" />
               <Text style={styles.infoText}>{location.address}</Text>
             </View>
-            <View style={styles.row}>
-              <Ionicons name="business-outline" size={20} color="#A78BFA" />
-              <Text style={styles.infoText}>{location.company.name}</Text>
-            </View>
+            {location.phoneNumber && (
+              <TouchableOpacity
+                style={styles.row}
+                onPress={() => {
+                  const phoneUrl = `tel:${location.phoneNumber}`;
+                  Linking.canOpenURL(phoneUrl).then((supported) => {
+                    if (supported) {
+                      return Linking.openURL(phoneUrl);
+                    } else {
+                      Alert.alert(
+                        "Error",
+                        "Phone calls are not supported on this device"
+                      );
+                    }
+                  });
+                }}
+              >
+                <Ionicons name="call-outline" size={20} color="#A78BFA" />
+                <Text
+                  style={[
+                    styles.infoText,
+                    { color: "#A78BFA", textDecorationLine: "underline" },
+                  ]}
+                >
+                  {location.phoneNumber}
+                </Text>
+              </TouchableOpacity>
+            )}
             <View style={styles.row}>
               <Ionicons name="pricetag-outline" size={20} color="#A78BFA" />
-              <Text style={styles.infoText}>{location.company.category}</Text>
+              <Text style={styles.infoText}>{location.category}</Text>
             </View>
 
             {/* Despre noi */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Despre noi</Text>
               <Text style={styles.description}>
-                {location.company.description}
+                De adaugat descriere pe locatie !
               </Text>
             </View>
 
@@ -290,7 +333,7 @@ const Info: React.FC<Props> = ({ navigation, route }) => {
               ) : (
                 <FlatList
                   data={events}
-                  keyExtractor={(item) => item.id}
+                  keyExtractor={(item) => item.id.toString()}
                   renderItem={renderEvent}
                   horizontal
                   showsHorizontalScrollIndicator={false}
@@ -456,6 +499,20 @@ const createStyles = (theme: any) =>
       textShadowRadius: 4,
     },
     eventDesc: { fontSize: 14, color: "#E0E0FF", marginTop: 4, opacity: 0.9 },
+    eventLikes: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginTop: 6,
+    },
+    eventLikesText: {
+      fontSize: 12,
+      color: "#FFFFFF",
+      marginLeft: 4,
+      fontWeight: "600",
+      textShadowColor: "rgba(0,0,0,0.5)",
+      textShadowOffset: { width: 0, height: 1 },
+      textShadowRadius: 2,
+    },
   });
 
 export default Info;

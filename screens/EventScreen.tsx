@@ -20,6 +20,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { BASE_URL } from "../config";
 import { useTheme } from "../context/ThemeContext";
+import { useUser } from "../context/UserContext";
 import UniversalScreen from "../components/UniversalScreen";
 import EnhancedButton from "../components/EnhancedButton";
 import {
@@ -39,11 +40,23 @@ interface Props {
 }
 
 interface EventData {
-  id: string;
+  id: number;
   title: string;
   description?: string;
+  eventDate: string;
+  startTime: string;
+  endTime: string;
+  address: string;
+  city: string;
   photo: string;
+  isActive: boolean;
+  latitude?: number;
+  longitude?: number;
+  createdAt: string;
+  companyId: number;
   tags?: string[];
+  company?: string;
+  likes?: number;
 }
 
 const { width } = Dimensions.get("window");
@@ -51,6 +64,7 @@ const { width } = Dimensions.get("window");
 const EventScreen: React.FC<Props> = ({ route, navigation }) => {
   const { event } = route.params || {};
   const { theme } = useTheme();
+  const { user } = useUser();
 
   // Early return if event is not provided
   if (!event) {
@@ -63,6 +77,8 @@ const EventScreen: React.FC<Props> = ({ route, navigation }) => {
   const [liked, setLiked] = useState(false);
   const [saved, setSaved] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [likeLoading, setLikeLoading] = useState(false);
+  const [currentLikes, setCurrentLikes] = useState(event?.likes || 0);
 
   // Animation refs
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -91,11 +107,101 @@ const EventScreen: React.FC<Props> = ({ route, navigation }) => {
     ]).start();
   }, []);
 
+  // Check like status when component mounts
+  useEffect(() => {
+    const checkLikeStatus = async () => {
+      if (!user) {
+        console.log("No user found, skipping like status check");
+        return;
+      }
+
+      console.log(
+        `Checking like status for event ${event.id} and user ${user.id}`
+      );
+
+      try {
+        const response = await fetch(
+          `${BASE_URL}/events/${event.id}/like-status/${user.id}`
+        );
+
+        console.log("Like status response:", response.status);
+
+        if (response.ok) {
+          const data = await response.json();
+          console.log("Like status data:", data);
+          setLiked(data.isLiked);
+          setCurrentLikes(data.likes);
+        } else {
+          console.error("Failed to fetch like status:", response.status);
+        }
+      } catch (error) {
+        console.error("Error checking like status:", error);
+      }
+    };
+
+    checkLikeStatus();
+  }, [event.id, user]);
+
   const handleLike = useCallback(async () => {
+    if (!user) {
+      Alert.alert("Login Required", "Please log in to like events.");
+      return;
+    }
+
     hapticFeedback("light");
-    setLiked(!liked);
-    // TODO: Implement like functionality
-  }, [liked]);
+    setLikeLoading(true);
+
+    try {
+      const endpoint = liked
+        ? `${BASE_URL}/events/${event.id}/unlike`
+        : `${BASE_URL}/events/${event.id}/like`;
+
+      const formData = new FormData();
+      formData.append("userId", user.id.toString());
+
+      const response = await fetch(endpoint, {
+        method: "POST",
+        body: formData,
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        console.log("Like response data:", data);
+        console.log("Setting liked to:", data.isLiked);
+        console.log("Setting likes count to:", data.likes);
+
+        setLiked(data.isLiked);
+        setCurrentLikes(data.likes);
+        console.log(
+          `Event ${
+            data.isLiked ? "liked" : "unliked"
+          } successfully. Total likes: ${data.likes}`
+        );
+      } else {
+        // Get the error details from the response
+        const errorData = await response
+          .json()
+          .catch(() => ({ Error: "Unknown error" }));
+        console.log("Response status:", response.status);
+        console.log("Error data:", errorData);
+        console.log("Event ID:", event.id);
+        console.log("User ID:", user.id);
+        console.error(
+          "Failed to update like status:",
+          errorData.Error || "Unknown error"
+        );
+        Alert.alert(
+          "Error",
+          errorData.Error || "Failed to update like status. Please try again."
+        );
+      }
+    } catch (error) {
+      console.error("Error updating like status:", error);
+      Alert.alert("Error", "Network error. Please check your connection.");
+    } finally {
+      setLikeLoading(false);
+    }
+  }, [liked, event.id, user]);
 
   const handleSave = useCallback(async () => {
     hapticFeedback("light");
@@ -195,6 +301,12 @@ const EventScreen: React.FC<Props> = ({ route, navigation }) => {
               {/* Event Title */}
               <View style={styles.titleContainer}>
                 <Text style={styles.title}>{event.title}</Text>
+                {currentLikes > 0 && (
+                  <View style={styles.likesContainer}>
+                    <Ionicons name="heart" size={18} color="#ff6b6b" />
+                    <Text style={styles.likesText}>{currentLikes} likes</Text>
+                  </View>
+                )}
               </View>
             </ImageBackground>
           </View>
@@ -233,21 +345,56 @@ const EventScreen: React.FC<Props> = ({ route, navigation }) => {
                   size={20}
                   color={theme.colors.primary}
                 />
-                <Text style={styles.text}>123 Main Street, Bucharest</Text>
+                <Text style={styles.text}>
+                  {event.address && event.city
+                    ? `${event.address}, ${event.city}`
+                    : event.address || event.city || "Location not specified"}
+                </Text>
               </View>
             </View>
 
             {/* Schedule */}
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Schedule</Text>
+              {event.eventDate && (
+                <View style={styles.row}>
+                  <Ionicons
+                    name="calendar-outline"
+                    size={20}
+                    color={theme.colors.primary}
+                  />
+                  <Text style={styles.text}>
+                    {new Date(event.eventDate).toLocaleDateString("en-US", {
+                      weekday: "long",
+                      year: "numeric",
+                      month: "long",
+                      day: "numeric",
+                    })}
+                  </Text>
+                </View>
+              )}
               <View style={styles.row}>
                 <Ionicons
                   name="time-outline"
                   size={20}
                   color={theme.colors.primary}
                 />
-                <Text style={styles.text}>10:00 AM - 4:00 PM</Text>
+                <Text style={styles.text}>
+                  {event.startTime && event.endTime
+                    ? `${event.startTime} - ${event.endTime}`
+                    : "Time not specified"}
+                </Text>
               </View>
+              {event.company && (
+                <View style={styles.row}>
+                  <Ionicons
+                    name="business-outline"
+                    size={20}
+                    color={theme.colors.primary}
+                  />
+                  <Text style={styles.text}>Organized by {event.company}</Text>
+                </View>
+              )}
             </View>
 
             {/* Action Buttons */}
@@ -262,7 +409,7 @@ const EventScreen: React.FC<Props> = ({ route, navigation }) => {
                 }
                 textStyle={liked ? styles.likedBtnText : undefined}
                 icon={liked ? "heart" : "heart-outline"}
-                loading={loading}
+                loading={likeLoading}
               />
 
               <EnhancedButton
@@ -350,6 +497,24 @@ const createStyles = (theme: any) =>
       textShadowColor: "rgba(0, 0, 0, 0.7)",
       textShadowOffset: { width: 0, height: 2 },
       textShadowRadius: 4,
+    },
+    likesContainer: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginTop: 8,
+      backgroundColor: "rgba(255,255,255,0.2)",
+      paddingHorizontal: 12,
+      paddingVertical: 6,
+      borderRadius: 15,
+    },
+    likesText: {
+      marginLeft: 6,
+      fontSize: 16,
+      color: "#FFFFFF",
+      fontWeight: "600",
+      textShadowColor: "rgba(0, 0, 0, 0.7)",
+      textShadowOffset: { width: 0, height: 1 },
+      textShadowRadius: 2,
     },
     detailsContainer: {
       flex: 1,

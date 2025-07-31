@@ -175,9 +175,7 @@ export default function MapsScreen({ navigation }: { navigation: MapNav }) {
         <Text style={styles.calloutTitle}>{locationItem.name}</Text>
       </ImageBackground>
       <View style={styles.calloutInfo}>
-        <Text style={styles.calloutCategory}>
-          {locationItem.company.category}
-        </Text>
+        <Text style={styles.calloutCategory}>{locationItem.category}</Text>
         <Text style={styles.calloutDistance}>{distance} km</Text>
       </View>
     </View>
@@ -249,7 +247,7 @@ export default function MapsScreen({ navigation }: { navigation: MapNav }) {
                     </View>
                     <View style={styles.androidCalloutInfo}>
                       <Text style={styles.androidCalloutCategory}>
-                        {locationItem.company.category}
+                        {locationItem.category}
                       </Text>
                       <Text style={styles.androidCalloutDistance}>
                         {distance} km

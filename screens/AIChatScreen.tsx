@@ -26,9 +26,6 @@ import { Ionicons, MaterialIcons } from "@expo/vector-icons";
 import { useTheme } from "../context/ThemeContext";
 import UniversalScreen from "../components/UniversalScreen";
 import { BASE_URL } from "../config";
-import PythonAIService, {
-  MenuRecommendation,
-} from "../services/PythonAIService";
 import { useDebounce, useInputValidation } from "../hooks/useInputHelpers";
 
 const { width, height } = Dimensions.get("window");
@@ -43,7 +40,6 @@ interface Message {
   timestamp: Date;
   intent?: string;
   searchResults?: SearchResults;
-  recommendations?: MenuRecommendation[];
   isLoading?: boolean;
   error?: boolean;
   processingTime?: number;
@@ -219,25 +215,20 @@ const AIChatScreen: React.FC<{ navigation: any; route: any }> = ({
 
   const checkSystemHealth = useCallback(async () => {
     try {
-      console.log("Checking Python AI service health...");
+      console.log("Checking system health...");
 
-      // Check Python AI service health
-      const isAIAvailable = await PythonAIService.isAvailable();
-      let aiStatus = "healthy";
-      let aiConnection = "connected";
-
-      if (!isAIAvailable) {
-        console.warn("Python AI service is not available");
-        aiStatus = "degraded";
-        aiConnection = "disconnected";
-      }
+      // Simple backend connectivity check
+      const response = await fetch(`${BASE_URL}/companies`);
+      const isBackendAvailable = response.ok;
 
       if (isMountedRef.current) {
         setSystemHealth({
-          status: isAIAvailable ? "healthy" : "degraded",
+          status: isBackendAvailable ? "healthy" : "degraded",
           ai_system: {
-            status: aiStatus,
-            backend_connection: aiConnection,
+            status: isBackendAvailable ? "healthy" : "degraded",
+            backend_connection: isBackendAvailable
+              ? "connected"
+              : "disconnected",
             data_cache: {
               restaurants_count: 0,
               events_count: 0,
@@ -246,13 +237,12 @@ const AIChatScreen: React.FC<{ navigation: any; route: any }> = ({
           },
           backend_url: BASE_URL,
         });
-        setConnectionError(!isAIAvailable);
+        setConnectionError(!isBackendAvailable);
       }
     } catch (error) {
       console.warn("Failed to check system health:", error);
       if (isMountedRef.current) {
         setConnectionError(true);
-        // Set a degraded status when health check fails
         setSystemHealth({
           status: "degraded",
           ai_system: {
@@ -274,11 +264,16 @@ const AIChatScreen: React.FC<{ navigation: any; route: any }> = ({
     try {
       console.log("Loading backend data...");
 
-      // Load companies and events from backend using PythonAIService
-      const [companies, events] = await Promise.all([
-        PythonAIService.fetchCompanies(),
-        PythonAIService.fetchEvents(),
+      // Load companies and events from backend directly
+      const [companiesResponse, eventsResponse] = await Promise.all([
+        fetch(`${BASE_URL}/companies`),
+        fetch(`${BASE_URL}/events`),
       ]);
+
+      const companies = companiesResponse.ok
+        ? await companiesResponse.json()
+        : [];
+      const events = eventsResponse.ok ? await eventsResponse.json() : [];
 
       console.log(
         `Loaded ${companies.length} companies and ${events.length} events from backend`
@@ -311,21 +306,11 @@ const AIChatScreen: React.FC<{ navigation: any; route: any }> = ({
   }, []);
 
   const initializeChat = useCallback(async () => {
-    try {
-      // Initialize Python AI service
-      console.log("Initializing Python AI service...");
-      await PythonAIService.initialize();
-      console.log("Python AI service initialized successfully");
-    } catch (error) {
-      console.warn("Python AI service initialization failed:", error);
-      // Continue with fallback functionality
-    }
-
     // Add welcome message with system info
     const welcomeMessage: Message = {
       id: "welcome",
       text: company
-        ? `Salut! 👋 Sunt asistentul tău AI pentru ${company.name}. Te pot ajuta cu recomandări de meniu, întrebări dietetice și informații despre felurile noastre de mâncare. Cu ce te pot ajuta?`
+        ? `Salut! 👋 Sunt asistentul tău AI pentru ${company.name}. Te pot ajuta cu informații despre restaurant și evenimentele noastre. Cu ce te pot ajuta?`
         : "Salut! 👋 Mă bucur să te văd! Sunt aici să te ajut să găsești cele mai bune restaurante și evenimente din oraș. Cu ce te pot ajuta?",
       isUser: false,
       timestamp: new Date(),
@@ -336,39 +321,39 @@ const AIChatScreen: React.FC<{ navigation: any; route: any }> = ({
       setMessages([welcomeMessage]);
     }
 
-    // Only load suggestions if we have a company and backend data is available
+    // Only load suggestions if we have a company
     if (company && company.id) {
       try {
         console.log("Loading suggestions for company:", company.name);
 
-        // Verify backend connectivity first
-        const companies = await PythonAIService.fetchCompanies();
-        if (companies.length > 0) {
+        // Simple backend connectivity check
+        const response = await fetch(`${BASE_URL}/companies`);
+        if (response.ok) {
           // Set context-aware suggestions for restaurant
           const companySuggestions = [
             {
               id: 1,
-              text: "Ce îmi recomanzi din meniu?",
-              category: "recommendation",
+              text: "Ce informații aveți despre restaurant?",
+              category: "info",
               icon: "🍽️",
             },
             {
               id: 2,
-              text: "Ce opțiuni vegetariene aveți?",
-              category: "dietary",
-              icon: "🥗",
+              text: "Ce evenimente organizați?",
+              category: "events",
+              icon: "🎉",
             },
             {
               id: 3,
-              text: "Care este felul cel mai popular?",
-              category: "popular",
-              icon: "⭐",
+              text: "Care sunt orele de funcționare?",
+              category: "hours",
+              icon: "⏰",
             },
             {
               id: 4,
-              text: "Caut ceva picant",
-              category: "preference",
-              icon: "🌶️",
+              text: "Unde vă aflați?",
+              category: "location",
+              icon: "📍",
             },
           ];
 
@@ -379,7 +364,7 @@ const AIChatScreen: React.FC<{ navigation: any; route: any }> = ({
           // Backend not available - show error
           if (isMountedRef.current) {
             setInputError(
-              "Îmi pare rău, nu am sugestii momentan. Te rog încearcă din nou mai târziu."
+              "Îmi pare rău, nu am informații momentan. Te rog încearcă din nou mai târziu."
             );
             setSuggestions([]);
           }
@@ -388,15 +373,42 @@ const AIChatScreen: React.FC<{ navigation: any; route: any }> = ({
         console.warn("Failed to load suggestions:", error);
         if (isMountedRef.current) {
           setInputError(
-            "Îmi pare rău, nu am sugestii momentan. Te rog încearcă din nou mai târziu."
+            "Îmi pare rău, nu am informații momentan. Te rog încearcă din nou mai târziu."
           );
           setSuggestions([]);
         }
       }
     } else {
-      // No company context - no suggestions
+      // No company context - show general suggestions
+      const generalSuggestions = [
+        {
+          id: 1,
+          text: "Caută restaurante în zona mea",
+          category: "search",
+          icon: "🔍",
+        },
+        {
+          id: 2,
+          text: "Ce evenimente sunt disponibile?",
+          category: "events",
+          icon: "🎉",
+        },
+        {
+          id: 3,
+          text: "Recomandă-mi un restaurant",
+          category: "recommendation",
+          icon: "⭐",
+        },
+        {
+          id: 4,
+          text: "Ajutor",
+          category: "help",
+          icon: "❓",
+        },
+      ];
+
       if (isMountedRef.current) {
-        setSuggestions([]);
+        setSuggestions(generalSuggestions);
       }
     }
   }, [company]);
@@ -458,62 +470,71 @@ const AIChatScreen: React.FC<{ navigation: any; route: any }> = ({
       try {
         let aiResponse = "";
         let intent = "general_chat";
-        let recommendations: MenuRecommendation[] = [];
+        let searchResults: SearchResults | undefined;
 
-        // If we have a company, use PythonAI service
+        // Simple text-based intent analysis
+        const lowercaseText = text.toLowerCase();
+        if (
+          lowercaseText.includes("restaurant") ||
+          lowercaseText.includes("mâncare")
+        ) {
+          intent = "restaurant_search";
+        } else if (
+          lowercaseText.includes("eveniment") ||
+          lowercaseText.includes("event")
+        ) {
+          intent = "event_search";
+        } else if (
+          lowercaseText.includes("recomand") ||
+          lowercaseText.includes("suger")
+        ) {
+          intent = "recommendation";
+        } else if (
+          lowercaseText.includes("ajutor") ||
+          lowercaseText.includes("help")
+        ) {
+          intent = "help";
+        }
+
+        // Generate simple responses based on intent
         if (company && company.id) {
-          try {
-            // Analyze user intent first
-            const intentAnalysis = await PythonAIService.analyzeUserIntent(
-              text.trim()
-            );
-            intent = intentAnalysis.intent;
-
-            if (intent === "menu_recommendation") {
-              // Get menu recommendations
-              const menuResponse = await PythonAIService.getMenuRecommendations(
-                company.id,
-                text.trim(),
-                [] // You can add dietary restrictions extraction here
-              );
-              recommendations = menuResponse.recommendations;
-              aiResponse = menuResponse.explanation;
-            } else {
-              // Get conversational response about menu
-              aiResponse = await PythonAIService.getChatResponse(
-                company.id,
-                text.trim(),
-                conversationHistory.slice(-5) // Keep last 5 messages for context
-              );
-            }
-          } catch (menuError) {
-            console.error("MenuAI error:", menuError);
-            // Set specific error based on the error type
-            if (menuError.message?.includes("meniul")) {
-              setInputError(
-                "Îmi pare rău, nu pot procesa meniul acum. Încearcă mai târziu."
-              );
-            } else {
-              // For menu errors, fall back to general search
-              console.log("Menu error, falling back to general search");
-              aiResponse = await PythonAIService.getChatResponse(
-                null, // No specific company
-                text.trim(),
-                conversationHistory.slice(-5)
-              );
-            }
-
-            if (!aiResponse) {
-              return; // Exit early if no response and error set
-            }
+          // Company-specific responses
+          switch (intent) {
+            case "restaurant_search":
+              aiResponse = `Îți pot oferi informații despre ${company.name}. Suntem un restaurant cu o atmosferă plăcută și mâncare delicioasă. Dacă ai întrebări specifice, sunt aici să te ajut!`;
+              break;
+            case "event_search":
+              aiResponse = `Pentru evenimente la ${company.name}, te pot ajuta să găsești informații. Verifică secțiunea de evenimente din aplicație pentru cele mai recente actualizări!`;
+              break;
+            case "help":
+              aiResponse = `Sunt aici să te ajut cu informații despre ${company.name}! Pot să îți spun despre restaurantul nostru, evenimente, locație și alte detalii. Ce anume te interesează?`;
+              break;
+            default:
+              aiResponse = `Mulțumesc pentru întrebare! Încerc să te ajut cât pot de bine. Pentru informații detaliate despre ${company.name}, poți explora aplicația sau să îmi pui întrebări specifice.`;
           }
         } else {
-          // For queries without company context, use enhanced routing
-          aiResponse = await PythonAIService.getChatResponse(
-            null, // No specific company - will trigger intelligent routing
-            text.trim(),
-            conversationHistory.slice(-5)
-          );
+          // General responses
+          switch (intent) {
+            case "restaurant_search":
+              aiResponse =
+                "Te pot ajuta să găsești restaurante! Explorează secțiunea de restaurante din aplicație pentru a vedea opțiunile disponibile în zona ta.";
+              break;
+            case "event_search":
+              aiResponse =
+                "Pentru evenimente, verifică secțiunea dedicată din aplicație. Acolo vei găsi toate evenimentele actuale și viitoare!";
+              break;
+            case "recommendation":
+              aiResponse =
+                "Îți recomand să explorezi restaurantele din aplicație și să vezi ce îți place. Fiecare are ceva special de oferit!";
+              break;
+            case "help":
+              aiResponse =
+                "Sunt aici să te ajut! Pot să te ghidez prin aplicație și să îți ofer informații despre restaurante și evenimente. Ce anume cauți?";
+              break;
+            default:
+              aiResponse =
+                "Înțeleg! Sunt aici să te ajut cu informații despre restaurante și evenimente. Dacă ai întrebări specifice, sunt bucuros să răspund!";
+          }
         }
 
         // Stop typing animation safely
@@ -527,34 +548,26 @@ const AIChatScreen: React.FC<{ navigation: any; route: any }> = ({
           setIsTyping(false);
         }
 
-        // Only add AI message if we have actual response content
-        if (aiResponse.trim()) {
-          const aiMessage: Message = {
-            id: Date.now().toString(),
-            text: aiResponse,
-            isUser: false,
-            timestamp: new Date(),
-            intent: intent,
-            recommendations:
-              recommendations.length > 0 ? recommendations : undefined,
-          };
+        // Add AI message
+        const aiMessage: Message = {
+          id: Date.now().toString(),
+          text: aiResponse,
+          isUser: false,
+          timestamp: new Date(),
+          intent: intent,
+          searchResults: searchResults,
+        };
 
-          if (isMountedRef.current) {
-            setMessages((prev) => prev.slice(0, -1).concat([aiMessage]));
-          }
+        if (isMountedRef.current) {
+          setMessages((prev) => prev.slice(0, -1).concat([aiMessage]));
+        }
 
-          // Haptic feedback for successful response
-          Vibration.vibrate(50);
+        // Haptic feedback for successful response
+        Vibration.vibrate(50);
 
-          // Clear connection error if request was successful
-          if (isMountedRef.current) {
-            setConnectionError(false);
-          }
-        } else {
-          // Remove loading message if no response
-          if (isMountedRef.current) {
-            setMessages((prev) => prev.slice(0, -1));
-          }
+        // Clear connection error if request was successful
+        if (isMountedRef.current) {
+          setConnectionError(false);
         }
       } catch (error) {
         console.error("Chat error:", error);
@@ -578,7 +591,7 @@ const AIChatScreen: React.FC<{ navigation: any; route: any }> = ({
 
         if (isConnectionError) {
           errorMessageText =
-            "Nu pot să mă conectez la serverul AI. Te rog verifică conexiunea și încearcă din nou.";
+            "Nu pot să mă conectez la server. Te rog verifică conexiunea și încearcă din nou.";
         } else if (isTimeoutError) {
           errorMessageText =
             "Cererea a expirat. Te rog încearcă din nou cu un mesaj mai scurt.";
@@ -891,98 +904,6 @@ const AIChatScreen: React.FC<{ navigation: any; route: any }> = ({
     [theme, handleRestaurantPress, handleEventPress]
   );
 
-  const renderMenuRecommendations = useCallback(
-    (recommendations: MenuRecommendation[]) => {
-      return (
-        <View style={styles.recommendationsContainer}>
-          <View style={styles.recommendationsHeader}>
-            <Ionicons
-              name="restaurant-outline"
-              size={20}
-              color={theme.colors.primary}
-            />
-            <Text
-              style={[
-                styles.recommendationsTitle,
-                { color: theme.colors.primary },
-              ]}
-            >
-              Menu Recommendations
-            </Text>
-          </View>
-          {recommendations.map((rec, index) => (
-            <View
-              key={index}
-              style={[
-                styles.recommendationCard,
-                {
-                  backgroundColor: theme.colors.surface,
-                  borderColor: theme.colors.border + "30",
-                },
-              ]}
-            >
-              <View style={styles.recommendationHeader}>
-                <Text style={[styles.dishName, { color: theme.colors.text }]}>
-                  {rec.dishName}
-                </Text>
-                <View
-                  style={[
-                    styles.categoryBadge,
-                    { backgroundColor: theme.colors.primary + "20" },
-                  ]}
-                >
-                  <Text
-                    style={[
-                      styles.categoryText,
-                      { color: theme.colors.primary },
-                    ]}
-                  >
-                    {rec.category}
-                  </Text>
-                </View>
-              </View>
-
-              <Text
-                style={[
-                  styles.dishDescription,
-                  { color: theme.colors.textSecondary },
-                ]}
-              >
-                {rec.description}
-              </Text>
-
-              <Text
-                style={[
-                  styles.recommendationReason,
-                  { color: theme.colors.text },
-                ]}
-              >
-                <Ionicons
-                  name="bulb-outline"
-                  size={16}
-                  color={theme.colors.accent}
-                />{" "}
-                {rec.reason}
-              </Text>
-
-              {rec.estimatedPrice && (
-                <Text
-                  style={[
-                    styles.priceInfo,
-                    { color: theme.colors.textTertiary },
-                  ]}
-                >
-                  Price: {rec.estimatedPrice}
-                </Text>
-              )}
-            </View>
-          ))}
-        </View>
-      );
-    },
-    [theme]
-  );
-
   const renderMessage = useCallback(
     (message: Message) => {
       if (message.isLoading) {
@@ -1107,9 +1028,6 @@ const AIChatScreen: React.FC<{ navigation: any; route: any }> = ({
 
             {message.searchResults &&
               renderSearchResults(message.searchResults)}
-
-            {message.recommendations &&
-              renderMenuRecommendations(message.recommendations)}
           </View>
 
           <Text
@@ -1128,7 +1046,6 @@ const AIChatScreen: React.FC<{ navigation: any; route: any }> = ({
       formatTime,
       getIntentIcon,
       renderSearchResults,
-      renderMenuRecommendations,
     ]
   );
 
@@ -1175,7 +1092,7 @@ const AIChatScreen: React.FC<{ navigation: any; route: any }> = ({
           <View style={[styles.statusDot, { backgroundColor: statusColor }]} />
           <Text style={[styles.statusText, { color: statusColor }]}>
             {isHealthy
-              ? "Smart AI activ"
+              ? "Chat activ"
               : connectionError
               ? "Problemă de conexiune"
               : "Status necunoscut"}
@@ -1210,7 +1127,7 @@ const AIChatScreen: React.FC<{ navigation: any; route: any }> = ({
         <View style={styles.headerContent}>
           <View style={styles.headerInfo}>
             <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
-              Smart AI Assistant
+              Chat Assistant
             </Text>
             <Text
               style={[
@@ -1222,7 +1139,7 @@ const AIChatScreen: React.FC<{ navigation: any; route: any }> = ({
                 ? "Se gândește..."
                 : connectionError
                 ? "Offline"
-                : "Online și inteligent"}
+                : "Online și disponibil"}
             </Text>
           </View>
 
@@ -1650,65 +1567,6 @@ const styles = StyleSheet.create({
     justifyContent: "center",
     alignItems: "center",
     marginLeft: 12,
-  },
-
-  // Menu Recommendations Styles
-  recommendationsContainer: {
-    marginTop: 12,
-    paddingTop: 12,
-    borderTopWidth: 1,
-    borderTopColor: "rgba(255, 255, 255, 0.1)",
-  },
-  recommendationsHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    marginBottom: 12,
-  },
-  recommendationsTitle: {
-    fontSize: 16,
-    fontWeight: "600",
-    marginLeft: 8,
-  },
-  recommendationCard: {
-    padding: 12,
-    borderRadius: 12,
-    marginBottom: 8,
-    borderWidth: 1,
-  },
-  recommendationHeader: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    marginBottom: 8,
-  },
-  dishName: {
-    fontSize: 16,
-    fontWeight: "600",
-    flex: 1,
-  },
-  categoryBadge: {
-    paddingHorizontal: 8,
-    paddingVertical: 4,
-    borderRadius: 12,
-  },
-  categoryText: {
-    fontSize: 12,
-    fontWeight: "500",
-    textTransform: "capitalize",
-  },
-  dishDescription: {
-    fontSize: 14,
-    marginBottom: 8,
-    lineHeight: 20,
-  },
-  recommendationReason: {
-    fontSize: 14,
-    fontStyle: "italic",
-    marginBottom: 4,
-  },
-  priceInfo: {
-    fontSize: 12,
-    fontWeight: "500",
   },
 
   // Error handling styles

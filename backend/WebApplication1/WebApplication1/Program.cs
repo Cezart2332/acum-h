@@ -8,6 +8,17 @@ var builder = WebApplication.CreateBuilder(args);
 
 builder.Services.AddOpenApi();
 
+// Add CORS configuration
+builder.Services.AddCors(options =>
+{
+    options.AddDefaultPolicy(policy =>
+    {
+        policy.AllowAnyOrigin()
+              .AllowAnyMethod()
+              .AllowAnyHeader();
+    });
+});
+
 // Configure JSON options to handle circular references
 builder.Services.ConfigureHttpJsonOptions(options =>
 {
@@ -42,6 +53,9 @@ if (app.Environment.IsDevelopment())
     app.MapOpenApi();
 }
 
+// Enable CORS
+app.UseCors();
+
 app.UseHttpsRedirection();
 app.Urls.Clear();
 app.Urls.Add("http://0.0.0.0:5298");
@@ -72,6 +86,7 @@ app.MapPost("/users", async (HttpRequest req, AppDbContext db) =>
         FirstName = form["firstname"].ToString(),
         LastName = form["lastname"].ToString(),
         Email = form["email"].ToString(),
+        PhoneNumber = form["phoneNumber"].ToString(),
         Password = BCrypt.Net.BCrypt.HashPassword(form["password"].ToString()),
     };
     if (file != null && file.Length > 0)
@@ -84,22 +99,21 @@ app.MapPost("/users", async (HttpRequest req, AppDbContext db) =>
         ? Convert.ToBase64String(user.ProfileImage)
         : null;
 
-    int lastId = await db.Users
-        .OrderByDescending(u => u.Id)
-        .Select(u => u.Id)
-        .FirstOrDefaultAsync();
+     db.Users.Add(user);
+    await db.SaveChangesAsync();
+
     var userResponse = new UserResponse
     {
-        Id = lastId + 1,
+        Id = user.Id,
         Username = user.Username,
         FirstName = user.FirstName,
         LastName = user.LastName,
         Email = user.Email,
+        PhoneNumber = user.PhoneNumber,
         ProfileImage = pfpUser ?? string.Empty
     };
 
-    db.Users.Add(user);
-    await db.SaveChangesAsync();
+   
     return Results.Created($"/users/{user.Id}", userResponse);
 });
 
@@ -267,6 +281,7 @@ app.MapGet("/events", async (AppDbContext db) =>
 {
     var events = await db.Events
         .Include(e => e.Company)
+        .Where(e => e.IsActive)
         .ToListAsync();
         
     var eventResponses = events.Select(e => new EventResponse
@@ -274,20 +289,18 @@ app.MapGet("/events", async (AppDbContext db) =>
         Id = e.Id,
         Title = e.Title,
         Description = e.Description,
-        Tags = string.IsNullOrEmpty(e.Tags) ? new List<string>() : e.Tags.Split(",").ToList(),
-        Likes = e.Likes,
+        Tags = string.IsNullOrEmpty(e.Tags) ? new List<string>() : e.Tags.Split(",").Select(t => t.Trim()).ToList(),
+        Likes = db.Likes.Count(l => l.EventId == e.Id),
         Photo = e.Photo != null ? Convert.ToBase64String(e.Photo) : string.Empty,
         Company = e.Company?.Name ?? "Unknown",
-        // Use placeholder values for event date/time until migration
-        EventDate = e.CreatedAt.Date.AddDays(7),
-        StartTime = "18:00",
-        EndTime = "22:00", 
-        IsActive = true,
-        // Use event's own address fields (will be populated after migration)
-        Address = "", // e.Address - will be available after migration
-        City = "", // e.City
-        Latitude = null, // e.Latitude
-        Longitude = null, // e.Longitude
+        EventDate = e.EventDate,
+        StartTime = e.StartTime.ToString(@"hh\:mm"),
+        EndTime = e.EndTime.ToString(@"hh\:mm"),
+        Address = e.Address,
+        City = e.City,
+        Latitude = e.Latitude,
+        Longitude = e.Longitude,
+        IsActive = e.IsActive,
         CreatedAt = e.CreatedAt
     }).ToList();
 
@@ -297,27 +310,32 @@ app.MapGet("/events", async (AppDbContext db) =>
 app.MapPost("companyevents", async (HttpRequest req, AppDbContext db) =>
 {
     var form = await req.ReadFormAsync();
-    List<Event> events = await db.Events.ToListAsync();
-    List<EventResponse> eventResponses = new List<EventResponse>();
-    
     int companyId = int.Parse(form["id"].ToString());
-    foreach (var e in events)
+    
+    List<Event> events = await db.Events
+        .Include(e => e.Company)
+        .Where(e => e.CompanyId == companyId && e.IsActive)
+        .ToListAsync();
+    
+    var eventResponses = events.Select(e => new EventResponse
     {
-        if (companyId == e.CompanyId)
-        {
-            var company = await db.Companies.FindAsync(e.CompanyId);
-            var er = new EventResponse
-            {
-                Id = e.Id,
-                Title = e.Title,
-                Description = e.Description,
-                Likes = e.Likes,
-                Photo = e.Photo != null ? Convert.ToBase64String(e.Photo) : string.Empty,
-                Company = company?.Name ?? "Unknown"
-            };
-            eventResponses.Add(er);
-        }
-    }
+        Id = e.Id,
+        Title = e.Title,
+        Description = e.Description,
+        Tags = string.IsNullOrEmpty(e.Tags) ? new List<string>() : e.Tags.Split(",").Select(t => t.Trim()).ToList(),
+        Likes = db.Likes.Count(l => l.EventId == e.Id),
+        Photo = e.Photo != null ? Convert.ToBase64String(e.Photo) : string.Empty,
+        Company = e.Company?.Name ?? "Unknown",
+        EventDate = e.EventDate,
+        StartTime = e.StartTime.ToString(@"hh\:mm"),
+        EndTime = e.EndTime.ToString(@"hh\:mm"),
+        Address = e.Address,
+        City = e.City,
+        Latitude = e.Latitude,
+        Longitude = e.Longitude,
+        IsActive = e.IsActive,
+        CreatedAt = e.CreatedAt
+    }).ToList();
 
     return Results.Ok(eventResponses);
 });
@@ -339,24 +357,167 @@ app.MapGet("/events/{id}", async (int id, AppDbContext db) =>
         Id = eventItem.Id,
         Title = eventItem.Title,
         Description = eventItem.Description,
-        Tags = string.IsNullOrEmpty(eventItem.Tags) ? new List<string>() : eventItem.Tags.Split(",").ToList(),
-        Likes = eventItem.Likes,
+        Tags = string.IsNullOrEmpty(eventItem.Tags) ? new List<string>() : eventItem.Tags.Split(",").Select(t => t.Trim()).ToList(),
+        Likes = await db.Likes.CountAsync(l => l.EventId == eventItem.Id),
         Photo = eventItem.Photo != null ? Convert.ToBase64String(eventItem.Photo) : string.Empty,
         Company = eventItem.Company?.Name ?? "Unknown",
-        // Use placeholder values for event date/time until migration
-        EventDate = eventItem.CreatedAt.Date.AddDays(7),
-        StartTime = "18:00",
-        EndTime = "22:00", 
-        IsActive = true,
-        // Use event's own address fields (will be populated after migration)
-        Address = "", // eventItem.Address - will be available after migration
-        City = "", // eventItem.City
-        Latitude = null, // eventItem.Latitude
-        Longitude = null, // eventItem.Longitude
+        EventDate = eventItem.EventDate,
+        StartTime = eventItem.StartTime.ToString(@"hh\:mm"),
+        EndTime = eventItem.EndTime.ToString(@"hh\:mm"),
+        Address = eventItem.Address,
+        City = eventItem.City,
+        Latitude = eventItem.Latitude,
+        Longitude = eventItem.Longitude,
+        IsActive = eventItem.IsActive,
         CreatedAt = eventItem.CreatedAt
     };
 
     return Results.Ok(eventResponse);
+});
+
+// POST /events/{id}/like - Like an event (requires userId in body)
+app.MapPost("/events/{id}/like", async (int id, HttpRequest request, AppDbContext db) =>
+{
+    Console.WriteLine($"Like request received for event {id}");
+    
+    var form = await request.ReadFormAsync();
+    Console.WriteLine($"Form data received: {string.Join(", ", form.Keys)}");
+    
+    if (!int.TryParse(form["userId"], out int userId))
+    {
+        Console.WriteLine($"Invalid userId in form data: {form["userId"]}");
+        return Results.BadRequest(new { Error = "userId is required" });
+    }
+    
+    Console.WriteLine($"User {userId} trying to like event {id}");
+    
+    var eventItem = await db.Events.FindAsync(id);
+    if (eventItem == null)
+    {
+        Console.WriteLine($"Event {id} not found");
+        return Results.NotFound(new { Error = "Event not found" });
+    }
+    
+    var user = await db.Users.FindAsync(userId);
+    if (user == null)
+    {
+        Console.WriteLine($"User {userId} not found");
+        return Results.NotFound(new { Error = "User not found" });
+    }
+
+    // Check if user already liked this event
+    var existingLike = await db.Likes
+        .FirstOrDefaultAsync(l => l.EventId == id && l.UserId == userId);
+        
+    if (existingLike != null)
+    {
+        Console.WriteLine($"User {userId} has already liked event {id}");
+        return Results.Conflict(new { Error = "User has already liked this event" });
+    }
+
+    // Create new like
+    var like = new Like
+    {
+        EventId = id,
+        UserId = userId,
+        CreatedAt = DateTime.UtcNow
+    };
+    
+    db.Likes.Add(like);
+    eventItem.UpdatedAt = DateTime.UtcNow;
+    await db.SaveChangesAsync();
+    
+    // Get current like count
+    var likesCount = await db.Likes.CountAsync(l => l.EventId == id);
+    
+    Console.WriteLine($"Event {id} liked successfully by user {userId}. Total likes: {likesCount}");
+    
+    return Results.Ok(new { 
+        EventId = eventItem.Id, 
+        Likes = likesCount,
+        IsLiked = true,
+        Message = "Event liked successfully" 
+    });
+});
+
+// POST /events/{id}/unlike - Unlike an event (requires userId in body)
+app.MapPost("/events/{id}/unlike", async (int id, HttpRequest request, AppDbContext db) =>
+{
+    Console.WriteLine($"Unlike request received for event {id}");
+    
+    var form = await request.ReadFormAsync();
+    Console.WriteLine($"Form data received: {string.Join(", ", form.Keys)}");
+    
+    if (!int.TryParse(form["userId"], out int userId))
+    {
+        Console.WriteLine($"Invalid userId in form data: {form["userId"]}");
+        return Results.BadRequest(new { Error = "userId is required" });
+    }
+    
+    Console.WriteLine($"User {userId} trying to unlike event {id}");
+    
+    var eventItem = await db.Events.FindAsync(id);
+    if (eventItem == null)
+    {
+        Console.WriteLine($"Event {id} not found");
+        return Results.NotFound(new { Error = "Event not found" });
+    }
+
+    // Find and remove the like
+    var existingLike = await db.Likes
+        .FirstOrDefaultAsync(l => l.EventId == id && l.UserId == userId);
+        
+    if (existingLike == null)
+    {
+        Console.WriteLine($"User {userId} has not liked event {id}");
+        return Results.NotFound(new { Error = "User has not liked this event" });
+    }
+
+    db.Likes.Remove(existingLike);
+    eventItem.UpdatedAt = DateTime.UtcNow;
+    await db.SaveChangesAsync();
+    
+    // Get current like count
+    var likesCount = await db.Likes.CountAsync(l => l.EventId == id);
+    
+    Console.WriteLine($"Event {id} unliked successfully by user {userId}. Total likes: {likesCount}");
+    
+    return Results.Ok(new { 
+        EventId = eventItem.Id, 
+        Likes = likesCount,
+        IsLiked = false,
+        Message = "Event unliked successfully" 
+    });
+});
+
+// GET /events/{id}/like-status/{userId} - Check if user has liked an event
+app.MapGet("/events/{id}/like-status/{userId}", async (int id, int userId, AppDbContext db) =>
+{
+    var eventItem = await db.Events.FindAsync(id);
+    if (eventItem == null)
+    {
+        return Results.NotFound(new { Error = "Event not found" });
+    }
+    
+    var user = await db.Users.FindAsync(userId);
+    if (user == null)
+    {
+        return Results.NotFound(new { Error = "User not found" });
+    }
+
+    // Check if user has liked this event
+    var isLiked = await db.Likes
+        .AnyAsync(l => l.EventId == id && l.UserId == userId);
+        
+    // Get current like count
+    var likesCount = await db.Likes.CountAsync(l => l.EventId == id);
+    
+    return Results.Ok(new { 
+        EventId = id,
+        UserId = userId,
+        IsLiked = isLiked,
+        Likes = likesCount
+    });
 });
 
 // POST /events - Create new event
@@ -407,7 +568,6 @@ app.MapPost("/events", async (HttpRequest request, AppDbContext db) =>
             Tags = form["tags"].ToString() ?? "",
             CompanyId = companyId,
             Photo = imageData,
-            Likes = 0,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
             
@@ -578,6 +738,8 @@ app.MapGet("/companies/{companyId}/locations", async (int companyId, AppDbContex
         l.Id,
         l.Name,
         l.Address,
+        l.Category,
+        l.PhoneNumber,
         l.Latitude,
         l.Longitude,
         Tags = string.IsNullOrEmpty(l.Tags) ? new string[0] : l.Tags.Split(',').Select(t => t.Trim()).ToArray(),
@@ -604,19 +766,14 @@ app.MapGet("/locations", async (AppDbContext db) =>
         l.Id,
         l.Name,
         l.Address,
+        l.Category,
+        l.PhoneNumber,
         l.Latitude,
         l.Longitude,
         Tags = string.IsNullOrEmpty(l.Tags) ? new string[0] : l.Tags.Split(',').Select(t => t.Trim()).ToArray(),
         Photo = Convert.ToBase64String(l.Photo),
         MenuName = l.MenuName,
         HasMenu = l.MenuData.Length > 0,
-        Company = new
-        {
-            l.Company.Id,
-            l.Company.Name,
-            l.Company.Category,
-            l.Company.Description
-        },
         l.CreatedAt,
         l.UpdatedAt
     }).ToList();
@@ -641,19 +798,15 @@ app.MapGet("/locations/{id}", async (int id, AppDbContext db) =>
         location.Name,
         location.Address,
         location.Latitude,
+        location.Category,
         location.Longitude,
         Tags = string.IsNullOrEmpty(location.Tags) ? new string[0] : location.Tags.Split(',').Select(t => t.Trim()).ToArray(),
         Photo = Convert.ToBase64String(location.Photo),
         MenuName = location.MenuName,
         HasMenu = location.MenuData.Length > 0,
-        Company = new
-        {
-            location.Company.Id,
-            location.Company.Name,
-            location.Company.Category
-        },
         location.CreatedAt,
-        location.UpdatedAt
+        location.UpdatedAt,
+        location.PhoneNumber
     };
         
     return Results.Ok(result);
@@ -673,12 +826,12 @@ app.MapPost("/companies/{companyId}/locations", async (int companyId, HttpReques
             return Results.NotFound(new { Error = "Company not found" });
         }
         
-        // Check if location name already exists for this company
+        // Check if location name already exists for this company (active or inactive)
         var existingLocation = await db.Locations
-            .AnyAsync(l => l.CompanyId == companyId && l.Name == form["name"].ToString() && l.IsActive);
+            .AnyAsync(l => l.CompanyId == companyId && l.Name == form["name"].ToString());
         if (existingLocation)
         {
-            return Results.Conflict(new { Error = "Location with this name already exists for this company" });
+            return Results.Conflict(new { Error = "Location with this name already exists for this company. Please choose a different name." });
         }
 
         var photoFile = form.Files.GetFile("photo");
@@ -689,6 +842,8 @@ app.MapPost("/companies/{companyId}/locations", async (int companyId, HttpReques
             CompanyId = companyId,
             Name = form["name"].ToString(),
             Address = form["address"].ToString(),
+            Category = form["category"].ToString(),
+            PhoneNumber = form["phoneNumber"].ToString(),
             Latitude = double.Parse(form["latitude"].ToString()),
             Longitude = double.Parse(form["longitude"].ToString()),
             Tags = form["tags"].ToString()
@@ -720,6 +875,8 @@ app.MapPost("/companies/{companyId}/locations", async (int companyId, HttpReques
             location.Id,
             location.Name,
             location.Address,
+            location.Category,
+            location.PhoneNumber,
             location.Latitude,
             location.Longitude,
             Tags = string.IsNullOrEmpty(location.Tags) ? new string[0] : location.Tags.Split(',').Select(t => t.Trim()).ToArray(),
@@ -749,7 +906,16 @@ app.MapPut("/locations/{id}", async (int id, HttpRequest req, AppDbContext db) =
 
         var form = await req.ReadFormAsync();
         
-        location.Name = form["name"].ToString();
+        // Check if another location with the same name exists for this company
+        var newName = form["name"].ToString();
+        var existingLocation = await db.Locations
+            .AnyAsync(l => l.CompanyId == location.CompanyId && l.Name == newName && l.Id != id);
+        if (existingLocation)
+        {
+            return Results.Conflict(new { Error = "Another location with this name already exists for this company. Please choose a different name." });
+        }
+        
+        location.Name = newName;
         location.Address = form["address"].ToString();
         location.Latitude = double.Parse(form["latitude"].ToString());
         location.Longitude = double.Parse(form["longitude"].ToString());
@@ -1054,8 +1220,19 @@ app.MapPost("/reservation", async (HttpRequest req, AppDbContext db) =>
         // Handle optional UserId (for users from main app)
         if (form.ContainsKey("userId") && !string.IsNullOrEmpty(form["userId"]))
         {
-            reservation.UserId = int.Parse(form["userId"].ToString());
+            var userId = int.Parse(form["userId"].ToString());
+            var userExists = await db.Users.AnyAsync(u => u.Id == userId);
+            if (userExists)
+            {
+                reservation.UserId = userId;
+            }
+            else
+            {
+                Console.WriteLine($"Warning: User with ID {userId} not found, creating reservation without user association");
+                // Continue without setting UserId - reservation will be created without user association
+            }
         }
+        Console.WriteLine("Phone number:" + reservation.CustomerPhone);
 
         db.Reservations.Add(reservation);
         await db.SaveChangesAsync();

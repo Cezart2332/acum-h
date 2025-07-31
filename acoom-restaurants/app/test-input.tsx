@@ -5,12 +5,15 @@ import { LinearGradient } from "expo-linear-gradient";
 
 export default function TestInputScreen() {
   console.log("TestInputScreen rendered");
-  
+
   const [text, setText] = useState("");
-  
+
   return (
     <SafeAreaView style={{ flex: 1 }}>
-      <LinearGradient colors={["#000000", "#0F0F0F"]} style={{ flex: 1, padding: 20 }}>
+      <LinearGradient
+        colors={["#000000", "#0F0F0F"]}
+        style={{ flex: 1, padding: 20 }}
+      >
         <Text style={{ color: "#FFFFFF", fontSize: 18, marginBottom: 20 }}>
           Test Input Screen
         </Text>

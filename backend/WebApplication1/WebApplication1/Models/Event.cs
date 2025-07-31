@@ -10,7 +10,6 @@ public class Event
     public string Title { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public string Tags { get; set; } = string.Empty;
-    public int Likes { get; set; }
     
     // New fields for enhanced event management
     public DateTime EventDate { get; set; }

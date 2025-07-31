@@ -50,7 +50,7 @@ export default function EventsScreen() {
             id: event.id,
             title: event.title,
             hasPhoto: !!event.photo,
-            photoLength: event.photo ? event.photo.length : 0
+            photoLength: event.photo ? event.photo.length : 0,
           });
         });
         setEvents(eventsData);
@@ -406,8 +406,7 @@ export default function EventsScreen() {
                         justifyContent: "space-between",
                         marginTop: 8,
                       }}
-                    >
-                    </View>
+                    ></View>
                   </View>
 
                   <View

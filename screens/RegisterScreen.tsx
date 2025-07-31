@@ -44,6 +44,7 @@ export default function RegisterScreen({ navigation }: Props) {
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
   const [email, setEmail] = useState("");
+  const [phoneNumber, setPhoneNumber] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [loading, setLoading] = useState(false);
@@ -53,6 +54,7 @@ export default function RegisterScreen({ navigation }: Props) {
   const [firstNameError, setFirstNameError] = useState("");
   const [lastNameError, setLastNameError] = useState("");
   const [emailError, setEmailError] = useState("");
+  const [phoneNumberError, setPhoneNumberError] = useState("");
   const [passwordError, setPasswordError] = useState("");
   const [confirmPasswordError, setConfirmPasswordError] = useState("");
 
@@ -128,6 +130,23 @@ export default function RegisterScreen({ navigation }: Props) {
     return true;
   };
 
+  const validatePhoneNumber = (phone: string): boolean => {
+    if (!phone.trim()) {
+      setPhoneNumberError("Numărul de telefon este obligatoriu");
+      return false;
+    }
+    // Basic phone number validation (Romanian format)
+    const phoneRegex = /^(\+40|0)[0-9]{9}$/;
+    if (!phoneRegex.test(phone.replace(/\s/g, ""))) {
+      setPhoneNumberError(
+        "Număr de telefon invalid (ex: 0712345678 sau +40712345678)"
+      );
+      return false;
+    }
+    setPhoneNumberError("");
+    return true;
+  };
+
   const validatePasswordField = (password: string): boolean => {
     if (!password.trim()) {
       setPasswordError("Parola este obligatorie");
@@ -160,6 +179,7 @@ export default function RegisterScreen({ navigation }: Props) {
     const isFirstNameValid = validateFirstName(firstName);
     const isLastNameValid = validateLastName(lastName);
     const isEmailValid = validateEmailField(email);
+    const isPhoneNumberValid = validatePhoneNumber(phoneNumber);
     const isPasswordValid = validatePasswordField(password);
     const isConfirmPasswordValid = validateConfirmPassword(confirmPassword);
 
@@ -168,6 +188,7 @@ export default function RegisterScreen({ navigation }: Props) {
       !isFirstNameValid ||
       !isLastNameValid ||
       !isEmailValid ||
+      !isPhoneNumberValid ||
       !isPasswordValid ||
       !isConfirmPasswordValid
     ) {
@@ -197,6 +218,7 @@ export default function RegisterScreen({ navigation }: Props) {
       formData.append("firstname", firstName.trim());
       formData.append("lastname", lastName.trim());
       formData.append("email", email.trim());
+      formData.append("phoneNumber", phoneNumber.trim());
       formData.append("password", password);
 
       // Add the acoomh.png logo as the default profile image
@@ -402,6 +424,18 @@ export default function RegisterScreen({ navigation }: Props) {
             error={emailError}
             leftIcon="mail-outline"
             keyboardType="email-address"
+            autoCapitalize="none"
+            required
+          />
+
+          <EnhancedInput
+            label="Telefon"
+            placeholder="0712345678 sau +40712345678"
+            value={phoneNumber}
+            onChangeText={setPhoneNumber}
+            error={phoneNumberError}
+            leftIcon="call-outline"
+            keyboardType="phone-pad"
             autoCapitalize="none"
             required
           />

@@ -151,13 +151,13 @@ export default function EditLocationScreen() {
         return;
       }
 
-      const lat = location.properties.lat;
-      const lon = location.properties.lon;
+      // Extract coordinates from geometry.coordinates [longitude, latitude]
+      const [longitude, latitude] = location.geometry.coordinates;
 
       setFormData({
         ...formData,
-        latitude: lat.toString(),
-        longitude: lon.toString(),
+        latitude: latitude.toString(),
+        longitude: longitude.toString(),
       });
 
       Alert.alert("Success", "Address geocoded successfully!");
@@ -218,8 +218,29 @@ export default function EditLocationScreen() {
           { text: "OK", onPress: () => router.back() },
         ]);
       } else {
-        const errorData = await response.text();
-        Alert.alert("Error", errorData || "Failed to update location");
+        let errorMessage = "Failed to update location";
+        console.log(response);
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.Error || errorData.message || errorMessage;
+        } catch {
+          // If JSON parsing fails, try text
+          try {
+            const errorText = await response.text();
+            errorMessage = errorText || errorMessage;
+          } catch {
+            // Use default message
+          }
+        }
+
+        if (response.status === 409) {
+          // Conflict - duplicate name
+          Alert.alert("Duplicate Location Name", errorMessage, [
+            { text: "OK" },
+          ]);
+        } else {
+          Alert.alert("Error", errorMessage);
+        }
       }
     } catch (error) {
       console.error("Error updating location:", error);

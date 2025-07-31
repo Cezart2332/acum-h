@@ -52,7 +52,7 @@ export default function EventDetailScreen() {
           id: eventData.id,
           title: eventData.title,
           hasPhoto: !!eventData.photo,
-          photoLength: eventData.photo ? eventData.photo.length : 0
+          photoLength: eventData.photo ? eventData.photo.length : 0,
         });
         setEvent(eventData);
       } else {
@@ -507,13 +507,8 @@ export default function EventDetailScreen() {
                     )}
                   </View>
                 </View>
-
-
               </View>
             </View>
-
-
-
           </View>
         </View>
       </ScrollView>

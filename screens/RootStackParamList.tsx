@@ -1,8 +1,18 @@
 export interface EventData {
-  id: string;
+  id: number;
   title: string;
   description?: string;
+  eventDate: string;
+  startTime: string;
+  endTime: string;
+  address: string;
+  city: string;
   photo: string;
+  isActive: boolean;
+  latitude?: number;
+  longitude?: number;
+  createdAt: string;
+  companyId: number;
   tags?: string[];
   company?: string;
   likes?: number;
@@ -12,17 +22,16 @@ export interface LocationData {
   id: number;
   name: string;
   address: string;
+  phoneNumber?: string;
   latitude: number;
   longitude: number;
   tags: string[];
   photo: string;
   menuName: string;
   hasMenu: boolean;
+  category: string;
   company: {
     id: number;
-    name: string;
-    category: string;
-    description: string;
   };
   createdAt: string;
   updatedAt: string;

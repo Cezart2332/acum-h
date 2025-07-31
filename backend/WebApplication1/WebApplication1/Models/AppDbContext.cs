@@ -15,6 +15,7 @@ namespace WebApplication1.Models
         public DbSet<Event> Events { get; set; }
         public DbSet<User> Users { get; set; }
         public DbSet<Reservation> Reservations { get; set; }
+        public DbSet<Like> Likes { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder)
         {
@@ -104,6 +105,28 @@ namespace WebApplication1.Models
                 
             modelBuilder.Entity<Reservation>()
                 .HasIndex(r => r.CreatedAt);
+                
+            // Configure Likes
+            modelBuilder.Entity<Like>().ToTable("likes");
+            modelBuilder.Entity<Like>()
+                .HasOne(l => l.Event)
+                .WithMany()
+                .HasForeignKey(l => l.EventId)
+                .OnDelete(DeleteBehavior.Cascade);
+                
+            modelBuilder.Entity<Like>()
+                .HasOne(l => l.User)
+                .WithMany()
+                .HasForeignKey(l => l.UserId)
+                .OnDelete(DeleteBehavior.Cascade);
+                
+            // Ensure unique constraint - one like per user per event
+            modelBuilder.Entity<Like>()
+                .HasIndex(l => new { l.EventId, l.UserId })
+                .IsUnique();
+                
+            modelBuilder.Entity<Like>()
+                .HasIndex(l => l.CreatedAt);
         }
     }
 }

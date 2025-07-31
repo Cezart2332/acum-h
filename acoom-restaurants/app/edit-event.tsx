@@ -65,7 +65,7 @@ export default function EditEventScreen() {
           id: event.id,
           title: event.title,
           hasPhoto: !!event.photo,
-          photoLength: event.photo ? event.photo.length : 0
+          photoLength: event.photo ? event.photo.length : 0,
         });
         setTitle(event.title);
         setDescription(event.description);
@@ -87,7 +87,10 @@ export default function EditEventScreen() {
         setImage(event.photo || null);
         setIsActive(event.isActive);
       } else {
-        console.log("Failed to fetch event for editing, status:", response.status);
+        console.log(
+          "Failed to fetch event for editing, status:",
+          response.status
+        );
       }
     } catch (error) {
       console.error("Error fetching event:", error);
@@ -422,7 +425,7 @@ export default function EditEventScreen() {
             >
               Event Location *
             </Text>
-            
+
             {/* Address Input */}
             <TextInput
               style={{
@@ -605,8 +608,6 @@ export default function EditEventScreen() {
               )}
             </View>
           </View>
-
-
 
           {/* Save Button */}
           <TouchableOpacity

@@ -162,8 +162,9 @@ export default function AddEventScreen() {
 
       if (data && data.features && data.features.length > 0) {
         const location = data.features[0];
-        if (location && location.properties) {
-          const { lat, lon } = location.properties;
+        if (location && location.geometry && location.geometry.coordinates) {
+          // Geoapify returns coordinates as [longitude, latitude]
+          const [lon, lat] = location.geometry.coordinates;
           console.log("Extracted coordinates:", lat, lon);
           return {
             latitude: lat,
@@ -203,7 +204,10 @@ export default function AddEventScreen() {
       formData.append("title", title.trim());
       formData.append("description", description.trim());
       formData.append("eventDate", selectedDate.toISOString());
-      formData.append("startTime", selectedStartTime.toTimeString().split(" ")[0]);
+      formData.append(
+        "startTime",
+        selectedStartTime.toTimeString().split(" ")[0]
+      );
       formData.append("endTime", selectedEndTime.toTimeString().split(" ")[0]);
       formData.append("address", address.trim());
       formData.append("city", city);
@@ -214,9 +218,15 @@ export default function AddEventScreen() {
       if (coordinates && coordinates.latitude && coordinates.longitude) {
         formData.append("latitude", coordinates.latitude.toString());
         formData.append("longitude", coordinates.longitude.toString());
-        console.log("Added coordinates:", coordinates.latitude, coordinates.longitude);
+        console.log(
+          "Added coordinates:",
+          coordinates.latitude,
+          coordinates.longitude
+        );
       } else {
-        console.log("No coordinates available - skipping latitude/longitude fields");
+        console.log(
+          "No coordinates available - skipping latitude/longitude fields"
+        );
       }
 
       // Only add image if we have valid base64 data
@@ -236,7 +246,9 @@ export default function AddEventScreen() {
         address: address.trim(),
         city,
         companyId: companyId.toString(),
-        coordinates: coordinates ? `${coordinates.latitude},${coordinates.longitude}` : "none",
+        coordinates: coordinates
+          ? `${coordinates.latitude},${coordinates.longitude}`
+          : "none",
         photoSize: imageBase64 ? imageBase64.length : 0,
       });
 
@@ -597,8 +609,6 @@ export default function AddEventScreen() {
               </TouchableOpacity>
             </View>
           </View>
-
-
 
           {/* Create Button */}
           <TouchableOpacity

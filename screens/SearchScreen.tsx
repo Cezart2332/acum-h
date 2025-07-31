@@ -45,7 +45,7 @@ type SearchScreenNavigationProp = NativeStackNavigationProp<
 >;
 
 interface SearchItem {
-  id: string;
+  id: number;
   title: string;
   subtitle?: string;
   image: string;
@@ -153,15 +153,12 @@ const SearchScreen: React.FC = () => {
       longitude: 21.2272,
       tags: ["traditional", "românesc", "casnic"],
       photo: "",
-      menuName: "Meniu Traditional",
-      hasMenu: true,
+      category: "",
       company: {
         id: 1,
-        name: "Restaurant La Mama SRL",
-        category: "Românesc",
-        description:
-          "Restaurant traditional românesc cu mâncăruri casnice delicioase",
       },
+      menuName: "Meniu Traditional",
+      hasMenu: true,
       createdAt: "2024-01-01T00:00:00Z",
       updatedAt: "2024-01-01T00:00:00Z",
     },
@@ -175,11 +172,9 @@ const SearchScreen: React.FC = () => {
       photo: "",
       menuName: "Meniu Italian",
       hasMenu: true,
+      category: "",
       company: {
-        id: 2,
-        name: "Pizza Bella SRL",
-        category: "Italian",
-        description: "Pizzerie autentică cu ingrediente proaspete din Italia",
+        id: 1,
       },
       createdAt: "2024-01-01T00:00:00Z",
       updatedAt: "2024-01-01T00:00:00Z",
@@ -194,11 +189,9 @@ const SearchScreen: React.FC = () => {
       photo: "",
       menuName: "Meniu Japonez",
       hasMenu: true,
+      category: "",
       company: {
-        id: 3,
-        name: "Sushi Zen SRL",
-        category: "Japonez",
-        description: "Restaurant japonez cu sushi proaspăt",
+        id: 1,
       },
       createdAt: "2024-01-01T00:00:00Z",
       updatedAt: "2024-01-01T00:00:00Z",
@@ -207,20 +200,36 @@ const SearchScreen: React.FC = () => {
 
   const getMockEvents = (): EventData[] => [
     {
-      id: "1",
+      id: 1,
       title: "Concert Rock în Centrul Vechi",
       description: "Seară de rock cu cele mai bune trupe locale",
-      company: "Rock Club Timișoara",
+      eventDate: "2024-02-15",
+      startTime: "20:00",
+      endTime: "23:00",
+      address: "Strada Mărășești 1-3",
+      city: "Timișoara",
       photo: "",
+      isActive: true,
+      createdAt: "2024-01-01T00:00:00Z",
+      companyId: 1,
+      company: "Rock Club Timișoara",
       tags: ["rock", "muzică", "concert"],
       likes: 127,
     },
     {
-      id: "2",
+      id: 2,
       title: "Festival de Artă Stradală",
       description: "Trei zile de spectacole de artă stradală",
-      company: "Primăria Timișoara",
+      eventDate: "2024-02-20",
+      startTime: "18:00",
+      endTime: "22:00",
+      address: "Piața Victoriei",
+      city: "Timișoara",
       photo: "",
+      isActive: true,
+      createdAt: "2024-01-01T00:00:00Z",
+      companyId: 2,
+      company: "Primăria Timișoara",
       tags: ["artă", "festival", "stradală"],
       likes: 89,
     },
@@ -241,11 +250,10 @@ const SearchScreen: React.FC = () => {
       filteredRestaurants = restaurantData.filter(
         (restaurant) =>
           restaurant.name?.toLowerCase().includes(searchLower) ||
-          restaurant.company.category?.toLowerCase().includes(searchLower) ||
+          restaurant.category?.toLowerCase().includes(searchLower) ||
           restaurant.tags?.some((tag) =>
             tag.toLowerCase().includes(searchLower)
-          ) ||
-          restaurant.company.description?.toLowerCase().includes(searchLower)
+          )
       );
 
       filteredEvents = eventData.filter(
@@ -264,9 +272,9 @@ const SearchScreen: React.FC = () => {
         newSections.push({
           title: `🍽️ Restaurante (${filteredRestaurants.length})`,
           data: filteredRestaurants.map((restaurant) => ({
-            id: restaurant.id?.toString() || "0",
+            id: restaurant.id || 0,
             title: restaurant.name || "",
-            subtitle: restaurant.company.category,
+            subtitle: restaurant.category,
             image: restaurant.photo || "",
             type: "restaurant" as const,
             address: restaurant.address,
@@ -570,7 +578,7 @@ const SearchScreen: React.FC = () => {
         ) : (
           <SectionList
             sections={sections}
-            keyExtractor={(item) => item.id}
+            keyExtractor={(item) => item.id.toString()}
             renderItem={renderItem}
             renderSectionHeader={renderSectionHeader}
             contentContainerStyle={styles.listContent}

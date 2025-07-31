@@ -17,15 +17,40 @@ export default function AddLocationScreen() {
   const [formData, setFormData] = useState({
     name: "",
     address: "",
+    category: "",
+    phoneNumber: "",
     tags: "",
     latitude: "",
     longitude: "",
   });
   const [loading, setLoading] = useState(false);
   const [geocoding, setGeocoding] = useState(false);
+  const [nameError, setNameError] = useState("");
+
+  const checkLocationNameExists = async (companyId: string, name: string) => {
+    try {
+      const response = await fetch(
+        `${BASE_URL}/companies/${companyId}/locations`
+      );
+      if (response.ok) {
+        const locations = await response.json();
+        return locations.some(
+          (location: any) => location.name.toLowerCase() === name.toLowerCase()
+        );
+      }
+    } catch (error) {
+      console.error("Error checking location names:", error);
+    }
+    return false;
+  };
 
   const handleInputChange = (field: string, value: string) => {
     setFormData({ ...formData, [field]: value });
+
+    // Clear name error when user changes the name
+    if (field === "name" && nameError) {
+      setNameError("");
+    }
 
     // Auto-geocode when address changes
     if (field === "address" && value.trim().length > 5) {
@@ -47,11 +72,12 @@ export default function AddLocationScreen() {
       const location = data.features && data.features[0];
 
       if (location) {
-        const { lat, lon } = location.properties;
+        // Extract coordinates from geometry.coordinates [longitude, latitude]
+        const [longitude, latitude] = location.geometry.coordinates;
         setFormData((prev) => ({
           ...prev,
-          latitude: lat.toString(),
-          longitude: lon.toString(),
+          latitude: latitude.toString(),
+          longitude: longitude.toString(),
         }));
       }
     } catch (error) {
@@ -62,7 +88,12 @@ export default function AddLocationScreen() {
   };
 
   const handleSubmit = async () => {
-    if (!formData.name.trim() || !formData.address.trim()) {
+    if (
+      !formData.name.trim() ||
+      !formData.address.trim() ||
+      !formData.category.trim() ||
+      !formData.phoneNumber.trim()
+    ) {
       Alert.alert("Error", "Please fill in all required fields");
       return;
     }
@@ -83,9 +114,28 @@ export default function AddLocationScreen() {
       const user = JSON.parse(userData);
       const companyId = user.Id || user.id;
 
+      // Check for duplicate location name before submitting
+      const nameExists = await checkLocationNameExists(
+        companyId,
+        formData.name.trim()
+      );
+      if (nameExists) {
+        setNameError(
+          "A location with this name already exists. Please choose a different name."
+        );
+        Alert.alert(
+          "Duplicate Location Name",
+          "A location with this name already exists for your company. Please choose a different name.",
+          [{ text: "OK" }]
+        );
+        return;
+      }
+
       const locationData = {
         name: formData.name,
         address: formData.address,
+        category: formData.category,
+        phoneNumber: formData.phoneNumber,
         latitude: parseFloat(formData.latitude),
         longitude: parseFloat(formData.longitude),
         tags: formData.tags,
@@ -94,6 +144,8 @@ export default function AddLocationScreen() {
       const formDataToSend = new FormData();
       formDataToSend.append("name", locationData.name);
       formDataToSend.append("address", locationData.address);
+      formDataToSend.append("category", locationData.category);
+      formDataToSend.append("phoneNumber", locationData.phoneNumber);
       formDataToSend.append("latitude", locationData.latitude.toString());
       formDataToSend.append("longitude", locationData.longitude.toString());
       formDataToSend.append("tags", locationData.tags);
@@ -111,8 +163,28 @@ export default function AddLocationScreen() {
           { text: "OK", onPress: () => router.back() },
         ]);
       } else {
-        const errorText = await response.text();
-        Alert.alert("Error", `Failed to add location: ${errorText}`);
+        let errorMessage = "Failed to add location";
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.Error || errorData.message || errorMessage;
+        } catch {
+          // If JSON parsing fails, try text
+          try {
+            const errorText = await response.text();
+            errorMessage = errorText || errorMessage;
+          } catch {
+            // Use default message
+          }
+        }
+
+        if (response.status === 409) {
+          // Conflict - duplicate name
+          Alert.alert("Duplicate Location Name", errorMessage, [
+            { text: "OK" },
+          ]);
+        } else {
+          Alert.alert("Error", errorMessage);
+        }
       }
     } catch (error) {
       console.error("Error adding location:", error);
@@ -230,7 +302,9 @@ export default function AddLocationScreen() {
               style={{
                 backgroundColor: "rgba(15, 23, 42, 0.9)",
                 borderWidth: 1.5,
-                borderColor: formData.name
+                borderColor: nameError
+                  ? "#ef4444"
+                  : formData.name
                   ? "rgba(139, 92, 246, 0.5)"
                   : "rgba(139, 92, 246, 0.2)",
                 borderRadius: 18,
@@ -241,6 +315,19 @@ export default function AddLocationScreen() {
                 fontWeight: "600",
               }}
             />
+            {nameError ? (
+              <Text
+                style={{
+                  color: "#ef4444",
+                  fontSize: 14,
+                  marginTop: 8,
+                  marginLeft: 8,
+                  fontWeight: "500",
+                }}
+              >
+                {nameError}
+              </Text>
+            ) : null}
           </View>
 
           {/* Address */}
@@ -340,6 +427,144 @@ export default function AddLocationScreen() {
                 </Text>
               </View>
             )}
+          </View>
+
+          {/* Phone Number */}
+          <View style={{ marginBottom: 32 }}>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                marginBottom: 16,
+              }}
+            >
+              <View
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 8,
+                  backgroundColor: "rgba(139, 92, 246, 0.15)",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  marginRight: 12,
+                }}
+              >
+                <Ionicons name="call" size={18} color="#a855f7" />
+              </View>
+              <Text
+                style={{
+                  color: "#f1f5f9",
+                  fontSize: 18,
+                  fontWeight: "700",
+                }}
+              >
+                Phone Number
+              </Text>
+              <Text style={{ color: "#ef4444", marginLeft: 6, fontSize: 16 }}>
+                *
+              </Text>
+            </View>
+            <TextInput
+              value={formData.phoneNumber}
+              onChangeText={(text) => handleInputChange("phoneNumber", text)}
+              placeholder="e.g., 0712345678 or +40712345678"
+              placeholderTextColor="#64748b"
+              style={{
+                backgroundColor: "rgba(15, 23, 42, 0.9)",
+                borderWidth: 1.5,
+                borderColor: formData.phoneNumber
+                  ? "rgba(139, 92, 246, 0.5)"
+                  : "rgba(139, 92, 246, 0.2)",
+                borderRadius: 18,
+                paddingHorizontal: 24,
+                paddingVertical: 20,
+                color: "white",
+                fontSize: 17,
+                fontWeight: "600",
+              }}
+              keyboardType="phone-pad"
+            />
+          </View>
+
+          {/* Category */}
+          <View style={{ marginBottom: 32 }}>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                marginBottom: 16,
+              }}
+            >
+              <View
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 8,
+                  backgroundColor: "rgba(139, 92, 246, 0.15)",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  marginRight: 12,
+                }}
+              >
+                <Ionicons name="business" size={18} color="#a855f7" />
+              </View>
+              <Text
+                style={{
+                  color: "#f1f5f9",
+                  fontSize: 18,
+                  fontWeight: "700",
+                }}
+              >
+                Category
+              </Text>
+              <Text style={{ color: "#ef4444", marginLeft: 6, fontSize: 16 }}>
+                *
+              </Text>
+            </View>
+
+            {/* Category Selection */}
+            <View
+              style={{
+                flexDirection: "row",
+                flexWrap: "wrap",
+                gap: 12,
+              }}
+            >
+              {["restaurant", "pub", "cafenea", "club"].map((category) => (
+                <TouchableOpacity
+                  key={category}
+                  onPress={() => handleInputChange("category", category)}
+                  style={{
+                    backgroundColor:
+                      formData.category === category
+                        ? "rgba(139, 92, 246, 0.3)"
+                        : "rgba(15, 23, 42, 0.9)",
+                    borderWidth: 1.5,
+                    borderColor:
+                      formData.category === category
+                        ? "#a855f7"
+                        : "rgba(139, 92, 246, 0.2)",
+                    borderRadius: 16,
+                    paddingHorizontal: 20,
+                    paddingVertical: 14,
+                    minWidth: 100,
+                    alignItems: "center",
+                  }}
+                >
+                  <Text
+                    style={{
+                      color:
+                        formData.category === category ? "#a855f7" : "#f1f5f9",
+                      fontSize: 16,
+                      fontWeight: "600",
+                      textTransform: "capitalize",
+                    }}
+                  >
+                    {category}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </View>
           </View>
 
           {/* Tags */}

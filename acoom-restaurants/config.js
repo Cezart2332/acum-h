@@ -1,4 +1,4 @@
-const BASE_URL = process.env.REACT_APP_BASE_URL || "http://172.20.10.2:5298";
+const BASE_URL = process.env.REACT_APP_BASE_URL || "https://api.acoomh.ro";
 
 const AI_BASE_URL = process.env.REACT_APP_AI_URL || "http://172.20.10.2:8000";
 

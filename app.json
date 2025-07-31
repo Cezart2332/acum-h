@@ -29,7 +29,11 @@
         }
       },
       "edgeToEdgeEnabled": true,
-      "package": "com.anonymous.acumh"
+      "package": "com.anonymous.acumh",
+      "permissions": [
+        "android.permission.ACCESS_COARSE_LOCATION",
+        "android.permission.ACCESS_FINE_LOCATION"
+      ]
     },
     "web": {
       "favicon": "./acoomh.png"
@@ -51,6 +55,14 @@
           "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location"
         }
       ]
-    ]
+    ],
+    "extra": {
+      "eas": {
+        "projectId": "aed15639-5410-4e33-8fe4-dfab2753c8b6"
+      },
+      "backendBaseUrl": "https://api.acoomh.ro",
+      "pythonAiUrl": "http://172.20.10.2:8000",
+      "openrouterApiKey": "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"
+    }
   }
 }

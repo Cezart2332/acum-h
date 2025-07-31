@@ -48,12 +48,23 @@ interface CompanyData {
 }
 
 interface EventData {
-  id: string;
+  id: number;
   title: string;
   description?: string;
+  eventDate: string;
+  startTime: string;
+  endTime: string;
+  address: string;
+  city: string;
   photo: string;
-  likes?: number;
+  isActive: boolean;
+  latitude?: number;
+  longitude?: number;
+  createdAt: string;
+  companyId: number;
+  tags?: string[];
   company?: string;
+  likes?: number;
 }
 
 type ProfileData = UserData | CompanyData;

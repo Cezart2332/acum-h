@@ -180,6 +180,7 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
   const loadUser = async () => {
     try {
       const userData = await AsyncStorage.getItem("user");
+      console.log(userData);
       if (userData) {
         setUser(JSON.parse(userData));
       }
@@ -336,8 +337,9 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
       formData.append("userId", user.id.toString());
       formData.append("locationId", location.id.toString());
       formData.append("customerName", user.username || "");
+      formData.append("customerPhone", user.phoneNumber || "");
+      console.log(user.phoneNumber);
       formData.append("customerEmail", user.email || "");
-      formData.append("customerPhone", user.phone || "");
       formData.append("reservationDate", date.toISOString().split("T")[0]);
       formData.append(
         "reservationTime",

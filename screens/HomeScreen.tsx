@@ -42,21 +42,32 @@ interface LocationData {
   photo: string;
   menuName: string;
   hasMenu: boolean;
+  category: string;
   company: {
     id: number;
-    name: string;
-    category: string;
-    description: string;
   };
   createdAt: string;
   updatedAt: string;
 }
 
 interface EventData {
-  id: string;
+  id: number;
   title: string;
-  description: string;
+  description?: string;
+  eventDate: string;
+  startTime: string;
+  endTime: string;
+  address: string;
+  city: string;
   photo: string;
+  isActive: boolean;
+  latitude?: number;
+  longitude?: number;
+  createdAt: string;
+  companyId: number;
+  tags?: string[];
+  company?: string;
+  likes?: number;
 }
 
 export default function HomeScreen({ navigation }: { navigation: HomeNav }) {
@@ -177,13 +188,23 @@ export default function HomeScreen({ navigation }: { navigation: HomeNav }) {
                 {isEvent ? eventItem.title : locationItem.name}
               </Text>
               {isEvent ? (
-                <Text style={styles.cardDescription} numberOfLines={2}>
-                  {eventItem.description}
-                </Text>
+                <View>
+                  <Text style={styles.cardDescription} numberOfLines={2}>
+                    {eventItem.description}
+                  </Text>
+                  {eventItem.likes !== undefined && eventItem.likes > 0 && (
+                    <View style={styles.cardFooter}>
+                      <Ionicons name="heart" size={16} color="#ff6b6b" />
+                      <Text style={styles.cardAddress}>
+                        {eventItem.likes} likes
+                      </Text>
+                    </View>
+                  )}
+                </View>
               ) : (
                 <>
                   <Text style={styles.cardCategory}>
-                    {locationItem.company.category}
+                    {locationItem.category}
                   </Text>
                   <View style={styles.cardFooter}>
                     <Ionicons
