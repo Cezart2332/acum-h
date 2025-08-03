@@ -31,7 +31,7 @@ const { width } = Dimensions.get("window");
 const iconMap: Record<string, string> = {
   Main: "home-outline",
   Search: "search-outline",
-  AIChat: "chatbubble-ellipses-outline",
+  AIChat: "sparkles-outline",
   Settings: "settings-outline",
   Map: "map-outline",
 };

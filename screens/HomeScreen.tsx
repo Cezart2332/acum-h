@@ -286,7 +286,9 @@ export default function HomeScreen({ navigation }: { navigation: HomeNav }) {
                 style={styles.profileImage}
               />
             ) : (
-              <Ionicons name="person" size={20} color="#FFFFFF" />
+              <View style={styles.profilePlaceholder}>
+                <Ionicons name="person" size={20} color="#FFFFFF" />
+              </View>
             )}
           </TouchableOpacity>
         </View>
@@ -422,13 +424,15 @@ const createStyles = (theme: any) =>
     profileImage: {
       width: "100%",
       height: "100%",
+      borderRadius: 21,
     },
     profilePlaceholder: {
       width: "100%",
       height: "100%",
-      borderRadius: 28,
+      borderRadius: 21,
       justifyContent: "center",
       alignItems: "center",
+      backgroundColor: "rgba(255, 255, 255, 0.1)",
     },
     toggleSection: {
       paddingHorizontal: getResponsiveSpacing("xl"),

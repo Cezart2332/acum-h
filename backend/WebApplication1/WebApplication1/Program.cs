@@ -1058,6 +1058,179 @@ app.MapGet("/locations/{id}/menu", async (int id, AppDbContext db) =>
 
 // ==================== END LOCATION ENDPOINTS ====================
 
+// ==================== MENU ITEM ENDPOINTS ====================
+
+// Get all menu items for a location
+app.MapGet("/locations/{locationId}/menu-items", async (int locationId, AppDbContext db) =>
+{
+    var location = await db.Locations.FindAsync(locationId);
+    if (location is null || !location.IsActive)
+        return Results.NotFound("Location not found");
+
+    var menuItems = await db.MenuItems
+        .Where(mi => mi.LocationId == locationId)
+        .Select(mi => new MenuItemResponse
+        {
+            Id = mi.Id,
+            LocationId = mi.LocationId,
+            Name = mi.Name,
+            Description = mi.Description,
+            Price = mi.Price,
+            Category = mi.Category,
+            CreatedAt = mi.CreatedAt,
+            UpdatedAt = mi.UpdatedAt
+        })
+        .ToListAsync();
+
+    return Results.Ok(menuItems);
+});
+
+// Get a specific menu item
+app.MapGet("/menu-items/{id}", async (int id, AppDbContext db) =>
+{
+    var menuItem = await db.MenuItems.FindAsync(id);
+    if (menuItem is null)
+        return Results.NotFound("Menu item not found");
+
+    var response = new MenuItemResponse
+    {
+        Id = menuItem.Id,
+        LocationId = menuItem.LocationId,
+        Name = menuItem.Name,
+        Description = menuItem.Description,
+        Price = menuItem.Price,
+        Category = menuItem.Category,
+        CreatedAt = menuItem.CreatedAt,
+        UpdatedAt = menuItem.UpdatedAt
+    };
+
+    return Results.Ok(response);
+});
+
+// Create a new menu item
+app.MapPost("/locations/{locationId}/menu-items", async (int locationId, HttpRequest req, AppDbContext db) =>
+{
+    try
+    {
+        var location = await db.Locations.FindAsync(locationId);
+        if (location is null || !location.IsActive)
+            return Results.NotFound("Location not found");
+
+        var form = await req.ReadFormAsync();
+        
+        var menuItem = new MenuItem
+        {
+            LocationId = locationId,
+            Name = form["name"].ToString(),
+            Description = form["description"].ToString(),
+            Price = decimal.TryParse(form["price"], out var price) ? price : null,
+            Category = form["category"].ToString(),
+            CreatedAt = DateTime.UtcNow,
+            UpdatedAt = DateTime.UtcNow
+        };
+
+        db.MenuItems.Add(menuItem);
+        await db.SaveChangesAsync();
+
+        var response = new MenuItemResponse
+        {
+            Id = menuItem.Id,
+            LocationId = menuItem.LocationId,
+            Name = menuItem.Name,
+            Description = menuItem.Description,
+            Price = menuItem.Price,
+            Category = menuItem.Category,
+            CreatedAt = menuItem.CreatedAt,
+            UpdatedAt = menuItem.UpdatedAt
+        };
+
+        return Results.Created($"/menu-items/{menuItem.Id}", response);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Error creating menu item: {ex.Message}");
+    }
+});
+
+// Update a menu item
+app.MapPut("/menu-items/{id}", async (int id, HttpRequest req, AppDbContext db) =>
+{
+    try
+    {
+        var menuItem = await db.MenuItems.FindAsync(id);
+        if (menuItem is null)
+            return Results.NotFound("Menu item not found");
+
+        var form = await req.ReadFormAsync();
+
+        menuItem.Name = form["name"].ToString();
+        menuItem.Description = form["description"].ToString();
+        menuItem.Price = decimal.TryParse(form["price"], out var price) ? price : null;
+        menuItem.Category = form["category"].ToString();
+        menuItem.UpdatedAt = DateTime.UtcNow;
+
+        await db.SaveChangesAsync();
+
+        var response = new MenuItemResponse
+        {
+            Id = menuItem.Id,
+            LocationId = menuItem.LocationId,
+            Name = menuItem.Name,
+            Description = menuItem.Description,
+            Price = menuItem.Price,
+            Category = menuItem.Category,
+            CreatedAt = menuItem.CreatedAt,
+            UpdatedAt = menuItem.UpdatedAt
+        };
+
+        return Results.Ok(response);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Error updating menu item: {ex.Message}");
+    }
+});
+
+// Delete a menu item
+app.MapDelete("/menu-items/{id}", async (int id, AppDbContext db) =>
+{
+    var menuItem = await db.MenuItems.FindAsync(id);
+    if (menuItem is null)
+        return Results.NotFound("Menu item not found");
+
+    db.MenuItems.Remove(menuItem);
+    await db.SaveChangesAsync();
+
+    return Results.NoContent();
+});
+
+// Get menu items by category for a location
+app.MapGet("/locations/{locationId}/menu-items/category/{category}", async (int locationId, string category, AppDbContext db) =>
+{
+    var location = await db.Locations.FindAsync(locationId);
+    if (location is null || !location.IsActive)
+        return Results.NotFound("Location not found");
+
+    var menuItems = await db.MenuItems
+        .Where(mi => mi.LocationId == locationId && mi.Category == category)
+        .Select(mi => new MenuItemResponse
+        {
+            Id = mi.Id,
+            LocationId = mi.LocationId,
+            Name = mi.Name,
+            Description = mi.Description,
+            Price = mi.Price,
+            Category = mi.Category,
+            CreatedAt = mi.CreatedAt,
+            UpdatedAt = mi.UpdatedAt
+        })
+        .ToListAsync();
+
+    return Results.Ok(menuItems);
+});
+
+// ==================== END MENU ITEM ENDPOINTS ====================
+
 // Missing endpoints for restaurant app
 app.MapPost("/get-reservations", async (HttpRequest req, AppDbContext db) =>
 {

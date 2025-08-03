@@ -11,8 +11,8 @@ import {
   Animated,
   StatusBar,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RouteProp } from "@react-navigation/native";
 import type { RootStackParamList, LocationData } from "./RootStackParamList";
@@ -238,14 +238,11 @@ const ScheduleScreen: React.FC<Props> = ({ navigation, route }) => {
   }
 
   return (
-    <View style={styles.container}>
+    <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
       <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
-      {/* Beautiful Gradient Header */}
-      <LinearGradient
-        colors={["#000000", "#2D1B69", "#7B2CBF"]}
-        style={styles.gradientHeader}
-      >
+      {/* Beautiful Black Header */}
+      <View style={styles.gradientHeader}>
         <View style={styles.headerContent}>
           <TouchableOpacity
             onPress={() => {
@@ -266,7 +263,7 @@ const ScheduleScreen: React.FC<Props> = ({ navigation, route }) => {
             <Ionicons name="refresh" size={24} color="white" />
           </TouchableOpacity>
         </View>
-      </LinearGradient>
+      </View>
 
       {loading ? (
         <View style={styles.loadingContainer}>
@@ -323,18 +320,7 @@ const ScheduleScreen: React.FC<Props> = ({ navigation, route }) => {
                   },
                 ]}
               >
-                <LinearGradient
-                  colors={
-                    day.isOpen
-                      ? day.is24Hours
-                        ? ["#7B2CBF", "#9D4EDD", "#C77DFF"]
-                        : ["#2D1B69", "#7B2CBF", "#9D4EDD"]
-                      : ["#000000", "#2D1B69", "#7B2CBF"]
-                  }
-                  style={styles.dayCardGradient}
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 1 }}
-                >
+                <View style={styles.dayCardGradient}>
                   <View style={styles.dayCardContent}>
                     <View style={styles.dayHeader}>
                       <Text style={styles.dayName}>{day.dayName}</Text>
@@ -359,7 +345,7 @@ const ScheduleScreen: React.FC<Props> = ({ navigation, route }) => {
                     {day.isOpen && !day.is24Hours && (
                       <View style={styles.timeDisplay}>
                         <View style={styles.timeBlock}>
-                          <Ionicons name="sunny" size={16} color="white" />
+                          <Ionicons name="sunny" size={16} color="#7B2CBF" />
                           <Text style={styles.timeLabel}>Deschidere</Text>
                           <Text style={styles.timeValue}>
                             {formatTime(day.openTime)}
@@ -367,7 +353,7 @@ const ScheduleScreen: React.FC<Props> = ({ navigation, route }) => {
                         </View>
                         <View style={styles.timeDivider} />
                         <View style={styles.timeBlock}>
-                          <Ionicons name="moon" size={16} color="white" />
+                          <Ionicons name="moon" size={16} color="#7B2CBF" />
                           <Text style={styles.timeLabel}>Închidere</Text>
                           <Text style={styles.timeValue}>
                             {formatTime(day.closeTime)}
@@ -378,28 +364,23 @@ const ScheduleScreen: React.FC<Props> = ({ navigation, route }) => {
 
                     {day.is24Hours && (
                       <View style={styles.twentyFourHours}>
-                        <Ionicons name="infinite" size={24} color="white" />
+                        <Ionicons name="infinite" size={24} color="#7B2CBF" />
                         <Text style={styles.twentyFourText}>Deschis 24/7</Text>
                       </View>
                     )}
                   </View>
-                </LinearGradient>
+                </View>
               </Animated.View>
             ))}
           </View>
 
           {/* Beautiful Info Card */}
           <View style={styles.infoCard}>
-            <LinearGradient
-              colors={["#000000", "#2D1B69", "#7B2CBF"]}
-              style={styles.infoGradient}
-              start={{ x: 0, y: 0 }}
-              end={{ x: 1, y: 1 }}
-            >
+            <View style={styles.infoGradient}>
               <Ionicons
                 name="information-circle-outline"
                 size={32}
-                color="white"
+                color="#7B2CBF"
               />
               <Text style={styles.infoTitle}>Informații despre program</Text>
               <Text style={styles.infoText}>
@@ -407,11 +388,11 @@ const ScheduleScreen: React.FC<Props> = ({ navigation, route }) => {
                 restaurantului. Pentru rezervări sau întrebări, contactează
                 restaurantul direct.
               </Text>
-            </LinearGradient>
+            </View>
           </View>
         </Animated.ScrollView>
       )}
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -422,9 +403,10 @@ const createStyles = (theme: any) =>
       backgroundColor: "#000000",
     },
     gradientHeader: {
-      paddingTop: 50,
+      paddingTop: 20,
       paddingBottom: 20,
       paddingHorizontal: 20,
+      backgroundColor: "#000000",
     },
     headerContent: {
       flexDirection: "row",
@@ -437,35 +419,37 @@ const createStyles = (theme: any) =>
     },
     headerTitle: {
       fontSize: 24,
-      fontWeight: "bold",
-      color: "white",
+      fontWeight: "700",
+      color: "#FFFFFF",
       textAlign: "center",
-      textShadowColor: "rgba(0, 0, 0, 0.75)",
-      textShadowOffset: { width: 1, height: 1 },
-      textShadowRadius: 2,
+      letterSpacing: 0.3,
     },
     headerSubtitle: {
       fontSize: 16,
-      color: "rgba(255, 255, 255, 0.9)",
+      color: "#B19CD9",
       textAlign: "center",
       marginTop: 4,
-      textShadowColor: "rgba(0, 0, 0, 0.5)",
-      textShadowOffset: { width: 1, height: 1 },
-      textShadowRadius: 1,
+      fontWeight: "500",
     },
     backButton: {
-      padding: 8,
+      width: 40,
+      height: 40,
       borderRadius: 20,
-      backgroundColor: "rgba(255, 255, 255, 0.2)",
+      backgroundColor: "rgba(123, 44, 191, 0.15)",
+      alignItems: "center",
+      justifyContent: "center",
       borderWidth: 1,
-      borderColor: "rgba(255, 255, 255, 0.3)",
+      borderColor: "rgba(123, 44, 191, 0.3)",
     },
     refreshButton: {
-      padding: 8,
+      width: 40,
+      height: 40,
       borderRadius: 20,
-      backgroundColor: "rgba(255, 255, 255, 0.2)",
+      backgroundColor: "rgba(123, 44, 191, 0.15)",
+      alignItems: "center",
+      justifyContent: "center",
       borderWidth: 1,
-      borderColor: "rgba(255, 255, 255, 0.3)",
+      borderColor: "rgba(123, 44, 191, 0.3)",
     },
     loadingContainer: {
       flex: 1,
@@ -478,7 +462,7 @@ const createStyles = (theme: any) =>
       fontSize: 16,
       marginTop: 16,
       textAlign: "center",
-      color: "#C77DFF",
+      color: "#B19CD9",
       fontWeight: "500",
     },
     scrollView: {
@@ -490,18 +474,18 @@ const createStyles = (theme: any) =>
     errorContainer: {
       flexDirection: "row",
       alignItems: "center",
-      backgroundColor: "#2D1B69",
+      backgroundColor: "#1A1A1A",
       margin: 20,
       padding: 16,
       borderRadius: 12,
       borderLeftWidth: 4,
-      borderLeftColor: "#C77DFF",
+      borderLeftColor: "#7B2CBF",
       borderWidth: 1,
-      borderColor: "rgba(199, 125, 255, 0.3)",
+      borderColor: "rgba(123, 44, 191, 0.3)",
     },
     errorText: {
       fontSize: 16,
-      color: "#C77DFF",
+      color: "#B19CD9",
       marginLeft: 12,
       flex: 1,
       fontWeight: "500",
@@ -512,18 +496,15 @@ const createStyles = (theme: any) =>
     },
     dayCard: {
       marginBottom: 16,
+      backgroundColor: "#1A1A1A",
       borderRadius: 16,
-      overflow: "hidden",
-      elevation: 8,
-      shadowColor: "#7B2CBF",
-      shadowOffset: {
-        width: 0,
-        height: 4,
-      },
-      shadowOpacity: 0.3,
-      shadowRadius: 8,
       borderWidth: 1,
-      borderColor: "rgba(199, 125, 255, 0.2)",
+      borderColor: "rgba(123, 44, 191, 0.2)",
+      shadowColor: "#7B2CBF",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.1,
+      shadowRadius: 8,
+      elevation: 4,
     },
     dayCardGradient: {
       padding: 20,
@@ -540,30 +521,25 @@ const createStyles = (theme: any) =>
     },
     dayName: {
       fontSize: 20,
-      fontWeight: "bold",
-      color: "white",
-      textShadowColor: "rgba(0, 0, 0, 0.75)",
-      textShadowOffset: { width: 1, height: 1 },
-      textShadowRadius: 2,
+      fontWeight: "700",
+      color: "#FFFFFF",
+      letterSpacing: 0.3,
     },
     statusContainer: {
       flexDirection: "row",
       alignItems: "center",
-      backgroundColor: "rgba(255, 255, 255, 0.25)",
+      backgroundColor: "rgba(123, 44, 191, 0.15)",
       paddingHorizontal: 12,
       paddingVertical: 6,
       borderRadius: 20,
       borderWidth: 1,
-      borderColor: "rgba(255, 255, 255, 0.3)",
+      borderColor: "rgba(123, 44, 191, 0.3)",
     },
     statusText: {
       fontSize: 14,
-      color: "white",
+      color: "#FFFFFF",
       fontWeight: "600",
       marginLeft: 6,
-      textShadowColor: "rgba(0, 0, 0, 0.5)",
-      textShadowOffset: { width: 1, height: 1 },
-      textShadowRadius: 1,
     },
     timeDisplay: {
       flexDirection: "row",
@@ -573,29 +549,23 @@ const createStyles = (theme: any) =>
     timeBlock: {
       flex: 1,
       alignItems: "center",
-      backgroundColor: "rgba(255, 255, 255, 0.2)",
+      backgroundColor: "#0F0F0F",
       padding: 12,
       borderRadius: 12,
       borderWidth: 1,
-      borderColor: "rgba(255, 255, 255, 0.25)",
+      borderColor: "rgba(123, 44, 191, 0.2)",
     },
     timeLabel: {
       fontSize: 12,
-      color: "rgba(255, 255, 255, 0.9)",
+      color: "#B19CD9",
       marginTop: 4,
       fontWeight: "500",
-      textShadowColor: "rgba(0, 0, 0, 0.5)",
-      textShadowOffset: { width: 1, height: 1 },
-      textShadowRadius: 1,
     },
     timeValue: {
       fontSize: 18,
-      color: "white",
-      fontWeight: "bold",
+      color: "#FFFFFF",
+      fontWeight: "700",
       marginTop: 2,
-      textShadowColor: "rgba(0, 0, 0, 0.75)",
-      textShadowOffset: { width: 1, height: 1 },
-      textShadowRadius: 2,
     },
     timeDivider: {
       width: 12,
@@ -604,35 +574,29 @@ const createStyles = (theme: any) =>
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
-      backgroundColor: "rgba(255, 255, 255, 0.2)",
+      backgroundColor: "#0F0F0F",
       padding: 16,
       borderRadius: 12,
       borderWidth: 1,
-      borderColor: "rgba(255, 255, 255, 0.25)",
+      borderColor: "rgba(123, 44, 191, 0.2)",
     },
     twentyFourText: {
       fontSize: 18,
-      color: "white",
-      fontWeight: "bold",
+      color: "#FFFFFF",
+      fontWeight: "700",
       marginLeft: 8,
-      textShadowColor: "rgba(0, 0, 0, 0.75)",
-      textShadowOffset: { width: 1, height: 1 },
-      textShadowRadius: 2,
     },
     infoCard: {
       margin: 20,
+      backgroundColor: "#1A1A1A",
       borderRadius: 16,
-      overflow: "hidden",
-      elevation: 6,
-      shadowColor: "#7B2CBF",
-      shadowOffset: {
-        width: 0,
-        height: 3,
-      },
-      shadowOpacity: 0.3,
-      shadowRadius: 6,
       borderWidth: 1,
-      borderColor: "rgba(199, 125, 255, 0.2)",
+      borderColor: "rgba(123, 44, 191, 0.2)",
+      shadowColor: "#7B2CBF",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.1,
+      shadowRadius: 8,
+      elevation: 4,
     },
     infoGradient: {
       padding: 20,
@@ -641,23 +605,19 @@ const createStyles = (theme: any) =>
     },
     infoTitle: {
       fontSize: 18,
-      color: "white",
-      fontWeight: "bold",
+      color: "#FFFFFF",
+      fontWeight: "700",
       marginTop: 12,
       marginBottom: 12,
       textAlign: "center",
-      textShadowColor: "rgba(0, 0, 0, 0.75)",
-      textShadowOffset: { width: 1, height: 1 },
-      textShadowRadius: 2,
+      letterSpacing: 0.3,
     },
     infoText: {
       fontSize: 14,
-      color: "rgba(255, 255, 255, 0.95)",
+      color: "#B19CD9",
       textAlign: "center",
       lineHeight: 20,
-      textShadowColor: "rgba(0, 0, 0, 0.5)",
-      textShadowOffset: { width: 1, height: 1 },
-      textShadowRadius: 1,
+      fontWeight: "500",
     },
   });
 

@@ -128,8 +128,45 @@ const Profile: React.FC<{ navigation?: any }> = ({ navigation }) => {
           console.warn("Could not load reservations:", error);
         }
 
+        // Load real liked events count
+        let likedEventsCount = 0;
+        try {
+          // First, get all events
+          const eventsResponse = await fetch(`${BASE_URL}/events`);
+          if (eventsResponse.ok) {
+            const allEvents = await eventsResponse.json();
+
+            // Check like status for each event
+            const likePromises = allEvents.map(async (event: any) => {
+              try {
+                const likeResponse = await fetch(
+                  `${BASE_URL}/events/${event.id}/like-status/${user.id}`
+                );
+                if (likeResponse.ok) {
+                  const likeData = await likeResponse.json();
+                  return likeData.liked ? event : null;
+                }
+              } catch (error) {
+                console.warn(
+                  `Could not check like status for event ${event.id}:`,
+                  error
+                );
+              }
+              return null;
+            });
+
+            const likedEvents = (await Promise.all(likePromises)).filter(
+              (event) => event !== null
+            );
+            likedEventsCount = likedEvents.length;
+            setEvents(likedEvents);
+          }
+        } catch (error) {
+          console.warn("Could not load liked events:", error);
+        }
+
         setStats({
-          eventsLiked: Math.floor(Math.random() * 50),
+          eventsLiked: likedEventsCount,
           restaurantsVisited: Math.floor(Math.random() * 25),
           reservationsMade: reservationsCount,
         });

@@ -12,25 +12,18 @@ import {
   StatusBar,
   Dimensions,
 } from "react-native";
-import { LinearGradient } from 'expo-linear-gradient';
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useTheme } from "../context/ThemeContext";
-import UniversalScreen from "../components/UniversalScreen";
-import EnhancedButton from "../components/EnhancedButton";
-import { 
-  getShadow, 
-  hapticFeedback, 
+import { RootStackParamList } from "./RootStackParamList";
+import {
+  getShadow,
+  hapticFeedback,
   TYPOGRAPHY,
-  SCREEN_DIMENSIONS 
+  SCREEN_DIMENSIONS,
 } from "../utils/responsive";
 
-export type RootStackParamList = {
-  Login: undefined;
-  Register: undefined;
-  Home: undefined;
-  Profile: undefined;
-};
 type HomeNav = NativeStackNavigationProp<RootStackParamList, "Home">;
 
 export default function SettingsScreen({
@@ -44,7 +37,7 @@ export default function SettingsScreen({
   const [fadeAnim] = useState(new Animated.Value(0));
   const [slideAnim] = useState(new Animated.Value(50));
 
-  const styles = createStyles(theme);
+  // Removed createStyles call - using direct styles
 
   interface SettingItemProps {
     icon: string;
@@ -81,7 +74,12 @@ export default function SettingsScreen({
     };
 
     return (
-      <Animated.View style={[styles.settingItemWrapper, { transform: [{ scale: scaleAnim }] }]}>
+      <Animated.View
+        style={[
+          styles.settingItemWrapper,
+          { transform: [{ scale: scaleAnim }] },
+        ]}
+      >
         <TouchableOpacity
           style={[styles.settingItem, danger && styles.dangerItem]}
           onPress={() => {
@@ -90,45 +88,51 @@ export default function SettingsScreen({
           }}
           activeOpacity={0.8}
         >
-          <LinearGradient
-            colors={danger ? ['#FF6B6B', '#FF8E53'] : ['#1A1A1A', '#2A1A4A']}
-            style={styles.settingItemGradient}
-          >
+          <View style={styles.settingItemGradient}>
             <View style={styles.settingItemLeft}>
-              <View style={[styles.iconContainer, danger && styles.dangerIconContainer]}>
-                <LinearGradient
-                  colors={danger ? ['#FFFFFF20', '#FFFFFF10'] : ['#6C3AFF', '#BB86FC']}
-                  style={styles.iconGradient}
-                >
-                  <Ionicons 
-                    name={icon as any} 
-                    size={24} 
-                    color={danger ? "#FFFFFF" : "#FFFFFF"} 
+              <View
+                style={[
+                  styles.iconContainer,
+                  danger && styles.dangerIconContainer,
+                ]}
+              >
+                <View style={styles.iconGradient}>
+                  <Ionicons
+                    name={icon as any}
+                    size={24}
+                    color={danger ? "#FFFFFF" : "#FFFFFF"}
                   />
-                </LinearGradient>
+                </View>
               </View>
               <View style={styles.textContainer}>
-                <Text style={[styles.settingTitle, danger && styles.dangerText]}>
+                <Text
+                  style={[styles.settingTitle, danger && styles.dangerText]}
+                >
                   {title}
                 </Text>
                 {subtitle && (
-                  <Text style={[styles.settingSubtitle, danger && styles.dangerSubtext]}>
+                  <Text
+                    style={[
+                      styles.settingSubtitle,
+                      danger && styles.dangerSubtext,
+                    ]}
+                  >
                     {subtitle}
                   </Text>
                 )}
               </View>
             </View>
-            
+
             <View style={styles.settingItemRight}>
               {rightElement || (
-                <Ionicons 
-                  name="chevron-forward" 
-                  size={20} 
-                  color={danger ? "#FFFFFF80" : "#A78BFA"} 
+                <Ionicons
+                  name="chevron-forward"
+                  size={20}
+                  color={danger ? "#FFFFFF80" : "#B19CD9"}
                 />
               )}
             </View>
-          </LinearGradient>
+          </View>
         </TouchableOpacity>
       </Animated.View>
     );
@@ -160,7 +164,7 @@ export default function SettingsScreen({
             {
               backgroundColor: switchAnim.interpolate({
                 inputRange: [0, 1],
-                outputRange: ['#2A1A4A', '#6C3AFF'],
+                outputRange: ["#2A1A4A", "#6C3AFF"],
               }),
             },
           ]}
@@ -180,10 +184,7 @@ export default function SettingsScreen({
               },
             ]}
           >
-            <LinearGradient
-              colors={['#FFFFFF', '#E0E0FF']}
-              style={styles.thumbGradient}
-            />
+            <View style={styles.thumbGradient} />
           </Animated.View>
         </Animated.View>
       </TouchableOpacity>
@@ -248,16 +249,14 @@ export default function SettingsScreen({
     );
   };
 
-  const onChangePassword = () =>
-    Alert.alert(
-      "Schimbă Parola", 
-      "Funcția va fi disponibilă în curând",
-      [{ text: "OK", style: "default" }]
-    );
+  const onChangePassword = () => {
+    hapticFeedback();
+    navigation.navigate("ChangePassword");
+  };
 
   const onAbout = () =>
     Alert.alert(
-      "Despre Aplicație", 
+      "Despre Aplicație",
       "Acum-H\nVersiune: 1.0.0\nO aplicație pentru găsirea celor mai bune restaurante și evenimente.\n\n© 2024 Acum-H Team",
       [{ text: "OK", style: "default" }]
     );
@@ -270,61 +269,53 @@ export default function SettingsScreen({
     );
 
   const onSupport = () =>
-    Alert.alert(
-      "Suport",
-      "Ai întrebări? Contactează-ne la support@acum-h.ro",
-      [{ text: "OK", style: "default" }]
-    );
+    Alert.alert("Suport", "Ai întrebări? Contactează-ne la support@acum-h.ro", [
+      { text: "OK", style: "default" },
+    ]);
 
   return (
-    <UniversalScreen>
-      <StatusBar barStyle="light-content" backgroundColor={theme.colors.surface} />
-      
+    <SafeAreaView style={styles.container}>
+      <StatusBar barStyle="light-content" backgroundColor="#000000" />
+
       {/* Header */}
-      <Animated.View 
+      <Animated.View
         style={[
           styles.header,
-          { 
+          {
             opacity: fadeAnim,
-            transform: [{ translateY: slideAnim }]
-          }
+            transform: [{ translateY: slideAnim }],
+          },
         ]}
       >
-        <LinearGradient
-          colors={['#0F0817', '#1A1A1A']}
-          style={styles.headerGradient}
-        >
+        <View style={styles.headerGradient}>
           <Text style={styles.headerTitle}>Setări</Text>
-          <Text style={styles.headerSubtitle}>Personalizează experiența ta</Text>
-        </LinearGradient>
+          <Text style={styles.headerSubtitle}>
+            Personalizează experiența ta
+          </Text>
+        </View>
       </Animated.View>
 
-      <ScrollView 
+      <ScrollView
         style={styles.scrollView}
         contentContainerStyle={styles.scrollContent}
         showsVerticalScrollIndicator={false}
       >
-        <Animated.View 
+        <Animated.View
           style={[
             styles.content,
-            { 
+            {
               opacity: fadeAnim,
-              transform: [{ translateY: slideAnim }]
-            }
+              transform: [{ translateY: slideAnim }],
+            },
           ]}
         >
           {/* Account Section */}
           <View style={styles.section}>
             <View style={styles.sectionHeaderContainer}>
-              <LinearGradient
-                colors={['#6C3AFF', '#BB86FC']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.sectionHeaderGradient}
-              >
+              <View style={styles.sectionHeaderGradient}>
                 <Ionicons name="person" size={20} color="#FFFFFF" />
                 <Text style={styles.sectionHeader}>Cont</Text>
-              </LinearGradient>
+              </View>
             </View>
 
             <SettingItem
@@ -345,15 +336,10 @@ export default function SettingsScreen({
           {/* Preferences Section */}
           <View style={styles.section}>
             <View style={styles.sectionHeaderContainer}>
-              <LinearGradient
-                colors={['#6C3AFF', '#BB86FC']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.sectionHeaderGradient}
-              >
+              <View style={styles.sectionHeaderGradient}>
                 <Ionicons name="settings" size={20} color="#FFFFFF" />
                 <Text style={styles.sectionHeader}>Preferințe</Text>
-              </LinearGradient>
+              </View>
             </View>
 
             <SettingItem
@@ -361,22 +347,7 @@ export default function SettingsScreen({
               title="Notificări"
               subtitle={notif ? "Activat" : "Dezactivat"}
               rightElement={
-                <CustomSwitch
-                  value={notif}
-                  onValueChange={toggleNotif}
-                />
-              }
-            />
-
-            <SettingItem
-              icon="moon-outline"
-              title="Mod Întunecat"
-              subtitle={dark ? "Activat" : "Dezactivat"}
-              rightElement={
-                <CustomSwitch
-                  value={dark}
-                  onValueChange={toggleDark}
-                />
+                <CustomSwitch value={notif} onValueChange={toggleNotif} />
               }
             />
           </View>
@@ -384,15 +355,10 @@ export default function SettingsScreen({
           {/* Support Section */}
           <View style={styles.section}>
             <View style={styles.sectionHeaderContainer}>
-              <LinearGradient
-                colors={['#6C3AFF', '#BB86FC']}
-                start={{ x: 0, y: 0 }}
-                end={{ x: 1, y: 0 }}
-                style={styles.sectionHeaderGradient}
-              >
+              <View style={styles.sectionHeaderGradient}>
                 <Ionicons name="help-circle" size={20} color="#FFFFFF" />
                 <Text style={styles.sectionHeader}>Suport</Text>
-              </LinearGradient>
+              </View>
             </View>
 
             <SettingItem
@@ -422,14 +388,14 @@ export default function SettingsScreen({
           </View>
         </Animated.View>
       </ScrollView>
-    </UniversalScreen>
+    </SafeAreaView>
   );
 }
 
-const createStyles = (theme: any) => StyleSheet.create({
-  container: { 
-    flex: 1, 
-    backgroundColor: theme.colors.surface 
+const styles = StyleSheet.create({
+  container: {
+    flex: 1,
+    backgroundColor: "#000000",
   },
   header: {
     paddingBottom: 8,
@@ -437,17 +403,18 @@ const createStyles = (theme: any) => StyleSheet.create({
   headerGradient: {
     paddingHorizontal: 24,
     paddingVertical: 20,
+    backgroundColor: "#000000",
   },
   headerTitle: {
     fontSize: 32,
     fontWeight: "800",
-    color: "#E0E0FF",
-    letterSpacing: -0.5,
+    color: "#FFFFFF",
+    letterSpacing: 0.5,
     marginBottom: 4,
   },
   headerSubtitle: {
     fontSize: 16,
-    color: "#A78BFA",
+    color: "#B19CD9",
     fontWeight: "500",
   },
   scrollView: {
@@ -475,6 +442,8 @@ const createStyles = (theme: any) => StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: 16,
     paddingVertical: 12,
+    backgroundColor: "#7B2CBF",
+    borderRadius: 12,
   },
   sectionHeader: {
     fontSize: 18,
@@ -489,7 +458,7 @@ const createStyles = (theme: any) => StyleSheet.create({
   settingItem: {
     borderRadius: 16,
     overflow: "hidden",
-    shadowColor: "#6C3AFF",
+    shadowColor: "#7B2CBF",
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.1,
     shadowRadius: 8,
@@ -504,8 +473,10 @@ const createStyles = (theme: any) => StyleSheet.create({
     justifyContent: "space-between",
     paddingHorizontal: 20,
     paddingVertical: 16,
+    backgroundColor: "#1A1A1A",
+    borderRadius: 16,
     borderWidth: 1,
-    borderColor: "#2A1A4A",
+    borderColor: "#333333",
   },
   settingItemLeft: {
     flexDirection: "row",
@@ -531,6 +502,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     height: "100%",
     alignItems: "center",
     justifyContent: "center",
+    backgroundColor: "#7B2CBF",
   },
   textContainer: {
     flex: 1,
@@ -538,20 +510,20 @@ const createStyles = (theme: any) => StyleSheet.create({
   settingTitle: {
     fontSize: 17,
     fontWeight: "600",
-    color: "#E0E0FF",
+    color: "#FFFFFF",
     marginBottom: 2,
     letterSpacing: 0.2,
   },
   dangerText: {
-    color: "#FFFFFF",
+    color: "#FF6B6B",
   },
   settingSubtitle: {
     fontSize: 14,
-    color: "#A78BFA",
+    color: "#B19CD9",
     lineHeight: 18,
   },
   dangerSubtext: {
-    color: "#FFFFFF80",
+    color: "#FF6B6B80",
   },
   settingItemRight: {
     alignItems: "center",
@@ -568,7 +540,7 @@ const createStyles = (theme: any) => StyleSheet.create({
     borderRadius: 14,
     justifyContent: "center",
     position: "relative",
-    shadowColor: "#6C3AFF",
+    shadowColor: "#7B2CBF",
     shadowOffset: { width: 0, height: 2 },
     shadowOpacity: 0.2,
     shadowRadius: 4,
@@ -589,5 +561,6 @@ const createStyles = (theme: any) => StyleSheet.create({
     width: "100%",
     height: "100%",
     borderRadius: 12,
+    backgroundColor: "#FFFFFF",
   },
 });

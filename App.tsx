@@ -20,6 +20,7 @@ import Info from "./screens/Info";
 import Reservation from "./screens/Reservation";
 import ScheduleScreen from "./screens/ScheduleScreen";
 import ReservationsHistory from "./screens/ReservationsHistory";
+import ChangePasswordScreen from "./screens/ChangePasswordScreen";
 import { RootStackParamList } from "./screens/RootStackParamList";
 import { useMenuPreloader } from "./hooks/useMenuPreloader";
 import { View, Text, ActivityIndicator, StyleSheet } from "react-native";
@@ -119,6 +120,10 @@ export default function App() {
               <Stack.Screen
                 name="ReservationsHistory"
                 component={ReservationsHistory}
+              />
+              <Stack.Screen
+                name="ChangePassword"
+                component={ChangePasswordScreen}
               />
             </Stack.Navigator>
           </NavigationContainer>

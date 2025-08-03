@@ -17,8 +17,8 @@ import {
   StatusBar,
   ActivityIndicator,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
-import { LinearGradient } from "expo-linear-gradient";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
@@ -384,39 +384,32 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
   };
 
   return (
-    <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#6366F1" />
+    <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
+      <StatusBar barStyle="light-content" backgroundColor="#000000" />
 
-      {/* Modern Header with Gradient */}
+      {/* Modern Header with Black Background */}
       <Animated.View
         style={[styles.headerGradient, { opacity: headerOpacity }]}
       >
-        <LinearGradient
-          colors={[theme.colors.primary, theme.colors.accent]}
-          start={{ x: 0, y: 0 }}
-          end={{ x: 1, y: 1 }}
-          style={styles.gradient}
-        >
-          <View style={styles.headerContent}>
-            <TouchableOpacity
-              onPress={() => {
-                hapticFeedback("light");
-                navigation.goBack();
-              }}
-              style={styles.backButtonModern}
-              activeOpacity={0.8}
-            >
-              <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
-            </TouchableOpacity>
+        <View style={styles.headerContent}>
+          <TouchableOpacity
+            onPress={() => {
+              hapticFeedback("light");
+              navigation.goBack();
+            }}
+            style={styles.backButtonModern}
+            activeOpacity={0.8}
+          >
+            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+          </TouchableOpacity>
 
-            <View style={styles.headerTextContainer}>
-              <Text style={styles.headerTitle}>Reserve Table</Text>
-              <Text style={styles.headerSubtitle}>{location.name}</Text>
-            </View>
-
-            <View style={styles.headerSpacer} />
+          <View style={styles.headerTextContainer}>
+            <Text style={styles.headerTitle}>Reserve Table</Text>
+            <Text style={styles.headerSubtitle}>{location.name}</Text>
           </View>
-        </LinearGradient>
+
+          <View style={styles.headerSpacer} />
+        </View>
       </Animated.View>
 
       <KeyboardAvoidingView
@@ -628,15 +621,14 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
                 }
                 activeOpacity={0.9}
               >
-                <LinearGradient
-                  colors={
-                    loading || !isTimeValid(time) || !isRestaurantOpen(date)
-                      ? [theme.colors.textSecondary, theme.colors.textSecondary]
-                      : [theme.colors.accent, theme.colors.primary]
-                  }
-                  start={{ x: 0, y: 0 }}
-                  end={{ x: 1, y: 0 }}
-                  style={styles.submitGradient}
+                <View
+                  style={[
+                    styles.submitGradient,
+                    (loading ||
+                      !isTimeValid(time) ||
+                      !isRestaurantOpen(date)) &&
+                      styles.submitButtonDisabled,
+                  ]}
                 >
                   {loading ? (
                     <ActivityIndicator size="small" color="#FFFFFF" />
@@ -650,7 +642,7 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
                       />
                     </>
                   )}
-                </LinearGradient>
+                </View>
               </TouchableOpacity>
             </Animated.View>
           </ScrollView>
@@ -748,7 +740,7 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
           minuteInterval={30}
         />
       )}
-    </View>
+    </SafeAreaView>
   );
 };
 
@@ -756,13 +748,14 @@ const createStyles = (theme: any) =>
   StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: theme.colors.background,
+      backgroundColor: "#000000",
     },
 
     // Modern Header Styles
     headerGradient: {
-      height: 120,
-      paddingTop: Platform.OS === "ios" ? 50 : 20,
+      height: 100,
+      paddingTop: 20,
+      backgroundColor: "#000000",
     },
     gradient: {
       flex: 1,
@@ -770,31 +763,34 @@ const createStyles = (theme: any) =>
     headerContent: {
       flexDirection: "row",
       alignItems: "center",
-      paddingHorizontal: getResponsiveSpacing("lg"),
-      paddingTop: getResponsiveSpacing("sm"),
-      paddingBottom: getResponsiveSpacing("lg"),
+      paddingHorizontal: 20,
+      paddingTop: 8,
+      paddingBottom: 20,
     },
     backButtonModern: {
       width: 36,
       height: 36,
       borderRadius: 18,
-      backgroundColor: "rgba(255,255,255,0.2)",
+      backgroundColor: "rgba(123, 44, 191, 0.2)",
       alignItems: "center",
       justifyContent: "center",
+      borderWidth: 1,
+      borderColor: "rgba(123, 44, 191, 0.4)",
     },
     headerTextContainer: {
       flex: 1,
-      marginLeft: getResponsiveSpacing("lg"),
+      marginLeft: 20,
     },
     headerTitle: {
-      fontSize: TYPOGRAPHY.h2,
+      fontSize: 24,
       fontWeight: "700",
       color: "#FFFFFF",
       marginBottom: 2,
+      letterSpacing: 0.3,
     },
     headerSubtitle: {
-      fontSize: TYPOGRAPHY.body,
-      color: "rgba(255,255,255,0.8)",
+      fontSize: 14,
+      color: "#B19CD9",
       fontWeight: "500",
     },
     headerSpacer: {
@@ -809,186 +805,200 @@ const createStyles = (theme: any) =>
       flex: 1,
     },
     scrollContent: {
-      paddingBottom: getResponsiveSpacing("xxxl"),
+      paddingBottom: 60,
     },
     formContainer: {
       flex: 1,
-      paddingHorizontal: getResponsiveSpacing("lg"),
-      paddingTop: getResponsiveSpacing("xl"),
+      paddingHorizontal: 20,
+      paddingTop: 24,
     },
 
     // Modern Card Styles
     floatingCard: {
-      backgroundColor: theme.colors.surface,
-      borderRadius: 20,
-      padding: getResponsiveSpacing("lg"),
-      marginBottom: getResponsiveSpacing("lg"),
-      ...getShadow(4),
+      backgroundColor: "#1A1A1A",
+      borderRadius: 16,
+      padding: 20,
+      marginBottom: 20,
+      borderWidth: 1,
+      borderColor: "rgba(123, 44, 191, 0.2)",
+      shadowColor: "#7B2CBF",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.1,
+      shadowRadius: 8,
       elevation: 4,
     },
 
     // Input Section Styles
     inputSection: {
-      marginBottom: getResponsiveSpacing("lg"),
+      marginBottom: 20,
     },
     modernLabel: {
-      fontSize: TYPOGRAPHY.h4,
+      fontSize: 18,
       fontWeight: "600",
-      color: theme.colors.text,
-      marginBottom: getResponsiveSpacing("md"),
-      letterSpacing: 0.5,
+      color: "#FFFFFF",
+      marginBottom: 12,
+      letterSpacing: 0.3,
     },
     scheduleInfo: {
-      fontSize: TYPOGRAPHY.caption,
-      color: theme.colors.textSecondary,
-      marginTop: getResponsiveSpacing("xs"),
+      fontSize: 12,
+      color: "#B19CD9",
+      marginTop: 4,
       fontStyle: "italic",
     },
     invalidInput: {
-      borderColor: theme.colors.error,
-      backgroundColor: theme.colors.error + "08",
+      borderColor: "#DC2626",
+      backgroundColor: "rgba(220, 38, 38, 0.08)",
     },
     invalidText: {
-      color: theme.colors.error,
+      color: "#DC2626",
     },
     validationError: {
-      fontSize: TYPOGRAPHY.caption,
-      color: theme.colors.error,
-      marginTop: getResponsiveSpacing("xs"),
-      marginLeft: getResponsiveSpacing("xs"),
+      fontSize: 12,
+      color: "#DC2626",
+      marginTop: 4,
+      marginLeft: 4,
     },
     modernInput: {
       flexDirection: "row",
       alignItems: "center",
-      backgroundColor: theme.colors.background,
+      backgroundColor: "#0F0F0F",
       borderRadius: 12,
-      padding: getResponsiveSpacing("md"),
-      borderWidth: 1.5,
-      borderColor: theme.colors.border + "40",
+      padding: 16,
+      borderWidth: 1,
+      borderColor: "rgba(123, 44, 191, 0.3)",
       minHeight: 48,
     },
     inputIcon: {
       width: 28,
       height: 28,
       borderRadius: 14,
-      backgroundColor: theme.colors.primary + "20",
+      backgroundColor: "rgba(123, 44, 191, 0.2)",
       alignItems: "center",
       justifyContent: "center",
-      marginRight: getResponsiveSpacing("sm"),
+      marginRight: 12,
     },
     inputValue: {
       flex: 1,
-      fontSize: TYPOGRAPHY.body,
+      fontSize: 16,
       fontWeight: "500",
-      color: theme.colors.text,
+      color: "#FFFFFF",
     },
 
     // Guest Selector Styles
     guestSelector: {
       flexDirection: "row",
       alignItems: "center",
-      backgroundColor: theme.colors.background,
+      backgroundColor: "#0F0F0F",
       borderRadius: 12,
-      padding: getResponsiveSpacing("xs"),
-      borderWidth: 1.5,
-      borderColor: theme.colors.border + "40",
+      padding: 4,
+      borderWidth: 1,
+      borderColor: "rgba(123, 44, 191, 0.3)",
       minHeight: 48,
     },
     guestButton: {
       width: 32,
       height: 32,
       borderRadius: 16,
-      backgroundColor: theme.colors.primary + "20",
+      backgroundColor: "rgba(123, 44, 191, 0.2)",
       alignItems: "center",
       justifyContent: "center",
+      borderWidth: 1,
+      borderColor: "rgba(123, 44, 191, 0.4)",
     },
     guestDisplay: {
       flex: 1,
       alignItems: "center",
-      paddingHorizontal: getResponsiveSpacing("md"),
+      paddingHorizontal: 16,
     },
     guestCount: {
-      fontSize: TYPOGRAPHY.h3,
+      fontSize: 20,
       fontWeight: "700",
-      color: theme.colors.text,
+      color: "#FFFFFF",
     },
     guestLabel: {
-      fontSize: TYPOGRAPHY.caption,
-      color: theme.colors.textSecondary,
+      fontSize: 12,
+      color: "#B19CD9",
       fontWeight: "500",
       marginTop: 2,
     },
 
     // Text Area Styles
     textAreaContainer: {
-      backgroundColor: theme.colors.background,
+      backgroundColor: "#0F0F0F",
       borderRadius: 12,
-      borderWidth: 1.5,
-      borderColor: theme.colors.border + "40",
+      borderWidth: 1,
+      borderColor: "rgba(123, 44, 191, 0.3)",
       minHeight: 80,
     },
     textArea: {
-      padding: getResponsiveSpacing("md"),
-      fontSize: TYPOGRAPHY.body,
-      color: theme.colors.text,
+      padding: 16,
+      fontSize: 16,
+      color: "#FFFFFF",
       fontWeight: "500",
       lineHeight: 20,
     },
 
     // Submit Button Styles
     submitButton: {
-      borderRadius: 20,
-      overflow: "hidden",
-      marginTop: getResponsiveSpacing("lg"),
-      ...getShadow(6),
+      backgroundColor: "#7B2CBF",
+      borderRadius: 12,
+      marginTop: 20,
+      shadowColor: "#7B2CBF",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
       elevation: 6,
     },
     submitGradient: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
-      paddingVertical: getResponsiveSpacing("lg"),
-      paddingHorizontal: getResponsiveSpacing("xl"),
+      paddingVertical: 16,
+      paddingHorizontal: 24,
       minHeight: 56,
-      gap: getResponsiveSpacing("sm"),
+      gap: 8,
     },
     submitText: {
-      fontSize: TYPOGRAPHY.h4,
+      fontSize: 16,
       fontWeight: "700",
       color: "#FFFFFF",
-      letterSpacing: 0.5,
+      letterSpacing: 0.3,
     },
     submitButtonDisabled: {
-      opacity: 0.6,
+      opacity: 0.5,
     },
 
     // Modal Styles
     modalOverlay: {
       flex: 1,
-      backgroundColor: "rgba(0,0,0,0.5)",
+      backgroundColor: "rgba(0,0,0,0.8)",
       justifyContent: "flex-end",
     },
     modalContent: {
-      backgroundColor: theme.colors.surface,
+      backgroundColor: "#1A1A1A",
       borderTopLeftRadius: 24,
       borderTopRightRadius: 24,
       paddingBottom: Platform.OS === "ios" ? 40 : 20,
+      borderTopWidth: 1,
+      borderTopColor: "rgba(123, 44, 191, 0.3)",
     },
     modalHeader: {
       flexDirection: "row",
       justifyContent: "flex-end",
-      padding: getResponsiveSpacing("lg"),
+      padding: 20,
       borderBottomWidth: 1,
-      borderBottomColor: theme.colors.border + "30",
+      borderBottomColor: "rgba(123, 44, 191, 0.2)",
     },
     modalButton: {
-      paddingVertical: getResponsiveSpacing("sm"),
-      paddingHorizontal: getResponsiveSpacing("lg"),
+      paddingVertical: 12,
+      paddingHorizontal: 20,
+      backgroundColor: "rgba(123, 44, 191, 0.2)",
+      borderRadius: 8,
     },
     modalButtonText: {
-      fontSize: TYPOGRAPHY.body,
+      fontSize: 16,
       fontWeight: "600",
-      color: theme.colors.primary,
+      color: "#7B2CBF",
     },
   });
 
