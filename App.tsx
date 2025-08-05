@@ -10,7 +10,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import "react-native-get-random-values";
 
 import { ThemeProvider } from "./context/ThemeContext";
-import { UserProvider } from "./context/UserContext";
+import { UserProvider, useUser } from "./context/UserContext";
 import LoginScreen from "./screens/LoginScreen";
 import RegisterScreen from "./screens/RegisterScreen";
 import HomeTabs from "./screens/HomeTabs";
@@ -21,14 +21,69 @@ import Reservation from "./screens/Reservation";
 import ScheduleScreen from "./screens/ScheduleScreen";
 import ReservationsHistory from "./screens/ReservationsHistory";
 import ChangePasswordScreen from "./screens/ChangePasswordScreen";
+import BugReportScreen from "./screens/BugReportScreen";
 import { RootStackParamList } from "./screens/RootStackParamList";
 import { useMenuPreloader } from "./hooks/useMenuPreloader";
 import { View, Text, ActivityIndicator, StyleSheet } from "react-native";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
+// Navigation component that uses UserContext
+function AppNavigator() {
+  const { isLoggedIn, loading } = useUser();
+
+  if (loading) {
+    return (
+      <View style={styles.loadingContainer}>
+        <ActivityIndicator size="large" color="#6C3AFF" />
+        <Text style={styles.loadingTitle}>ACUM-H</Text>
+        <Text style={styles.loadingSubtitle}>Se încarcă...</Text>
+      </View>
+    );
+  }
+
+  return (
+    <NavigationContainer>
+      <Stack.Navigator
+        id={undefined}
+        initialRouteName={isLoggedIn ? "Home" : "Login"}
+        screenOptions={{ headerShown: false }}
+      >
+        {!isLoggedIn ? (
+          // Auth screens
+          <>
+            <Stack.Screen name="Login" component={LoginScreen} />
+            <Stack.Screen name="Register" component={RegisterScreen} />
+          </>
+        ) : (
+          // Main app screens
+          <>
+            <Stack.Screen name="Home" component={HomeTabs} />
+            <Stack.Screen name="Profile" component={Profile} />
+            <Stack.Screen name="EventScreen" component={EventScreen} />
+            <Stack.Screen name="Info" component={Info} />
+            <Stack.Screen name="Reservation" component={Reservation} />
+            <Stack.Screen name="Schedule" component={ScheduleScreen} />
+            <Stack.Screen
+              name="ReservationsHistory"
+              component={ReservationsHistory}
+            />
+            <Stack.Screen
+              name="ChangePassword"
+              component={ChangePasswordScreen}
+            />
+            <Stack.Screen
+              name="BugReport"
+              component={BugReportScreen}
+            />
+          </>
+        )}
+      </Stack.Navigator>
+    </NavigationContainer>
+  );
+}
+
 export default function App() {
-  const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [isAppReady, setIsAppReady] = useState<boolean>(false);
 
   // Initialize menu preloader
@@ -37,13 +92,6 @@ export default function App() {
     enableBackgroundRefresh: true,
     retryFailedParsing: true,
   });
-
-  useEffect(() => {
-    (async () => {
-      const getLogIn = await AsyncStorage.getItem("loggedIn");
-      setIsLoggedIn(getLogIn != null ? JSON.parse(getLogIn) : false);
-    })();
-  }, []);
 
   useEffect(() => {
     // Wait for initial menu preload to complete before showing main app
@@ -99,34 +147,12 @@ export default function App() {
       </ThemeProvider>
     );
   }
+
   return (
     <ThemeProvider>
       <UserProvider>
         <SafeAreaProvider>
-          <NavigationContainer>
-            <Stack.Navigator
-              id={undefined}
-              initialRouteName={isLoggedIn ? "Home" : "Login"}
-              screenOptions={{ headerShown: false }}
-            >
-              <Stack.Screen name="Login" component={LoginScreen} />
-              <Stack.Screen name="Register" component={RegisterScreen} />
-              <Stack.Screen name="Home" component={HomeTabs} />
-              <Stack.Screen name="Profile" component={Profile} />
-              <Stack.Screen name="EventScreen" component={EventScreen} />
-              <Stack.Screen name="Info" component={Info} />
-              <Stack.Screen name="Reservation" component={Reservation} />
-              <Stack.Screen name="Schedule" component={ScheduleScreen} />
-              <Stack.Screen
-                name="ReservationsHistory"
-                component={ReservationsHistory}
-              />
-              <Stack.Screen
-                name="ChangePassword"
-                component={ChangePasswordScreen}
-              />
-            </Stack.Navigator>
-          </NavigationContainer>
+          <AppNavigator />
         </SafeAreaProvider>
       </UserProvider>
     </ThemeProvider>

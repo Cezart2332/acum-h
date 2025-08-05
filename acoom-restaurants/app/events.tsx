@@ -71,12 +71,12 @@ export default function EventsScreen() {
 
   const deleteEvent = async (eventId: number) => {
     Alert.alert(
-      "Delete Event",
-      "Are you sure you want to delete this event? This action cannot be undone.",
+      "Șterge Evenimentul",
+      "Ești sigur că vrei să ștergi acest eveniment? Această acțiune nu poate fi anulată.",
       [
-        { text: "Cancel", style: "cancel" },
+        { text: "Anulează", style: "cancel" },
         {
-          text: "Delete",
+          text: "Șterge",
           style: "destructive",
           onPress: async () => {
             try {
@@ -84,14 +84,14 @@ export default function EventsScreen() {
                 method: "DELETE",
               });
               if (response.ok) {
-                Alert.alert("Success", "Event deleted successfully");
+                Alert.alert("Succes", "Evenimentul a fost șters cu succes");
                 fetchEvents();
               } else {
-                Alert.alert("Error", "Failed to delete event");
+                Alert.alert("Eroare", "Ștergerea evenimentului a eșuat");
               }
             } catch (error) {
               console.error("Error deleting event:", error);
-              Alert.alert("Error", "Failed to delete event");
+              Alert.alert("Eroare", "Ștergerea evenimentului a eșuat");
             }
           },
         },
@@ -116,7 +116,7 @@ export default function EventsScreen() {
       <LinearGradient colors={["#000000", "#0F0F0F"]} style={{ flex: 1 }}>
         <Stack.Screen
           options={{
-            title: "Events",
+            title: "Evenimente",
             headerShown: true,
             headerStyle: { backgroundColor: "#0F0F0F" },
             headerTintColor: "#FFFFFF",
@@ -151,7 +151,7 @@ export default function EventsScreen() {
               letterSpacing: 0.5,
             }}
           >
-            Loading events...
+            Se încarcă evenimentele...
           </Text>
         </View>
       </LinearGradient>
@@ -162,7 +162,7 @@ export default function EventsScreen() {
     <LinearGradient colors={["#000000", "#0F0F0F"]} style={{ flex: 1 }}>
       <Stack.Screen
         options={{
-          title: "Events",
+          title: "Evenimente",
           headerShown: true,
           headerStyle: { backgroundColor: "#0F0F0F" },
           headerTintColor: "#FFFFFF",
@@ -241,7 +241,7 @@ export default function EventsScreen() {
                   textAlign: "center",
                 }}
               >
-                No events yet
+                Nu există evenimente încă
               </Text>
               <Text
                 style={{
@@ -251,7 +251,7 @@ export default function EventsScreen() {
                   textAlign: "center",
                 }}
               >
-                Create your first event to get started
+                Creează primul tău eveniment pentru a începe
               </Text>
               <TouchableOpacity
                 onPress={() => router.push("./add-event")}
@@ -269,7 +269,7 @@ export default function EventsScreen() {
                     fontWeight: "600",
                   }}
                 >
-                  Create Event
+                  Creează Eveniment
                 </Text>
               </TouchableOpacity>
             </View>

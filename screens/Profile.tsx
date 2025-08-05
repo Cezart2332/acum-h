@@ -246,7 +246,7 @@ const Profile: React.FC<{ navigation?: any }> = ({ navigation }) => {
           hapticFeedback("medium");
           try {
             await logout();
-            navigation?.replace("Login");
+            // Navigation will happen automatically through conditional rendering
           } catch (error) {
             console.error("Logout error:", error);
           }

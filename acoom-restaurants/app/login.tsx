@@ -11,10 +11,9 @@ import {
   KeyboardAvoidingView,
   Platform,
 } from "react-native";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { StatusBar } from "expo-status-bar";
-import BASE_URL from "@/config";
+import { SecureApiService } from "@/lib/SecureApiService";
 
 export default function Login() {
   const router = useRouter();
@@ -51,38 +50,25 @@ export default function Login() {
     setLoading(true);
 
     try {
-      const response = await fetch(`${BASE_URL}/login`, {
-        method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-          Accept: "application/json",
-        },
-        body: JSON.stringify({
-          Username: username.trim(),
-          Password: password.trim(),
-        }),
+      const response = await SecureApiService.login({
+        username: username.trim(),
+        password: password.trim(),
       });
 
-      if (response.status === 401) {
-        setError(
-          "Email sau parolă incorectă. Te rog să verifici datele introduse."
-        );
+      if (!response.success) {
+        if (response.status === 401) {
+          setError(
+            "Email sau parolă incorectă. Te rog să verifici datele introduse."
+          );
+        } else {
+          setError(
+            response.error || "A apărut o eroare de conexiune. Te rog să încerci din nou."
+          );
+        }
         return;
       }
 
-      if (!response.ok) {
-        throw new Error(`Server error: ${response.status}`);
-      }
-
-      const data = await response.json();
-      console.log("Login response data:", data);
-
-      // Save user data
-      await AsyncStorage.setItem("company", JSON.stringify(data));
-      await AsyncStorage.setItem("user", JSON.stringify(data));
-      await AsyncStorage.setItem("loggedIn", JSON.stringify(true));
-
-      console.log("Data saved to AsyncStorage");
+      console.log("Login successful:", response.data);
 
       // Small delay to ensure data is written
       await new Promise((resolve) => setTimeout(resolve, 100));

@@ -1,6 +1,4 @@
-import BASE_URL from "@/config";
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { StatusBar } from "expo-status-bar";
 import React, { useState } from "react";
@@ -13,6 +11,7 @@ import {
   TouchableOpacity,
   View,
 } from "react-native";
+import { SecureApiService } from "@/lib/SecureApiService";
 
 export default function Signup() {
   const router = useRouter();
@@ -37,24 +36,20 @@ export default function Signup() {
       return;
     }
 
-    const formData = new FormData();
-    formData.append("name", name);
-    formData.append("email", email);
-    formData.append("cui", cui);
-    formData.append("category", category);
-    formData.append("password", password);
-
     try {
-      const response = await fetch(`${BASE_URL}/companies`, {
-        method: "POST",
-        body: formData,
+      const response = await SecureApiService.register({
+        name: name.trim(),
+        email: email.trim(),
+        password: password.trim(),
+        cui: cui.trim(),
+        category: category.trim(),
       });
-      if (!response.ok) throw new Error("Failed to register company.");
-      const data = await response.json();
-      await AsyncStorage.setItem("company", JSON.stringify(data));
-      await AsyncStorage.setItem("user", JSON.stringify(data));
-      await AsyncStorage.setItem("loggedIn", JSON.stringify(true));
-      console.log(data);
+
+      if (!response.success) {
+        throw new Error(response.error || "Failed to register company.");
+      }
+
+      console.log("Registration successful:", response.data);
       router.replace("/dashboard" as any);
     } catch (err) {
       Alert.alert(

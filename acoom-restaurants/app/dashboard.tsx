@@ -10,26 +10,25 @@ import {
 import { Stack, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { SecureApiService } from "@/lib/SecureApiService";
 
 export default function DashboardScreen() {
   const handleLogout = () => {
-    Alert.alert("Logout", "Are you sure you want to logout?", [
+    Alert.alert("Deconectare", "Ești sigur că vrei să te deconectezi?", [
       {
-        text: "Cancel",
+        text: "Anulează",
         style: "cancel",
       },
       {
-        text: "Logout",
+        text: "Deconectare",
         style: "destructive",
         onPress: async () => {
           try {
-            await AsyncStorage.removeItem("user");
-            await AsyncStorage.removeItem("loggedIn");
+            await SecureApiService.logout();
             router.replace("/");
           } catch (error) {
             console.error("Logout error:", error);
-            Alert.alert("Error", "Failed to logout. Please try again.");
+            Alert.alert("Eroare", "Deconectarea a eșuat. Te rog să încerci din nou.");
           }
         },
       },
@@ -39,7 +38,7 @@ export default function DashboardScreen() {
     <LinearGradient colors={["#000000", "#0F0F0F"]} style={{ flex: 1 }}>
       <Stack.Screen
         options={{
-          title: "Dashboard",
+          title: "Panou Principal",
           headerShown: true,
           headerStyle: { backgroundColor: "#0F0F0F" },
           headerTintColor: "#FFFFFF",
@@ -74,7 +73,7 @@ export default function DashboardScreen() {
                 letterSpacing: 0.5,
               }}
             >
-              Welcome Back!
+              Bine ai revenit!
             </Text>
             <Text
               style={{
@@ -83,7 +82,7 @@ export default function DashboardScreen() {
                 letterSpacing: 0.3,
               }}
             >
-              Choose what you'd like to manage today
+              Alege ce vrei să gestionezi astăzi
             </Text>
           </View>
 
@@ -134,7 +133,7 @@ export default function DashboardScreen() {
                       marginBottom: 4,
                     }}
                   >
-                    Manage Locations
+                    Gestionează Locații
                   </Text>
                   <Text
                     style={{
@@ -142,7 +141,7 @@ export default function DashboardScreen() {
                       fontSize: 14,
                     }}
                   >
-                    Add, edit, and manage your restaurant locations
+                    Adaugă, editează și gestionează locațiile restaurantului
                   </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={20} color="#7C3AED" />
@@ -174,7 +173,7 @@ export default function DashboardScreen() {
                       fontSize: 11,
                     }}
                   >
-                    Hours • Menus • Reservations
+                    Program • Meniuri • Rezervări
                   </Text>
                 </View>
               </View>
@@ -225,7 +224,7 @@ export default function DashboardScreen() {
                       marginBottom: 4,
                     }}
                   >
-                    Manage Events
+                    Gestionează Evenimente
                   </Text>
                   <Text
                     style={{
@@ -233,7 +232,7 @@ export default function DashboardScreen() {
                       fontSize: 14,
                     }}
                   >
-                    Create and manage special events and promotions
+                    Creează și gestionează evenimente speciale și promoții
                   </Text>
                 </View>
                 <Ionicons name="chevron-forward" size={20} color="#10B981" />
@@ -265,7 +264,7 @@ export default function DashboardScreen() {
                       fontSize: 11,
                     }}
                   >
-                    Create • Schedule • Promote
+                    Creează • Programează • Promovează
                   </Text>
                 </View>
               </View>
@@ -314,7 +313,7 @@ export default function DashboardScreen() {
                     textAlign: "center",
                   }}
                 >
-                  Active Locations
+                  Locații Active
                 </Text>
               </View>
               <View
@@ -346,7 +345,7 @@ export default function DashboardScreen() {
                     textAlign: "center",
                   }}
                 >
-                  Upcoming Events
+                  Evenimente Viitoare
                 </Text>
               </View>
             </View>
@@ -376,7 +375,7 @@ export default function DashboardScreen() {
                   marginLeft: 12,
                 }}
               >
-                Logout
+                Deconectare
               </Text>
             </TouchableOpacity>
           </View>

@@ -87,7 +87,7 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
       return false;
     }
     if (!isValidPassword(password)) {
-      setPasswordError("Parola trebuie să aibă cel puțin 6 caractere");
+      setPasswordError("Parola trebuie să aibă cel puțin 8 caractere");
       return false;
     }
     setPasswordError("");
@@ -146,7 +146,7 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
         Password: password,
       };
 
-      const response = await fetch(`${BASE_URL}/login`, {
+      const response = await fetch(`${BASE_URL}/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -171,20 +171,34 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
 
       const data = await response.json();
 
+      // Extract user data from JWT response
+      const userData = {
+        id: data.user.id,
+        username: data.user.username,
+        firstName: data.user.firstName,
+        lastName: data.user.lastName,
+        email: data.user.email,
+        profileImage: data.user.profileImage,
+        type: data.user.role, // "User" or "Company"
+        accessToken: data.accessToken,
+        refreshToken: data.refreshToken,
+        expiresAt: data.expiresAt,
+      };
+
+      console.log(userData);
+
       // Use UserContext login method
-      await login(data);
+      await login(userData);
 
       // Success haptic feedback
       hapticFeedback("medium");
 
-      // Success animation
+      // Success animation - no need to navigate manually as conditional rendering will handle it
       Animated.timing(scaleAnim, {
         toValue: 1.1,
         duration: 200,
         useNativeDriver: true,
-      }).start(() => {
-        navigation.replace("Home");
-      });
+      }).start();
     } catch (error) {
       console.error("Login error:", error);
       hapticFeedback("heavy");
@@ -195,7 +209,7 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
     } finally {
       setLoading(false);
     }
-  }, [email, password, validateEmail, validatePassword, navigation, scaleAnim]);
+  }, [email, password, validateEmail, validatePassword, scaleAnim]);
 
   const handleRegisterPress = useCallback(() => {
     hapticFeedback("light");

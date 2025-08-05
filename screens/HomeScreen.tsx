@@ -73,13 +73,23 @@ interface EventData {
 export default function HomeScreen({ navigation }: { navigation: HomeNav }) {
   const { theme } = useTheme();
   const { user } = useUser();
-  const [eOrR, setEOrR] = useState(false); // false = restaurants, true = events
+  const [eOrR, setEOrR] = useState(false); // false = locations, true = events
+  const [selectedCategory, setSelectedCategory] = useState<string>("toate"); // New category filter
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [restaurants, setRestaurants] = useState<LocationData[]>([]);
   const [events, setEvents] = useState<EventData[]>([]);
 
   const styles = createStyles(theme);
+
+  // Categories for location filtering
+  const categories = [
+    { id: "toate", name: "Toate", icon: "grid-outline" },
+    { id: "restaurant", name: "Restaurant", icon: "restaurant-outline" },
+    { id: "cafenea", name: "Cafenea", icon: "cafe-outline" },
+    { id: "pub", name: "Pub", icon: "wine-outline" },
+    { id: "club", name: "Club", icon: "musical-notes-outline" },
+  ];
 
   // Load data on component mount
   useFocusEffect(
@@ -145,7 +155,14 @@ export default function HomeScreen({ navigation }: { navigation: HomeNav }) {
     return user?.username || "Utilizator";
   };
 
-  const currentData = eOrR ? events : restaurants;
+  // Filter locations by category
+  const filteredRestaurants = selectedCategory === "toate" 
+    ? restaurants 
+    : restaurants.filter(location => 
+        location.category?.toLowerCase() === selectedCategory.toLowerCase()
+      );
+
+  const currentData = eOrR ? events : filteredRestaurants;
 
   const renderCard = ({ item }: { item: LocationData | EventData }) => {
     const isEvent = "title" in item;
@@ -170,18 +187,22 @@ export default function HomeScreen({ navigation }: { navigation: HomeNav }) {
           imageStyle={styles.cardImageStyle}
         >
           <LinearGradient
-            colors={["transparent", "rgba(0,0,0,0.7)"]}
+            colors={[
+              "transparent", 
+              "rgba(0,0,0,0.4)", 
+              "rgba(16, 16, 16, 0.9)"
+            ]}
             style={styles.cardOverlay}
           >
             <View style={styles.cardContent}>
               <View style={styles.cardBadge}>
                 <Ionicons
-                  name={isEvent ? "calendar" : "restaurant"}
+                  name={isEvent ? "calendar" : "location"}
                   size={14}
-                  color="#FFFFFF"
+                  color="#A78BFA"
                 />
                 <Text style={styles.cardBadgeText}>
-                  {isEvent ? "EVENT" : "RESTAURANT"}
+                  {isEvent ? "EVENT" : locationItem.category?.toUpperCase() || "LOCAȚIE"}
                 </Text>
               </View>
               <Text style={styles.cardTitle}>
@@ -194,7 +215,7 @@ export default function HomeScreen({ navigation }: { navigation: HomeNav }) {
                   </Text>
                   {eventItem.likes !== undefined && eventItem.likes > 0 && (
                     <View style={styles.cardFooter}>
-                      <Ionicons name="heart" size={16} color="#ff6b6b" />
+                      <Ionicons name="heart" size={16} color="#8B5CF6" />
                       <Text style={styles.cardAddress}>
                         {eventItem.likes} likes
                       </Text>
@@ -210,7 +231,7 @@ export default function HomeScreen({ navigation }: { navigation: HomeNav }) {
                     <Ionicons
                       name="location-outline"
                       size={16}
-                      color="#FFFFFF"
+                      color="#A78BFA"
                     />
                     <Text style={styles.cardAddress} numberOfLines={1}>
                       {locationItem.address}
@@ -305,7 +326,7 @@ export default function HomeScreen({ navigation }: { navigation: HomeNav }) {
               style={[
                 styles.toggleButton,
                 !eOrR && {
-                  backgroundColor: theme.colors.accent,
+                  backgroundColor: "#6B46C1", // Dark violet
                 },
               ]}
               onPress={() => {
@@ -322,14 +343,14 @@ export default function HomeScreen({ navigation }: { navigation: HomeNav }) {
                   },
                 ]}
               >
-                Restaurante
+                Locații
               </Text>
             </TouchableOpacity>
             <TouchableOpacity
               style={[
                 styles.toggleButton,
                 eOrR && {
-                  backgroundColor: theme.colors.accent,
+                  backgroundColor: "#6B46C1", // Dark violet
                 },
               ]}
               onPress={() => {
@@ -351,6 +372,55 @@ export default function HomeScreen({ navigation }: { navigation: HomeNav }) {
             </TouchableOpacity>
           </View>
         </View>
+
+        {/* Category Filter Section - Only show when locations are selected */}
+        {!eOrR && (
+          <View style={styles.categorySection}>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoryContainer}
+            >
+              {categories.map((category) => (
+                <TouchableOpacity
+                  key={category.id}
+                  style={[
+                    styles.categoryButton,
+                    {
+                      backgroundColor: selectedCategory === category.id 
+                        ? "#6B46C1" 
+                        : "rgba(255, 255, 255, 0.1)",
+                      borderColor: selectedCategory === category.id 
+                        ? "#8B5CF6" 
+                        : "rgba(255, 255, 255, 0.2)",
+                    }
+                  ]}
+                  onPress={() => {
+                    hapticFeedback("light");
+                    setSelectedCategory(category.id);
+                  }}
+                  activeOpacity={0.8}
+                >
+                  <Ionicons 
+                    name={category.icon as any} 
+                    size={18} 
+                    color={selectedCategory === category.id ? "#FFFFFF" : "#A78BFA"} 
+                  />
+                  <Text
+                    style={[
+                      styles.categoryText,
+                      {
+                        color: selectedCategory === category.id ? "#FFFFFF" : "#A78BFA",
+                      },
+                    ]}
+                  >
+                    {category.name}
+                  </Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+        )}
 
         {/* Content Section */}
         <View style={styles.contentSection}>
@@ -531,5 +601,31 @@ const createStyles = (theme: any) =>
       color: "#FFFFFF",
       opacity: 0.8,
       flex: 1,
+    },
+    categorySection: {
+      paddingVertical: getResponsiveSpacing("md"),
+      backgroundColor: "rgba(0, 0, 0, 0.05)",
+      borderTopWidth: 1,
+      borderTopColor: "rgba(255, 255, 255, 0.1)",
+    },
+    categoryContainer: {
+      paddingHorizontal: getResponsiveSpacing("xl"),
+      gap: getResponsiveSpacing("md"),
+    },
+    categoryButton: {
+      flexDirection: "row",
+      alignItems: "center",
+      paddingVertical: getResponsiveSpacing("sm"),
+      paddingHorizontal: getResponsiveSpacing("lg"),
+      borderRadius: 20,
+      borderWidth: 1.5,
+      gap: getResponsiveSpacing("sm"),
+      minWidth: 100,
+      justifyContent: "center",
+    },
+    categoryText: {
+      fontSize: TYPOGRAPHY.caption,
+      fontWeight: "600",
+      textTransform: "capitalize",
     },
   });

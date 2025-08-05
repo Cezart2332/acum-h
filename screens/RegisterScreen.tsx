@@ -39,7 +39,7 @@ type Props = {
 
 export default function RegisterScreen({ navigation }: Props) {
   const { theme } = useTheme();
-  const { login } = useUser();
+  const { login, updateProfileImage } = useUser();
   const [username, setUsername] = useState("");
   const [firstName, setFirstName] = useState("");
   const [lastName, setLastName] = useState("");
@@ -153,7 +153,7 @@ export default function RegisterScreen({ navigation }: Props) {
       return false;
     }
     if (!isValidPassword(password)) {
-      setPasswordError("Parola trebuie să aibă cel puțin 6 caractere");
+      setPasswordError("Parola trebuie să aibă cel puțin 8 caractere");
       return false;
     }
     setPasswordError("");
@@ -227,17 +227,25 @@ export default function RegisterScreen({ navigation }: Props) {
 
       // Create a blob from the image
       const response = await fetch(defaultImageUri);
-      const blob = await response.blob();
-      formData.append("default", blob, "acoomh.png");
+      // Prepare registration data for JWT endpoint
+      const registrationData = {
+        Username: username,
+        FirstName: firstName,
+        LastName: lastName,
+        Email: email,
+        Password: password,
+        PhoneNumber: phoneNumber
+      };
 
-      console.log("Sending registration request to:", `${BASE_URL}/users`);
+      console.log("Sending registration request to:", `${BASE_URL}/auth/register`);
 
-      const registerResponse = await fetch(`${BASE_URL}/users`, {
+      const registerResponse = await fetch(`${BASE_URL}/auth/register`, {
         method: "POST",
         headers: {
+          "Content-Type": "application/json",
           Accept: "application/json",
         },
-        body: formData,
+        body: JSON.stringify(registrationData),
       });
 
       console.log("Registration response status:", registerResponse.status);
@@ -265,11 +273,62 @@ export default function RegisterScreen({ navigation }: Props) {
         throw new Error(`Server error: ${registerResponse.status}`);
       }
 
-      const userData = await registerResponse.json();
-      console.log("Registration successful, user data:", userData);
+      const jwtData = await registerResponse.json();
+      console.log("Registration successful, JWT data:", jwtData);
+
+      // Extract user data from JWT response
+      const userData = {
+        id: jwtData.user.id,
+        username: jwtData.user.username,
+        firstName: jwtData.user.firstName,
+        lastName: jwtData.user.lastName,
+        email: jwtData.user.email,
+        profileImage: jwtData.user.profileImage,
+        type: jwtData.user.role, // "User" or "Company"
+        accessToken: jwtData.accessToken,
+        refreshToken: jwtData.refreshToken,
+        expiresAt: jwtData.expiresAt
+      };
 
       // Use the UserContext to handle login
       await login(userData);
+
+      // Upload default profile picture after registration
+      try {
+        console.log("Uploading default profile picture...");
+        
+        const defaultImage = require("../acoomh.png");
+        const defaultImageUri = Image.resolveAssetSource(defaultImage).uri;
+        
+        const formData = new FormData();
+        const response = await fetch(defaultImageUri);
+        const blob = await response.blob();
+        formData.append("file", blob, "profile.jpg");
+        formData.append("userId", userData.id.toString());
+
+        const uploadResponse = await fetch(`${BASE_URL}/changepfp`, {
+          method: "PUT",
+          headers: {
+            Accept: "application/json",
+            Authorization: `Bearer ${userData.accessToken}`, // Use the JWT token
+          },
+          body: formData,
+        });
+
+        if (uploadResponse.ok) {
+          console.log("Profile picture uploaded successfully");
+          // Update user context with the new profile picture
+          const updatedUserData = await uploadResponse.json();
+          if (updatedUserData.profileImage) {
+            await updateProfileImage(updatedUserData.profileImage);
+          }
+        } else {
+          console.error("Failed to upload profile picture:", uploadResponse.status);
+        }
+      } catch (error) {
+        console.error("Error uploading profile picture:", error);
+        // Don't fail registration if profile picture upload fails
+      }
 
       // Success animation
       hapticFeedback("medium");
@@ -281,7 +340,7 @@ export default function RegisterScreen({ navigation }: Props) {
         Alert.alert("Succes!", "Contul a fost creat cu succes!", [
           {
             text: "OK",
-            onPress: () => navigation.replace("Home"),
+            // Navigation will happen automatically through conditional rendering
           },
         ]);
       });

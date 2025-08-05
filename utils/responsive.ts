@@ -208,7 +208,7 @@ export const isValidEmail = (email: string): boolean => {
 };
 
 export const isValidPassword = (password: string): boolean => {
-  return password.length >= 6;
+  return password.length >= 8; // Changed from 6 to 8 to match backend
 };
 
 // Debounce utility

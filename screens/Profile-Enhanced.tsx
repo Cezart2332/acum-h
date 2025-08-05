@@ -18,6 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 import * as ImagePicker from "expo-image-picker";
 import { BASE_URL } from "../config";
 import { useTheme } from "../context/ThemeContext";
+import { useUser } from "../context/UserContext";
 import UniversalScreen from "../components/UniversalScreen";
 import EnhancedButton from "../components/EnhancedButton";
 import {
@@ -71,6 +72,7 @@ type ProfileData = UserData | CompanyData;
 
 const Profile: React.FC<{ navigation?: any }> = ({ navigation }) => {
   const { theme } = useTheme();
+  const { logout } = useUser();
   const [user, setUser] = useState<ProfileData | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
   const [refreshing, setRefreshing] = useState<boolean>(false);
@@ -246,9 +248,8 @@ const Profile: React.FC<{ navigation?: any }> = ({ navigation }) => {
         onPress: async () => {
           hapticFeedback("medium");
           try {
-            await AsyncStorage.removeItem("user");
-            await AsyncStorage.removeItem("loggedIn");
-            navigation?.replace("Login");
+            await logout();
+            // Navigation will happen automatically through conditional rendering
           } catch (error) {
             console.error("Logout error:", error);
           }

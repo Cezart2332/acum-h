@@ -6,6 +6,8 @@ import React, {
   ReactNode,
 } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { BASE_URL } from "../config";
+import SecureStorage from "../utils/SecureStorage";
 
 interface UserData {
   id: number;
@@ -15,6 +17,9 @@ interface UserData {
   email: string;
   profileImage?: string;
   type?: string;
+  accessToken?: string;
+  refreshToken?: string;
+  expiresAt?: string;
 }
 
 interface UserContextType {
@@ -54,17 +59,12 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
 
   const loadUserData = async () => {
     try {
-      const [userData, loggedInStatus] = await Promise.all([
-        AsyncStorage.getItem("user"),
-        AsyncStorage.getItem("loggedIn"),
-      ]);
+      const userData = await SecureStorage.getUserData();
+      const loggedInStatus = await SecureStorage.getLoggedIn();
 
       if (userData && loggedInStatus) {
-        const parsedUser = JSON.parse(userData);
-        const parsedLoggedIn = JSON.parse(loggedInStatus);
-
-        setUser(parsedUser);
-        setIsLoggedIn(parsedLoggedIn);
+        setUser(userData);
+        setIsLoggedIn(loggedInStatus);
       }
     } catch (error) {
       console.error("Error loading user data:", error);
@@ -75,7 +75,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
 
   const updateUser = async (userData: UserData) => {
     try {
-      await AsyncStorage.setItem("user", JSON.stringify(userData));
+      await SecureStorage.storeUserData(userData);
       setUser(userData);
     } catch (error) {
       console.error("Error updating user data:", error);
@@ -83,26 +83,68 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
   };
 
   const updateProfileImage = async (imageBase64: string) => {
-    if (!user) return;
+    if (!user) {
+      console.log("No user found for profile image update");
+      return;
+    }
 
-    const updatedUser = {
-      ...user,
-      profileImage: imageBase64,
-    };
+    console.log("Updating profile image for user:", user.id);
+    console.log("Image base64 length:", imageBase64?.length || 0);
 
     try {
-      await AsyncStorage.setItem("user", JSON.stringify(updatedUser));
-      setUser(updatedUser);
+      // For React Native, we need to create a file URI and use it directly
+      // First, let's try a simpler approach by using the working Profile-Enhanced logic
+      
+      // Create a temporary file URI approach
+      const base64Data = imageBase64.replace(/^data:image\/[a-z]+;base64,/, '');
+      
+      // Create the form data using the approach that works in Profile-Enhanced
+      const form = new FormData();
+      form.append("id", user.id.toString());
+      
+      // Use the base64 data directly as a file-like object for React Native
+      form.append("file", {
+        uri: `data:image/jpeg;base64,${base64Data}`,
+        name: "profile.jpg",
+        type: "image/jpeg"
+      } as any);
+
+      console.log("FormData created with id:", user.id);
+      console.log("Uploading profile image to backend...");
+      
+      const response = await fetch(`${BASE_URL}/changepfp`, {
+        method: "PUT",
+        body: form,
+        // Don't set Content-Type header for FormData - let it set the boundary
+      });
+
+      console.log("Backend response status:", response.status);
+      
+      if (response.ok) {
+        console.log("Profile image uploaded successfully");
+        const updatedUser = {
+          ...user,
+          profileImage: imageBase64,
+        };
+
+        await SecureStorage.storeUserData(updatedUser);
+        setUser(updatedUser);
+      } else {
+        const errorText = await response.text();
+        console.error("Backend upload failed:", response.status, errorText);
+        throw new Error(`Upload failed: ${response.status}`);
+      }
     } catch (error) {
       console.error("Error updating profile image:", error);
+      throw error;
     }
   };
 
   const login = async (userData: UserData) => {
     try {
       await Promise.all([
-        AsyncStorage.setItem("user", JSON.stringify(userData)),
-        AsyncStorage.setItem("loggedIn", JSON.stringify(true)),
+        SecureStorage.storeUserData(userData),
+        SecureStorage.setLoggedIn(true),
       ]);
 
       setUser(userData);
@@ -114,10 +156,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
 
   const logout = async () => {
     try {
-      await Promise.all([
-        AsyncStorage.removeItem("user"),
-        AsyncStorage.removeItem("loggedIn"),
-      ]);
+      await SecureStorage.clearUserData();
 
       setUser(null);
       setIsLoggedIn(false);

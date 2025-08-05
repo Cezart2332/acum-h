@@ -134,12 +134,12 @@ export default function LocationsScreen() {
 
   const handleDeleteLocation = async (locationId: number) => {
     Alert.alert(
-      "Delete Location",
-      "Are you sure you want to delete this location? This action cannot be undone.",
+      "Șterge Locația",
+      "Ești sigur că vrei să ștergi această locație? Această acțiune nu poate fi anulată.",
       [
-        { text: "Cancel", style: "cancel" },
+        { text: "Anulează", style: "cancel" },
         {
-          text: "Delete",
+          text: "Șterge",
           style: "destructive",
           onPress: async () => {
             try {
@@ -150,13 +150,13 @@ export default function LocationsScreen() {
                 }
               );
               if (response.ok) {
-                Alert.alert("Success", "Location deleted successfully");
+                Alert.alert("Succes", "Locația a fost ștearsă cu succes");
                 onRefresh();
               } else {
-                Alert.alert("Error", "Failed to delete location");
+                Alert.alert("Eroare", "Ștergerea locației a eșuat");
               }
             } catch (error) {
-              Alert.alert("Error", "Network error occurred");
+              Alert.alert("Eroare", "A apărut o eroare de rețea");
             }
           },
         },
@@ -352,7 +352,7 @@ export default function LocationsScreen() {
                 letterSpacing: 0.2,
               }}
             >
-              {location.hasMenu ? "Menu Available" : "No Menu"}
+              {location.hasMenu ? "Meniu Disponibil" : "Fără Meniu"}
             </Text>
           </View>
 
@@ -377,7 +377,7 @@ export default function LocationsScreen() {
                 letterSpacing: 0.3,
               }}
             >
-              Hours
+              Program
             </Text>
           </TouchableOpacity>
         </View>
@@ -425,7 +425,7 @@ export default function LocationsScreen() {
               letterSpacing: 0.5,
             }}
           >
-            Loading locations...
+            Se încarcă locațiile...
           </Text>
         </View>
       </LinearGradient>
@@ -444,7 +444,7 @@ export default function LocationsScreen() {
         <LinearGradient colors={["#000000", "#0F0F0F"]} style={{ flex: 1 }}>
           <Stack.Screen
             options={{
-              title: "My Locations",
+              title: "Locațiile Mele",
               headerStyle: { backgroundColor: "#0F0F0F" },
               headerTintColor: "#FFFFFF",
               headerTitleStyle: { fontWeight: "700", fontSize: 18 },
@@ -529,7 +529,7 @@ export default function LocationsScreen() {
                       letterSpacing: 0.5,
                     }}
                   >
-                    No locations yet
+                    Nu există locații încă
                   </Text>
 
                   <Text
@@ -542,8 +542,8 @@ export default function LocationsScreen() {
                       letterSpacing: 0.2,
                     }}
                   >
-                    Add your first location to start managing your business
-                    presence
+                    Adaugă prima ta locație pentru a începe să îți gestionezi prezența
+                    comercială
                   </Text>
 
                   <TouchableOpacity
@@ -571,7 +571,7 @@ export default function LocationsScreen() {
                         letterSpacing: 0.5,
                       }}
                     >
-                      Add Location
+                      Adaugă Locație
                     </Text>
                   </TouchableOpacity>
                 </View>
@@ -594,7 +594,7 @@ export default function LocationsScreen() {
                         letterSpacing: 0.5,
                       }}
                     >
-                      Your Locations
+                      Locațiile Tale
                     </Text>
                     <View
                       style={{

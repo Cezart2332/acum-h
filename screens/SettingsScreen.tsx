@@ -16,6 +16,7 @@ import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import { useTheme } from "../context/ThemeContext";
+import { useUser } from "../context/UserContext";
 import { RootStackParamList } from "./RootStackParamList";
 import {
   getShadow,
@@ -32,6 +33,7 @@ export default function SettingsScreen({
   navigation: HomeNav;
 }) {
   const { theme } = useTheme();
+  const { logout } = useUser();
   const [notif, setNotif] = useState<boolean>(true);
   const [dark, setDark] = useState<boolean>(false);
   const [fadeAnim] = useState(new Animated.Value(0));
@@ -238,11 +240,8 @@ export default function SettingsScreen({
           text: "Deconectează",
           style: "destructive",
           onPress: async () => {
-            await AsyncStorage.multiSet([
-              ["loggedIn", "false"],
-              ["user", "null"],
-            ]);
-            navigation.replace("Login");
+            await logout();
+            // Navigation will happen automatically through conditional rendering
           },
         },
       ]
@@ -272,6 +271,11 @@ export default function SettingsScreen({
     Alert.alert("Suport", "Ai întrebări? Contactează-ne la support@acum-h.ro", [
       { text: "OK", style: "default" },
     ]);
+
+  const onBugReport = () => {
+    hapticFeedback();
+    navigation.navigate("BugReport");
+  };
 
   return (
     <SafeAreaView style={styles.container}>
@@ -366,6 +370,13 @@ export default function SettingsScreen({
               title="Suport Tehnic"
               subtitle="Contactează echipa de suport"
               onPress={onSupport}
+            />
+
+            <SettingItem
+              icon="bug-outline"
+              title="Raportează o Problemă"
+              subtitle="Ajută-ne să îmbunătățim aplicația"
+              onPress={onBugReport}
             />
 
             <SettingItem

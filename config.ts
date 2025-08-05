@@ -1,4 +1,5 @@
 import Constants from "expo-constants";
+import RobustApiService from "./services/RobustApiService";
 
 // Get configuration from app.json extra config or environment variables
 const getConfig = () => {
@@ -8,7 +9,7 @@ const getConfig = () => {
     backendBaseUrl:
       process.env.EXPO_PUBLIC_BACKEND_BASE_URL ||
       extra.backendBaseUrl ||
-      "https://api.acoomh.ro",
+      "https://api.acoomh.ro", // This will be overridden by RobustApiService
     pythonAiUrl:
       process.env.EXPO_PUBLIC_PYTHON_AI_URL ||
       extra.pythonAiUrl ||
@@ -22,9 +23,19 @@ const getConfig = () => {
 
 const config = getConfig();
 
-const BASE_URL: string = config.backendBaseUrl;
+// Use RobustApiService for dynamic URL resolution
+const getBaseUrl = async (): Promise<string> => {
+  try {
+    return await RobustApiService.getBaseUrl();
+  } catch (error) {
+    console.warn('Failed to get dynamic base URL, using fallback:', config.backendBaseUrl);
+    return config.backendBaseUrl;
+  }
+};
+
+const BASE_URL: string = config.backendBaseUrl; // Fallback for synchronous access
 const PYTHON_AI_URL: string = config.pythonAiUrl;
 const OPENROUTER_API_KEY: string = config.openrouterApiKey;
 
-export { BASE_URL, OPENROUTER_API_KEY, PYTHON_AI_URL };
+export { BASE_URL, OPENROUTER_API_KEY, PYTHON_AI_URL, getBaseUrl, RobustApiService };
 export default BASE_URL;

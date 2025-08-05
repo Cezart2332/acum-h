@@ -94,12 +94,12 @@ export default function AddLocationScreen() {
       !formData.category.trim() ||
       !formData.phoneNumber.trim()
     ) {
-      Alert.alert("Error", "Please fill in all required fields");
+      Alert.alert("Eroare", "Te rog să completezi toate câmpurile obligatorii");
       return;
     }
 
     if (!formData.latitude || !formData.longitude) {
-      Alert.alert("Error", "Please wait for address to be processed");
+      Alert.alert("Eroare", "Te rog să aștepți ca adresa să fie procesată");
       return;
     }
 
@@ -107,7 +107,7 @@ export default function AddLocationScreen() {
     try {
       const userData = await AsyncStorage.getItem("user");
       if (!userData) {
-        Alert.alert("Error", "User not found");
+        Alert.alert("Eroare", "Utilizatorul nu a fost găsit");
         return;
       }
 
@@ -121,11 +121,11 @@ export default function AddLocationScreen() {
       );
       if (nameExists) {
         setNameError(
-          "A location with this name already exists. Please choose a different name."
+          "O locație cu acest nume există deja. Te rog să alegi un nume diferit."
         );
         Alert.alert(
-          "Duplicate Location Name",
-          "A location with this name already exists for your company. Please choose a different name.",
+          "Nume Locație Duplicat",
+          "O locație cu acest nume există deja pentru compania ta. Te rog să alegi un nume diferit.",
           [{ text: "OK" }]
         );
         return;
@@ -159,11 +159,11 @@ export default function AddLocationScreen() {
       );
 
       if (response.ok) {
-        Alert.alert("Success", "Location added successfully!", [
+        Alert.alert("Succes", "Locația a fost adăugată cu succes!", [
           { text: "OK", onPress: () => router.back() },
         ]);
       } else {
-        let errorMessage = "Failed to add location";
+        let errorMessage = "Adăugarea locației a eșuat";
         try {
           const errorData = await response.json();
           errorMessage = errorData.Error || errorData.message || errorMessage;
@@ -179,16 +179,16 @@ export default function AddLocationScreen() {
 
         if (response.status === 409) {
           // Conflict - duplicate name
-          Alert.alert("Duplicate Location Name", errorMessage, [
+          Alert.alert("Nume Locație Duplicat", errorMessage, [
             { text: "OK" },
           ]);
         } else {
-          Alert.alert("Error", errorMessage);
+          Alert.alert("Eroare", errorMessage);
         }
       }
     } catch (error) {
       console.error("Error adding location:", error);
-      Alert.alert("Error", "Failed to add location");
+      Alert.alert("Eroare", "Adăugarea locației a eșuat");
     } finally {
       setLoading(false);
     }
@@ -245,7 +245,7 @@ export default function AddLocationScreen() {
                 letterSpacing: -1.5,
               }}
             >
-              New Location
+              Locație Nouă
             </Text>
             <Text
               style={{
@@ -255,7 +255,7 @@ export default function AddLocationScreen() {
                 opacity: 0.9,
               }}
             >
-              Expand your business footprint
+              Extinde prezența afacerii tale
             </Text>
           </View>
 
@@ -288,7 +288,7 @@ export default function AddLocationScreen() {
                   fontWeight: "700",
                 }}
               >
-                Location Name
+                Numele Locației
               </Text>
               <Text style={{ color: "#ef4444", marginLeft: 6, fontSize: 16 }}>
                 *

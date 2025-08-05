@@ -64,4 +64,5 @@ export type RootStackParamList = {
   Schedule: { location: LocationData };
   ReservationsHistory: undefined;
   ChangePassword: undefined;
+  BugReport: undefined;
 };
