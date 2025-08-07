@@ -23,6 +23,7 @@ interface LocationData {
   latitude: number;
   longitude: number;
   tags: string;
+  description?: string;
   photo: string;
   menuName: string;
   hasMenu: boolean;
@@ -36,6 +37,7 @@ export default function EditLocationScreen() {
     name: "",
     address: "",
     tags: "",
+    description: "",
     latitude: "",
     longitude: "",
   });
@@ -59,6 +61,7 @@ export default function EditLocationScreen() {
           name: data.name,
           address: data.address,
           tags: data.tags,
+          description: data.description || "",
           latitude: data.latitude.toString(),
           longitude: data.longitude.toString(),
         });
@@ -195,6 +198,7 @@ export default function EditLocationScreen() {
       formDataToSend.append("latitude", formData.latitude);
       formDataToSend.append("longitude", formData.longitude);
       formDataToSend.append("tags", formData.tags);
+      formDataToSend.append("description", formData.description);
 
       if (newPhoto) {
         formDataToSend.append("photo", `data:image/jpeg;base64,${newPhoto}`);
@@ -472,6 +476,23 @@ export default function EditLocationScreen() {
                 placeholder="e.g., Italian, Pizza, Fine Dining (comma-separated)"
                 placeholderTextColor="#6b7280"
                 className="bg-gray-800/50 border border-purple-500/30 rounded-xl px-4 py-4 text-white text-base"
+              />
+            </View>
+
+            {/* Description */}
+            <View className="mb-6">
+              <Text className="text-purple-200 text-sm font-medium mb-2">
+                Description
+              </Text>
+              <TextInput
+                value={formData.description}
+                onChangeText={(text) => handleInputChange("description", text)}
+                placeholder="Enter location description..."
+                placeholderTextColor="#6b7280"
+                className="bg-gray-800/50 border border-purple-500/30 rounded-xl px-4 py-4 text-white text-base"
+                multiline
+                numberOfLines={4}
+                style={{ height: 100, textAlignVertical: 'top' }}
               />
             </View>
 

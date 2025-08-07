@@ -13,6 +13,7 @@ import { ThemeProvider } from "./context/ThemeContext";
 import { UserProvider, useUser } from "./context/UserContext";
 import LoginScreen from "./screens/LoginScreen";
 import RegisterScreen from "./screens/RegisterScreen";
+import TermsAndConditionsScreen from "./screens/TermsAndConditionsScreen";
 import HomeTabs from "./screens/HomeTabs";
 import Profile from "./screens/Profile";
 import EventScreen from "./screens/EventScreen";
@@ -54,6 +55,7 @@ function AppNavigator() {
           <>
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="Register" component={RegisterScreen} />
+            <Stack.Screen name="TermsAndConditions" component={TermsAndConditionsScreen} />
           </>
         ) : (
           // Main app screens
@@ -76,6 +78,7 @@ function AppNavigator() {
               name="BugReport"
               component={BugReportScreen}
             />
+            <Stack.Screen name="TermsAndConditions" component={TermsAndConditionsScreen} />
           </>
         )}
       </Stack.Navigator>

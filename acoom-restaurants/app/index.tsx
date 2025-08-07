@@ -50,19 +50,25 @@ export default function Index() {
               await AsyncStorage.setItem("user", hasCompanyData);
             }
 
-            // Verify the user data has required fields
-            if (userData && (userData.Id || userData.id)) {
-              console.log("Valid session found, going to locations");
+            // Verify the user data has required fields (be more flexible)
+            if (userData && (userData.Id || userData.id || userData.name || userData.email)) {
+              console.log("Valid session found, going to dashboard");
               setHasNavigated(true);
               router.replace("/dashboard" as any);
             } else {
-              console.log("No valid user data found, redirecting to login");
-              throw new Error("Invalid user data structure");
+              console.log("User data missing required fields, but not clearing storage");
+              console.log("Available userData fields:", userData ? Object.keys(userData) : "none");
+              // Don't clear storage, just go to login - let user manually logout if needed
+              setHasNavigated(true);
+              router.replace("/login");
             }
           } catch (parseError) {
-            console.log("Invalid stored data, clearing and going to login");
-            // Invalid data, clear storage and go to login
-            await AsyncStorage.clear();
+            console.log("Error parsing stored data, but NOT clearing storage:", parseError);
+            console.log("Raw data that failed to parse:");
+            console.log("hasUserData:", hasUserData ? hasUserData.substring(0, 100) + "..." : "null");
+            console.log("hasCompanyData:", hasCompanyData ? hasCompanyData.substring(0, 100) + "..." : "null");
+            
+            // Don't clear storage! Just go to login and let them try again
             setHasNavigated(true);
             router.replace("/login");
           }
@@ -73,12 +79,8 @@ export default function Index() {
         }
       } catch (error) {
         console.error("App initialization error:", error);
-        // Clear storage and go to login on any error
-        try {
-          await AsyncStorage.clear();
-        } catch (clearError) {
-          console.error("Failed to clear storage:", clearError);
-        }
+        // Don't clear storage on initialization errors - preserve user data
+        console.log("Initialization failed, going to login but preserving data");
         setHasNavigated(true);
         router.replace("/login");
       } finally {

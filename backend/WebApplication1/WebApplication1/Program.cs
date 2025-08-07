@@ -507,13 +507,48 @@ app.MapPost("/auth/company-login", async (CompanyLoginRequestDto request, IAuthS
   .WithOpenApi()
   .Accepts<CompanyLoginRequestDto>("application/json");
 
-app.MapPost("/auth/company-register", async (CompanyRegisterRequestDto request, IAuthService authService) =>
+app.MapPost("/auth/company-register", async (HttpContext context, IAuthService authService) =>
 {
     try
     {
-        // Add detailed logging for debugging
-        Log.Information("Company registration attempt - Email: {Email}, Name: {Name}", 
-            request.Email, request.Name);
+        CompanyRegisterRequestDto request;
+        IFormFile? certificateFile = null;
+
+        // Check if request is multipart/form-data (file upload) or JSON
+        if (context.Request.HasFormContentType)
+        {
+            // Handle multipart/form-data submission
+            var form = await context.Request.ReadFormAsync();
+            
+            request = new CompanyRegisterRequestDto
+            {
+                Name = form["Name"].ToString(),
+                Email = form["Email"].ToString(), 
+                Password = form["Password"].ToString(),
+                Description = form["Description"].ToString(),
+                Category = form["Category"].ToString(),
+                IsActive = form["IsActive"].ToString() == "1" // Convert string to bool
+            };
+
+            // Get the certificate file if present
+            certificateFile = form.Files.GetFile("Certificate");
+            
+            Log.Information("Company registration with file upload - Email: {Email}, Name: {Name}, HasFile: {HasFile}", 
+                request.Email, request.Name, certificateFile != null);
+        }
+        else
+        {
+            // Handle JSON submission (backward compatibility)
+            var jsonRequest = await context.Request.ReadFromJsonAsync<CompanyRegisterRequestDto>();
+            if (jsonRequest == null)
+            {
+                return Results.BadRequest(new { error = "Invalid request format" });
+            }
+            request = jsonRequest;
+            
+            Log.Information("Company registration (JSON) - Email: {Email}, Name: {Name}", 
+                request.Email, request.Name);
+        }
 
         // Validate required fields
         if (string.IsNullOrWhiteSpace(request.Name))
@@ -534,7 +569,40 @@ app.MapPost("/auth/company-register", async (CompanyRegisterRequestDto request, 
             return Results.BadRequest(new { error = "Password is required" });
         }
 
-        var result = await authService.RegisterCompanyAsync(request);
+        // Handle certificate file upload if present
+        string? certificatePath = null;
+        if (certificateFile != null && certificateFile.Length > 0)
+        {
+            // Validate file type
+            var allowedTypes = new[] { "application/pdf", "image/jpeg", "image/jpg", "image/png" };
+            if (!allowedTypes.Contains(certificateFile.ContentType.ToLower()))
+            {
+                return Results.BadRequest(new { error = "Only PDF and image files are allowed for certificates" });
+            }
+
+            // Validate file size (max 10MB)
+            if (certificateFile.Length > 10 * 1024 * 1024)
+            {
+                return Results.BadRequest(new { error = "Certificate file size cannot exceed 10MB" });
+            }
+
+            // Create uploads directory if it doesn't exist
+            var uploadsDir = Path.Combine(Directory.GetCurrentDirectory(), "uploads", "certificates");
+            Directory.CreateDirectory(uploadsDir);
+
+            // Generate unique filename
+            var fileExtension = Path.GetExtension(certificateFile.FileName);
+            var fileName = $"{Guid.NewGuid()}{fileExtension}";
+            certificatePath = Path.Combine(uploadsDir, fileName);
+
+            // Save file
+            using var stream = new FileStream(certificatePath, FileMode.Create);
+            await certificateFile.CopyToAsync(stream);
+
+            Log.Information("Certificate file uploaded - Path: {Path}, Size: {Size}", certificatePath, certificateFile.Length);
+        }
+
+        var result = await authService.RegisterCompanyAsync(request, certificatePath);
         
         Log.Information("Company registered successfully - Email: {Email}, CompanyId: {CompanyId}", 
             request.Email, result.Company?.Id);
@@ -544,19 +612,20 @@ app.MapPost("/auth/company-register", async (CompanyRegisterRequestDto request, 
     catch (ArgumentException ex)
     {
         Log.Warning("Company registration conflict - Email: {Email}, Error: {Error}", 
-            request.Email, ex.Message);
+            context.Request.Form?["Email"].ToString() ?? "Unknown", ex.Message);
         return Results.Conflict(new { error = ex.Message });
     }
     catch (Exception ex)
     {
-        Log.Error(ex, "Company registration error - Email: {Email}, Name: {Name}, Exception: {ExceptionType}", 
-            request.Email, request.Name, ex.GetType().Name);
+        Log.Error(ex, "Company registration error - Email: {Email}, Exception: {ExceptionType}", 
+            context.Request.Form?["Email"].ToString() ?? "Unknown", ex.GetType().Name);
         return Results.Problem($"An error occurred during registration: {ex.Message}");
     }
 }).RequireRateLimiting("AuthPolicy")
   .WithTags("Company Authentication")
   .WithOpenApi()
-  .Accepts<CompanyRegisterRequestDto>("application/json");
+  .Accepts<CompanyRegisterRequestDto>("application/json")
+  .Accepts<CompanyRegisterRequestDto>("multipart/form-data");
 
 app.MapGet("/auth/company-me", async (HttpContext context, AppDbContext db) =>
 {
@@ -1176,18 +1245,24 @@ app.MapGet("/events/{id}/like-status/{userId}", async (int id, int userId, AppDb
 });
 
 // POST /events - Create new event
-app.MapPost("/events", async (HttpRequest request, AppDbContext db) =>
+app.MapPost("/events", async (HttpContext context, AppDbContext db) =>
 {
     try
     {
-        var form = await request.ReadFormAsync();
-        
-        var companyId = int.Parse(form["companyId"].ToString());
+        // Get company ID from the authenticated user
+        var companyIdClaim = context.User.FindFirst("sub")?.Value;
+        if (string.IsNullOrEmpty(companyIdClaim) || !int.TryParse(companyIdClaim, out var companyId))
+        {
+            return Results.Unauthorized();
+        }
+
         var company = await db.Companies.FindAsync(companyId);
         if (company == null)
         {
             return Results.BadRequest("Company not found");
         }
+
+        var form = await context.Request.ReadFormAsync();
 
         // Handle image upload
         byte[] imageData = Array.Empty<byte>();
@@ -1248,7 +1323,7 @@ app.MapPost("/events", async (HttpRequest request, AppDbContext db) =>
     {
         return Results.BadRequest($"Error creating event: {ex.Message}");
     }
-});
+}).RequireAuthorization();
 
 // PUT /events/{id} - Update event
 app.MapPut("/events/{id}", async (int id, HttpRequest request, AppDbContext db) =>

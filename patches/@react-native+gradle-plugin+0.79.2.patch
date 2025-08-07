@@ -1,0 +1,137 @@
+diff --git a/node_modules/@react-native/gradle-plugin/react-native-gradle-plugin/build.gradle.kts b/node_modules/@react-native/gradle-plugin/react-native-gradle-plugin/build.gradle.kts
+index 022f60c..9c30b66 100644
+--- a/node_modules/@react-native/gradle-plugin/react-native-gradle-plugin/build.gradle.kts
++++ b/node_modules/@react-native/gradle-plugin/react-native-gradle-plugin/build.gradle.kts
+@@ -57,17 +57,18 @@ dependencies {
+ // We intentionally don't build for Java 17 as users will see a cryptic bytecode version
+ // error first. Instead we produce a Java 11-compatible Gradle Plugin, so that AGP can print their
+ // nice message showing that JDK 11 (or 17) is required first
+-java { targetCompatibility = JavaVersion.VERSION_11 }
++// Note: Java compatibility is now managed by jvmToolchain
+ 
+-kotlin { jvmToolchain(17) }
++kotlin { jvmToolchain(11) }
+ 
+ tasks.withType<KotlinCompile>().configureEach {
+   compilerOptions {
+     apiVersion.set(KotlinVersion.KOTLIN_1_7)
+     // See comment above on JDK 11 support
+     jvmTarget.set(JvmTarget.JVM_11)
+-    allWarningsAsErrors =
++    allWarningsAsErrors.set(
+         project.properties["enableWarningsAsErrors"]?.toString()?.toBoolean() ?: false
++    )
+   }
+ }
+ 
+@@ -79,3 +80,7 @@ tasks.withType<Test>().configureEach {
+     showStackTraces = true
+   }
+ }
++
++
++
++
+diff --git a/node_modules/@react-native/gradle-plugin/settings-plugin/build.gradle.kts b/node_modules/@react-native/gradle-plugin/settings-plugin/build.gradle.kts
+index 8f5ae86..3e48421 100644
+--- a/node_modules/@react-native/gradle-plugin/settings-plugin/build.gradle.kts
++++ b/node_modules/@react-native/gradle-plugin/settings-plugin/build.gradle.kts
+@@ -47,17 +47,18 @@ dependencies {
+ // We intentionally don't build for Java 17 as users will see a cryptic bytecode version
+ // error first. Instead we produce a Java 11-compatible Gradle Plugin, so that AGP can print their
+ // nice message showing that JDK 11 (or 17) is required first
+-java { targetCompatibility = JavaVersion.VERSION_11 }
++// Note: Java compatibility is now managed by jvmToolchain
+ 
+-kotlin { jvmToolchain(17) }
++kotlin { jvmToolchain(11) }
+ 
+ tasks.withType<KotlinCompile>().configureEach {
+   compilerOptions {
+     apiVersion.set(KotlinVersion.KOTLIN_1_7)
+     // See comment above on JDK 11 support
+     jvmTarget.set(JvmTarget.JVM_11)
+-    allWarningsAsErrors =
++    allWarningsAsErrors.set(
+         project.properties["enableWarningsAsErrors"]?.toString()?.toBoolean() ?: false
++    )
+   }
+ }
+ 
+@@ -69,3 +70,7 @@ tasks.withType<Test>().configureEach {
+     showStackTraces = true
+   }
+ }
++
++
++
++
+diff --git a/node_modules/@react-native/gradle-plugin/shared-testutil/build.gradle.kts b/node_modules/@react-native/gradle-plugin/shared-testutil/build.gradle.kts
+index b3c0204..ee447f3 100644
+--- a/node_modules/@react-native/gradle-plugin/shared-testutil/build.gradle.kts
++++ b/node_modules/@react-native/gradle-plugin/shared-testutil/build.gradle.kts
+@@ -18,17 +18,17 @@ group = "com.facebook.react"
+ 
+ dependencies { implementation(libs.junit) }
+ 
+-java { targetCompatibility = JavaVersion.VERSION_11 }
+-
+-kotlin { jvmToolchain(17) }
++// Note: Java compatibility is now managed by jvmToolchain
++kotlin { jvmToolchain(11) }
+ 
+ tasks.withType<KotlinCompile>().configureEach {
+   compilerOptions {
+     apiVersion.set(KotlinVersion.KOTLIN_1_7)
+     // See comment above on JDK 11 support
+     jvmTarget.set(JvmTarget.JVM_11)
+-    allWarningsAsErrors =
++    allWarningsAsErrors.set(
+         project.properties["enableWarningsAsErrors"]?.toString()?.toBoolean() ?: false
++    )
+   }
+ }
+ 
+@@ -40,3 +40,8 @@ tasks.withType<Test>().configureEach {
+     showStackTraces = true
+   }
+ }
++
++
++
++
++
+diff --git a/node_modules/@react-native/gradle-plugin/shared/build.gradle.kts b/node_modules/@react-native/gradle-plugin/shared/build.gradle.kts
+index b705a7c..ad09bea 100644
+--- a/node_modules/@react-native/gradle-plugin/shared/build.gradle.kts
++++ b/node_modules/@react-native/gradle-plugin/shared/build.gradle.kts
+@@ -24,17 +24,17 @@ dependencies {
+   testImplementation(project(":shared-testutil"))
+ }
+ 
+-java { targetCompatibility = JavaVersion.VERSION_11 }
+-
+-kotlin { jvmToolchain(17) }
++// Note: Java compatibility is now managed by jvmToolchain
++kotlin { jvmToolchain(11) }
+ 
+ tasks.withType<KotlinCompile>().configureEach {
+   compilerOptions {
+     apiVersion.set(KotlinVersion.KOTLIN_1_7)
+     // See comment above on JDK 11 support
+     jvmTarget.set(JvmTarget.JVM_11)
+-    allWarningsAsErrors =
++    allWarningsAsErrors.set(
+         project.properties["enableWarningsAsErrors"]?.toString()?.toBoolean() ?: false
++    )
+   }
+ }
+ 
+@@ -46,3 +46,7 @@ tasks.withType<Test>().configureEach {
+     showStackTraces = true
+   }
+ }
++
++
++
++

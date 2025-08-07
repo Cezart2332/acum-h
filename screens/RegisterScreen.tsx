@@ -12,7 +12,7 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "./RootStackParamList";
-import { BASE_URL } from "../config";
+import { BASE_URL, getBaseUrl } from "../config";
 import { useTheme } from "../context/ThemeContext";
 import { useUser } from "../context/UserContext";
 import UniversalScreen from "../components/UniversalScreen";
@@ -210,23 +210,13 @@ export default function RegisterScreen({ navigation }: Props) {
     }
 
     setLoading(true);
+    let baseUrl = BASE_URL; // fallback
 
     try {
-      // Create form data for registration
-      const formData = new FormData();
-      formData.append("username", username.trim());
-      formData.append("firstname", firstName.trim());
-      formData.append("lastname", lastName.trim());
-      formData.append("email", email.trim());
-      formData.append("phoneNumber", phoneNumber.trim());
-      formData.append("password", password);
+      console.log("Getting dynamic base URL...");
+      baseUrl = await getBaseUrl();
+      console.log("Using base URL:", baseUrl);
 
-      // Add the acoomh.png logo as the default profile image
-      const defaultImage = require("../acoomh.png");
-      const defaultImageUri = Image.resolveAssetSource(defaultImage).uri;
-
-      // Create a blob from the image
-      const response = await fetch(defaultImageUri);
       // Prepare registration data for JWT endpoint
       const registrationData = {
         Username: username,
@@ -237,9 +227,9 @@ export default function RegisterScreen({ navigation }: Props) {
         PhoneNumber: phoneNumber
       };
 
-      console.log("Sending registration request to:", `${BASE_URL}/auth/register`);
+      console.log("Sending registration request to:", `${baseUrl}/auth/register`);
 
-      const registerResponse = await fetch(`${BASE_URL}/auth/register`, {
+      const registerResponse = await fetch(`${baseUrl}/auth/register`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -306,7 +296,7 @@ export default function RegisterScreen({ navigation }: Props) {
         formData.append("file", blob, "profile.jpg");
         formData.append("userId", userData.id.toString());
 
-        const uploadResponse = await fetch(`${BASE_URL}/changepfp`, {
+        const uploadResponse = await fetch(`${baseUrl}/changepfp`, {
           method: "PUT",
           headers: {
             Accept: "application/json",
@@ -351,7 +341,7 @@ export default function RegisterScreen({ navigation }: Props) {
         "Nu s-a putut conecta la server. Verifică conexiunea la internet și încearcă din nou.",
         [{ text: "OK", style: "default" }]
       );
-      console.log(BASE_URL);
+      console.log("Used base URL:", baseUrl);
       hapticFeedback("heavy");
     } finally {
       setLoading(false);
@@ -361,6 +351,11 @@ export default function RegisterScreen({ navigation }: Props) {
   const navigateToLogin = () => {
     hapticFeedback("light");
     navigation.navigate("Login");
+  };
+
+  const navigateToTerms = () => {
+    hapticFeedback("light");
+    navigation.navigate("TermsAndConditions");
   };
 
   return (
@@ -547,6 +542,15 @@ export default function RegisterScreen({ navigation }: Props) {
             </Text>
           </TouchableOpacity>
         </View>
+        
+        {/* Terms and Conditions Link */}
+        <View style={styles.termsContainer}>
+          <TouchableOpacity onPress={navigateToTerms} activeOpacity={0.8}>
+            <Text style={styles.termsText}>
+              Vizualizează termenii și condițiile
+            </Text>
+          </TouchableOpacity>
+        </View>
       </Animated.View>
     </UniversalScreen>
   );
@@ -650,5 +654,15 @@ const styles = StyleSheet.create({
   footerLink: {
     fontSize: TYPOGRAPHY.body,
     fontWeight: "600",
+  },
+  termsContainer: {
+    paddingVertical: getResponsiveSpacing("md"),
+    alignItems: "center",
+  },
+  termsText: {
+    fontSize: TYPOGRAPHY.bodySmall,
+    color: "#A855F7",
+    textAlign: "center",
+    textDecorationLine: "underline",
   },
 });

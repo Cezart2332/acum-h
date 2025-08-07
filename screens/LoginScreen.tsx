@@ -13,7 +13,7 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "./RootStackParamList";
-import { BASE_URL } from "../config";
+import { BASE_URL, getBaseUrl } from "../config";
 import { useTheme } from "../context/ThemeContext";
 import { useUser } from "../context/UserContext";
 import UniversalScreen from "../components/UniversalScreen";
@@ -141,12 +141,16 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
     setLoading(true);
 
     try {
+      console.log("Getting dynamic base URL for login...");
+      const baseUrl = await getBaseUrl();
+      console.log("Using base URL for login:", baseUrl);
+
       const loginData = {
         Username: email.trim(),
         Password: password,
       };
 
-      const response = await fetch(`${BASE_URL}/auth/login`, {
+      const response = await fetch(`${baseUrl}/auth/login`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -214,6 +218,11 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
   const handleRegisterPress = useCallback(() => {
     hapticFeedback("light");
     navigation.navigate("Register");
+  }, [navigation]);
+
+  const handleTermsPress = useCallback(() => {
+    hapticFeedback("light");
+    navigation.navigate("TermsAndConditions");
   }, [navigation]);
 
   return (
@@ -360,6 +369,17 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
             Înregistrează-te
           </Text>
         </TouchableOpacity>
+        
+        {/* Terms and Conditions Link */}
+        <TouchableOpacity
+          onPress={handleTermsPress}
+          style={styles.termsButton}
+          activeOpacity={0.8}
+        >
+          <Text style={styles.termsButtonText}>
+            Vizualizează termenii și condițiile
+          </Text>
+        </TouchableOpacity>
       </Animated.View>
     </UniversalScreen>
   );
@@ -437,7 +457,7 @@ const styles = StyleSheet.create({
     marginTop: getResponsiveSpacing("lg"),
   },
   footer: {
-    flexDirection: "row",
+    flexDirection: "column",
     justifyContent: "center",
     alignItems: "center",
     paddingVertical: getResponsiveSpacing("xl"),
@@ -446,14 +466,25 @@ const styles = StyleSheet.create({
   },
   footerText: {
     fontSize: TYPOGRAPHY.body,
-    marginRight: getResponsiveSpacing("sm"),
+    marginBottom: getResponsiveSpacing("sm"),
   },
   registerButton: {
     paddingVertical: getResponsiveSpacing("sm"),
     paddingHorizontal: getResponsiveSpacing("md"),
+    marginBottom: getResponsiveSpacing("md"),
   },
   registerButtonText: {
     fontSize: TYPOGRAPHY.body,
     fontWeight: "600",
+  },
+  termsButton: {
+    paddingVertical: getResponsiveSpacing("sm"),
+    paddingHorizontal: getResponsiveSpacing("md"),
+  },
+  termsButtonText: {
+    fontSize: TYPOGRAPHY.bodySmall,
+    color: "#A855F7",
+    textAlign: "center",
+    textDecorationLine: "underline",
   },
 });

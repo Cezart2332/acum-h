@@ -280,7 +280,7 @@ const Info: React.FC<Props> = ({ navigation, route }) => {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>Despre noi</Text>
               <Text style={styles.description}>
-                De adaugat descriere pe locatie !
+                {location.description || "Descrierea locației va fi adăugată în curând."}
               </Text>
             </View>
 

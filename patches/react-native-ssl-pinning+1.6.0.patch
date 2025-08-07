@@ -1,0 +1,49 @@
+diff --git a/node_modules/react-native-ssl-pinning/android/build.gradle b/node_modules/react-native-ssl-pinning/android/build.gradle
+index d1d9c39..5b999b2 100644
+--- a/node_modules/react-native-ssl-pinning/android/build.gradle
++++ b/node_modules/react-native-ssl-pinning/android/build.gradle
+@@ -1,32 +1,40 @@
+ 
+ buildscript {
+     repositories {
++        google()
++        mavenCentral()
+         jcenter()
+     }
+ 
+     dependencies {
+-        classpath 'com.android.tools.build:gradle:2.3.0'
++        classpath 'com.android.tools.build:gradle:8.8.2'
+     }
+ }
+ 
+ apply plugin: 'com.android.library'
+ 
+ android {
+-    compileSdkVersion 30
+-    buildToolsVersion "28.0.3"
++    compileSdkVersion 35
++    buildToolsVersion "35.0.0"
+ 
+     defaultConfig {
+         minSdkVersion 16
+-        targetSdkVersion 28
++        targetSdkVersion 35
+         versionCode 1
+         versionName "1.0"
+     }
+     lintOptions {
+         abortOnError false
+     }
++    
++    compileOptions {
++        sourceCompatibility JavaVersion.VERSION_11
++        targetCompatibility JavaVersion.VERSION_11
++    }
+ }
+ 
+ repositories {
++    google()
+     mavenCentral()
+ }
+ 

@@ -20,6 +20,7 @@ export default function AddLocationScreen() {
     category: "",
     phoneNumber: "",
     tags: "",
+    description: "",
     latitude: "",
     longitude: "",
   });
@@ -139,6 +140,7 @@ export default function AddLocationScreen() {
         latitude: parseFloat(formData.latitude),
         longitude: parseFloat(formData.longitude),
         tags: formData.tags,
+        description: formData.description,
       };
 
       const formDataToSend = new FormData();
@@ -149,6 +151,7 @@ export default function AddLocationScreen() {
       formDataToSend.append("latitude", locationData.latitude.toString());
       formDataToSend.append("longitude", locationData.longitude.toString());
       formDataToSend.append("tags", locationData.tags);
+      formDataToSend.append("description", locationData.description);
 
       const response = await fetch(
         `${BASE_URL}/companies/${companyId}/locations`,
@@ -627,6 +630,73 @@ export default function AddLocationScreen() {
                 fontSize: 17,
                 fontWeight: "600",
               }}
+            />
+          </View>
+
+          {/* Description */}
+          <View style={{ marginBottom: 48 }}>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                marginBottom: 16,
+              }}
+            >
+              <View
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 8,
+                  backgroundColor: "rgba(139, 92, 246, 0.15)",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  marginRight: 12,
+                }}
+              >
+                <Ionicons name="document-text" size={18} color="#a855f7" />
+              </View>
+              <Text
+                style={{
+                  color: "#f1f5f9",
+                  fontSize: 18,
+                  fontWeight: "700",
+                }}
+              >
+                Description
+              </Text>
+              <Text
+                style={{
+                  color: "#64748b",
+                  fontSize: 15,
+                  fontWeight: "500",
+                  marginLeft: 10,
+                }}
+              >
+                (optional)
+              </Text>
+            </View>
+            <TextInput
+              value={formData.description}
+              onChangeText={(text) => handleInputChange("description", text)}
+              placeholder="Describe your location, atmosphere, specialties..."
+              placeholderTextColor="#64748b"
+              style={{
+                backgroundColor: "rgba(15, 23, 42, 0.9)",
+                borderWidth: 1.5,
+                borderColor: formData.description
+                  ? "rgba(139, 92, 246, 0.5)"
+                  : "rgba(139, 92, 246, 0.2)",
+                borderRadius: 18,
+                paddingHorizontal: 24,
+                paddingVertical: 20,
+                color: "white",
+                fontSize: 17,
+                fontWeight: "600",
+                height: 120,
+                textAlignVertical: "top",
+              }}
+              multiline
+              numberOfLines={4}
             />
           </View>
 

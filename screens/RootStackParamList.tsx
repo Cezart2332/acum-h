@@ -30,6 +30,7 @@ export interface LocationData {
   menuName: string;
   hasMenu: boolean;
   category: string;
+  description?: string;
   company: {
     id: number;
   };
@@ -65,4 +66,5 @@ export type RootStackParamList = {
   ReservationsHistory: undefined;
   ChangePassword: undefined;
   BugReport: undefined;
+  TermsAndConditions: undefined;
 };

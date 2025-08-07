@@ -66,8 +66,8 @@ export interface RegisterRequest {
   email: string;
   password: string;
   description?: string;
-  cui?: string;
   category?: string;
+  isActive?: string;
 }
 
 class SecureStorageService {
@@ -301,7 +301,25 @@ export class SecureApiService {
       console.error("Token refresh failed:", error);
     }
 
-    // If refresh failed, clear tokens
+    // If refresh failed, check how recently we logged in before clearing everything
+    const tokenStoredAt = await AsyncStorage.getItem("token_stored_at");
+    const now = Date.now();
+
+    if (tokenStoredAt) {
+      const timeSinceLogin = now - parseInt(tokenStoredAt);
+      const fiveMinutes = 5 * 60 * 1000;
+
+      if (timeSinceLogin < fiveMinutes) {
+        console.log(
+          "Token refresh failed but login was recent, keeping user logged in"
+        );
+        // Don't logout if we logged in recently - the token might just be temporarily invalid
+        return null;
+      }
+    }
+
+    // Only logout if it's been a while since login
+    console.log("Token refresh failed and login was not recent, logging out");
     await this.logout();
     return null;
   }
@@ -313,23 +331,60 @@ export class SecureApiService {
     credentials: LoginRequest
   ): Promise<ApiResponse<AuthTokens>> {
     try {
-      const response = await this.makeSecureRequest<AuthTokens>("/auth/company-login", {
-        method: "POST",
-        body: JSON.stringify({
-          Email: credentials.username, // Using email for company login
-          Password: credentials.password,
-        }),
+      console.log("SecureApiService.login: Starting login process");
+      console.log("SecureApiService.login: Credentials", {
+        username: credentials.username,
+        passwordLength: credentials.password.length,
+      });
+
+      const response = await this.makeSecureRequest<AuthTokens>(
+        "/auth/company-login",
+        {
+          method: "POST",
+          body: JSON.stringify({
+            Email: credentials.username, // Using email for company login
+            Password: credentials.password,
+          }),
+        }
+      );
+
+      console.log("SecureApiService.login: API response", {
+        success: response.success,
+        status: response.status,
+        hasData: !!response.data,
+        error: response.error,
       });
 
       if (response.success && response.data) {
+        console.log("SecureApiService.login: Login successful, storing tokens");
+
         // Store tokens securely
-        await SecureStorageService.storeTokens(
-          response.data.accessToken,
-          response.data.refreshToken
-        );
+        try {
+          await SecureStorageService.storeTokens(
+            response.data.accessToken,
+            response.data.refreshToken
+          );
+          console.log("SecureApiService.login: Tokens stored successfully");
+        } catch (tokenError) {
+          console.error(
+            "SecureApiService.login: Failed to store tokens",
+            tokenError
+          );
+          throw tokenError;
+        }
 
         this.accessToken = response.data.accessToken;
         this.refreshToken = response.data.refreshToken;
+
+        console.log("SecureApiService.login: Processing user data");
+        console.log("SecureApiService.login: Response data structure", {
+          hasCompany: !!response.data.company,
+          hasUser: !!response.data.user,
+          companyKeys: response.data.company
+            ? Object.keys(response.data.company)
+            : [],
+          userKeys: response.data.user ? Object.keys(response.data.user) : [],
+        });
 
         // Handle both user and company responses
         let userData;
@@ -348,6 +403,10 @@ export class SecureApiService {
             createdAt: response.data.company.createdAt,
             isActive: response.data.company.isActive,
           };
+          console.log(
+            "SecureApiService.login: Company data prepared",
+            userData
+          );
         } else if (response.data.user) {
           // User login (shouldn't happen in restaurant app, but handle it)
           userData = {
@@ -362,19 +421,99 @@ export class SecureApiService {
             profileImage: response.data.user.profileImage,
             scopes: response.data.user.scopes,
           };
+          console.log("SecureApiService.login: User data prepared", userData);
         } else {
+          console.error(
+            "SecureApiService.login: No user or company data in response"
+          );
           throw new Error("Invalid response: no user or company data");
         }
 
-        await AsyncStorage.multiSet([
-          ["company", JSON.stringify(userData)],
-          ["user", JSON.stringify(userData)],
-          ["loggedIn", JSON.stringify(true)],
-        ]);
+        console.log(
+          "SecureApiService.login: Storing user data to AsyncStorage"
+        );
+        try {
+          // First, let's test if AsyncStorage is working at all
+          console.log("Testing basic AsyncStorage functionality...");
+          await AsyncStorage.setItem("test_key", "test_value");
+          const testResult = await AsyncStorage.getItem("test_key");
+          console.log("AsyncStorage test result:", testResult);
+
+          if (testResult !== "test_value") {
+            throw new Error("AsyncStorage is not functioning properly!");
+          }
+
+          // Clear test data
+          await AsyncStorage.removeItem("test_key");
+
+          console.log(
+            "AsyncStorage test passed, proceeding with actual data storage..."
+          );
+
+          // Try individual storage operations instead of multiSet
+          console.log("Storing company data...");
+          await AsyncStorage.setItem("company", JSON.stringify(userData));
+          console.log("Company data stored");
+
+          console.log("Storing user data...");
+          await AsyncStorage.setItem("user", JSON.stringify(userData));
+          console.log("User data stored");
+
+          console.log("Storing loggedIn status...");
+          await AsyncStorage.setItem("loggedIn", JSON.stringify(true));
+          console.log("LoggedIn status stored");
+
+          console.log(
+            "SecureApiService.login: AsyncStorage data stored successfully"
+          );
+
+          // Verify storage immediately with individual gets
+          console.log("Verifying individual storage...");
+          const companyCheck = await AsyncStorage.getItem("company");
+          const userCheck = await AsyncStorage.getItem("user");
+          const loggedInCheck = await AsyncStorage.getItem("loggedIn");
+
+          console.log("SecureApiService.login: Individual verification check", {
+            company: companyCheck ? "Found" : "Not found",
+            user: userCheck ? "Found" : "Not found",
+            loggedIn: loggedInCheck,
+          });
+
+          // Also check all keys to see what's actually stored
+          const allKeys = await AsyncStorage.getAllKeys();
+          console.log(
+            "SecureApiService.login: All AsyncStorage keys after storage:",
+            allKeys
+          );
+
+          // Wait a moment and check again
+          console.log("Waiting 200ms and checking again...");
+          await new Promise((resolve) => setTimeout(resolve, 200));
+
+          const finalCompanyCheck = await AsyncStorage.getItem("company");
+          const finalUserCheck = await AsyncStorage.getItem("user");
+          const finalLoggedInCheck = await AsyncStorage.getItem("loggedIn");
+          const finalAllKeys = await AsyncStorage.getAllKeys();
+
+          console.log("SecureApiService.login: FINAL verification check", {
+            company: finalCompanyCheck ? "Found" : "Not found",
+            user: finalUserCheck ? "Found" : "Not found",
+            loggedIn: finalLoggedInCheck,
+            allKeys: finalAllKeys,
+          });
+        } catch (storageError) {
+          console.error(
+            "SecureApiService.login: Failed to store to AsyncStorage",
+            storageError
+          );
+          throw storageError;
+        }
       }
 
+      console.log("SecureApiService.login: Returning response");
       return response;
     } catch (error) {
+      console.error("SecureApiService.login: Login failed with error", error);
       return {
         error: error instanceof Error ? error.message : "Login failed",
         status: 0,
@@ -399,8 +538,8 @@ export class SecureApiService {
             Email: companyData.email,
             Password: companyData.password,
             Description: companyData.description || "",
-            Cui: companyData.cui || "",
             Category: companyData.category || "",
+            IsActive: companyData.isActive || "0",
           }),
         }
       );
@@ -468,6 +607,235 @@ export class SecureApiService {
   }
 
   /**
+   * Company registration with file upload
+   */
+  static async registerWithFile(
+    formData: FormData
+  ): Promise<ApiResponse<AuthTokens>> {
+    try {
+      console.log(
+        "SecureApiService.registerWithFile: Starting registration process"
+      );
+
+      let url = `${API_CONFIG.BASE_URL}/auth/company-register`;
+
+      // Ensure we have the latest tokens
+      if (!this.accessToken) {
+        await this.initialize();
+      }
+
+      // For FormData, don't set Content-Type header - let the browser set the proper multipart boundary
+      const headers: Record<string, string> = {
+        Accept: "application/json",
+      };
+
+      if (this.accessToken) {
+        headers["Authorization"] = `Bearer ${this.accessToken}`;
+      }
+
+      const requestOptions: RequestInit = {
+        method: "POST",
+        headers,
+        body: formData,
+      };
+
+      console.log("SecureApiService.registerWithFile: Making API request");
+      let response = await fetch(url, requestOptions);
+
+      // If unauthorized and we have a refresh token, try to refresh
+      if (response.status === 401 && this.refreshToken && !this.isRefreshing) {
+        console.log(
+          "SecureApiService.registerWithFile: Unauthorized, attempting token refresh"
+        );
+        const newToken = await this.refreshAccessToken();
+
+        if (newToken) {
+          // Retry the request with new token
+          headers["Authorization"] = `Bearer ${newToken}`;
+          response = await fetch(url, { ...requestOptions, headers });
+        }
+      }
+
+      const isSuccess = response.ok;
+      let data: AuthTokens | undefined;
+      let error: string | undefined;
+
+      console.log("SecureApiService.registerWithFile: Processing response", {
+        status: response.status,
+        ok: response.ok,
+        statusText: response.statusText,
+      });
+
+      try {
+        const responseText = await response.text();
+        console.log(
+          "SecureApiService.registerWithFile: Response text length",
+          responseText.length
+        );
+        if (responseText) {
+          data = JSON.parse(responseText);
+          console.log(
+            "SecureApiService.registerWithFile: Parsed response data",
+            {
+              hasData: !!data,
+              hasCompany: !!(data as any)?.company,
+              hasUser: !!(data as any)?.user,
+              hasAccessToken: !!(data as any)?.accessToken,
+              hasRefreshToken: !!(data as any)?.refreshToken,
+            }
+          );
+        }
+      } catch (parseError) {
+        console.error(
+          "SecureApiService.registerWithFile: Failed to parse response",
+          parseError
+        );
+        error = `Failed to parse response: ${parseError}`;
+      }
+
+      if (!isSuccess && !error) {
+        error = `HTTP ${response.status}: ${response.statusText}`;
+        console.error("SecureApiService.registerWithFile: HTTP error", error);
+      }
+
+      if (isSuccess && data) {
+        console.log(
+          "SecureApiService.registerWithFile: Registration successful, storing tokens"
+        );
+
+        // Store tokens securely
+        try {
+          await SecureStorageService.storeTokens(
+            data.accessToken,
+            data.refreshToken
+          );
+          console.log(
+            "SecureApiService.registerWithFile: Tokens stored successfully"
+          );
+        } catch (tokenError) {
+          console.error(
+            "SecureApiService.registerWithFile: Failed to store tokens",
+            tokenError
+          );
+          throw tokenError;
+        }
+
+        this.accessToken = data.accessToken;
+        this.refreshToken = data.refreshToken;
+
+        console.log("SecureApiService.registerWithFile: Processing user data");
+        console.log(
+          "SecureApiService.registerWithFile: Response data structure",
+          {
+            hasCompany: !!data.company,
+            hasUser: !!data.user,
+            companyKeys: data.company ? Object.keys(data.company) : [],
+            userKeys: data.user ? Object.keys(data.user) : [],
+          }
+        );
+
+        // Handle both user and company responses
+        let userData;
+        if (data.company) {
+          // Company registration
+          userData = {
+            type: "Company",
+            id: data.company.id,
+            name: data.company.name,
+            email: data.company.email,
+            description: data.company.description,
+            cui: data.company.cui,
+            category: data.company.category,
+            role: data.company.role,
+            scopes: data.company.scopes,
+            createdAt: data.company.createdAt,
+            isActive: data.company.isActive,
+          };
+          console.log(
+            "SecureApiService.registerWithFile: Company data prepared",
+            userData
+          );
+        } else if (data.user) {
+          // User registration (fallback)
+          userData = {
+            type: "User",
+            id: data.user.id,
+            name: data.user.username,
+            username: data.user.username,
+            firstName: data.user.firstName,
+            lastName: data.user.lastName,
+            email: data.user.email,
+            role: data.user.role,
+            profileImage: data.user.profileImage,
+            scopes: data.user.scopes,
+          };
+          console.log(
+            "SecureApiService.registerWithFile: User data prepared",
+            userData
+          );
+        } else {
+          console.error(
+            "SecureApiService.registerWithFile: No user or company data in response"
+          );
+          throw new Error("Invalid response: no user or company data");
+        }
+
+        console.log(
+          "SecureApiService.registerWithFile: Storing user data to AsyncStorage"
+        );
+        try {
+          await AsyncStorage.multiSet([
+            ["company", JSON.stringify(userData)],
+            ["user", JSON.stringify(userData)],
+            ["loggedIn", JSON.stringify(true)],
+          ]);
+          console.log(
+            "SecureApiService.registerWithFile: AsyncStorage data stored successfully"
+          );
+
+          // Verify storage immediately
+          const verification = await AsyncStorage.multiGet([
+            "company",
+            "user",
+            "loggedIn",
+          ]);
+          console.log("SecureApiService.registerWithFile: Verification check", {
+            company: verification[0][1] ? "Found" : "Not found",
+            user: verification[1][1] ? "Found" : "Not found",
+            loggedIn: verification[2][1],
+          });
+        } catch (storageError) {
+          console.error(
+            "SecureApiService.registerWithFile: Failed to store to AsyncStorage",
+            storageError
+          );
+          throw storageError;
+        }
+      }
+
+      return {
+        data,
+        error,
+        status: response.status,
+        success: isSuccess,
+      };
+    } catch (error) {
+      console.error(
+        "SecureApiService.registerWithFile: Registration failed with error",
+        error
+      );
+      return {
+        error:
+          error instanceof Error
+            ? error.message
+            : "Registration with file failed",
+        status: 0,
+        success: false,
+      };
+    }
+  }
+
+  /**
    * Make authenticated API requests
    */
   static async authenticatedRequest<T>(
@@ -478,10 +846,43 @@ export class SecureApiService {
   }
 
   /**
-   * Get current company profile
+   * Get current company or user profile
    */
   static async getProfile(): Promise<ApiResponse<any>> {
-    return this.makeSecureRequest("/auth/me");
+    try {
+      // Check stored user data to determine if this is a company or user
+      const storedCompany = await AsyncStorage.getItem("company");
+      const storedUser = await AsyncStorage.getItem("user");
+
+      let userType = "User"; // default
+
+      if (storedCompany) {
+        try {
+          const companyData = JSON.parse(storedCompany);
+          if (companyData.type === "Company") {
+            userType = "Company";
+          }
+        } catch (e) {
+          // Ignore parse errors, fallback to User
+        }
+      } else if (storedUser) {
+        try {
+          const userData = JSON.parse(storedUser);
+          if (userData.type === "Company") {
+            userType = "Company";
+          }
+        } catch (e) {
+          // Ignore parse errors, fallback to User
+        }
+      }
+
+      // Use the appropriate endpoint based on user type
+      const endpoint = userType === "Company" ? "/auth/company-me" : "/auth/me";
+      return this.makeSecureRequest(endpoint);
+    } catch (error) {
+      // Fallback to /auth/me if there's any error determining user type
+      return this.makeSecureRequest("/auth/me");
+    }
   }
 
   /**

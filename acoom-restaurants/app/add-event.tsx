@@ -19,6 +19,7 @@ import * as ImagePicker from "expo-image-picker";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import BASE_URL from "../config";
+import { SecureApiService } from "@/lib/SecureApiService";
 
 interface LocationOption {
   id: number;
@@ -28,9 +29,10 @@ interface LocationOption {
 }
 
 export default function AddEventScreen() {
-  const renderCount = useRef(0);
-  renderCount.current += 1;
-  console.log("AddEventScreen rendered - render count:", renderCount.current);
+  // Remove the render count logging to prevent excessive console output
+  // const renderCount = useRef(0);
+  // renderCount.current += 1;
+  // console.log("AddEventScreen rendered - render count:", renderCount.current);
 
   // Form state
   const [title, setTitle] = useState("");
@@ -180,6 +182,21 @@ export default function AddEventScreen() {
     }
   }, []);
 
+  const formatDisplayDate = useCallback((date: Date) => {
+    return date.toLocaleDateString("en-US", {
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    });
+  }, []);
+
+  const formatDisplayTime = useCallback((time: Date) => {
+    return time.toLocaleTimeString([], {
+      hour: "2-digit",
+      minute: "2-digit",
+    });
+  }, []);
+
   const handleCreateEvent = useCallback(async () => {
     if (!validateInputs()) return;
 
@@ -188,16 +205,87 @@ export default function AddEventScreen() {
       const fullAddress = `${address}, ${city}`;
       const coordinates = await geocodeLocation(fullAddress);
 
-      // Get user data for CompanyId
+      // Get company data to verify we're logged in - with more robust checking
+      console.log("Checking AsyncStorage for company data...");
+      
+      // First, let's get all AsyncStorage keys to debug
+      const allKeys = await AsyncStorage.getAllKeys();
+      console.log("All AsyncStorage keys:", allKeys);
+      
+      // Check all possible storage keys
+      const companyData = await AsyncStorage.getItem("company");
       const userData = await AsyncStorage.getItem("user");
-      if (!userData) {
-        Alert.alert("Error", "User not found");
+      const loggedInStatus = await AsyncStorage.getItem("loggedIn");
+      
+      console.log("Company data:", companyData ? "Found" : "Not found");
+      console.log("User data:", userData ? "Found" : "Not found");
+      console.log("Logged in status:", loggedInStatus);
+      
+      // If no data found, try to get raw values to debug
+      if (!companyData && !userData) {
+        console.log("Debugging: Raw AsyncStorage values:");
+        for (const key of allKeys) {
+          const value = await AsyncStorage.getItem(key);
+          console.log(`  ${key}: ${value ? value.substring(0, 100) + '...' : 'null'}`);
+        }
+      }
+      
+      let activeData = null;
+      
+      if (companyData) {
+        try {
+          activeData = JSON.parse(companyData);
+          console.log("Parsed company data:", activeData);
+        } catch (e) {
+          console.error("Error parsing company data:", e);
+        }
+      }
+      
+      if (!activeData && userData) {
+        try {
+          activeData = JSON.parse(userData);
+          console.log("Parsed user data:", activeData);
+        } catch (e) {
+          console.error("Error parsing user data:", e);
+        }
+      }
+      
+      if (!activeData) {
+        console.log("No company/user data found in any storage location");
+        Alert.alert("Authentication Error", "Please log in again to create events.", [
+          { text: "OK", onPress: () => {
+            // Navigate to login screen or dashboard
+            router.replace("/login");
+          }}
+        ]);
         setIsCreating(false);
         return;
       }
 
-      const user = JSON.parse(userData);
-      const companyId = user.Id || user.id;
+      console.log("Using data for authentication:", {
+        type: activeData.type,
+        id: activeData.id || activeData.Id,
+        name: activeData.name,
+        email: activeData.email
+      });
+      
+      // Check if we have authentication tokens
+      const accessToken = await AsyncStorage.getItem("access_token");
+      const refreshToken = await AsyncStorage.getItem("refresh_token");
+      
+      console.log("Access token:", accessToken ? "Found" : "Not found");
+      console.log("Refresh token:", refreshToken ? "Found" : "Not found");
+      
+      if (!accessToken && !refreshToken) {
+        console.log("No authentication tokens found");
+        Alert.alert("Authentication Error", "No valid session found. Please log in again.", [
+          { text: "OK", onPress: () => {
+            router.replace("/login");
+          }}
+        ]);
+        setIsCreating(false);
+        return;
+      }
 
       // Create FormData for multipart/form-data request
       const formData = new FormData();
@@ -211,7 +299,6 @@ export default function AddEventScreen() {
       formData.append("endTime", selectedEndTime.toTimeString().split(" ")[0]);
       formData.append("address", address.trim());
       formData.append("city", city);
-      formData.append("companyId", companyId.toString());
       formData.append("tags", ""); // Add empty tags field
       formData.append("isActive", "true");
 
@@ -245,29 +332,25 @@ export default function AddEventScreen() {
         endTime: selectedEndTime.toTimeString().split(" ")[0],
         address: address.trim(),
         city,
-        companyId: companyId.toString(),
         coordinates: coordinates
           ? `${coordinates.latitude},${coordinates.longitude}`
           : "none",
         photoSize: imageBase64 ? imageBase64.length : 0,
       });
 
-      const response = await fetch(`${BASE_URL}/events`, {
-        method: "POST",
-        body: formData,
-      });
+      const response = await SecureApiService.post("/events", formData);
 
       console.log("Response status:", response.status);
-      const responseData = await response.text();
-      console.log("Response data:", responseData);
+      console.log("Response data:", response.data);
+      console.log("Response error:", response.error);
 
-      if (response.ok) {
+      if (response.success) {
         Alert.alert("Success", "Event created successfully!", [
           { text: "OK", onPress: handleBack },
         ]);
       } else {
         console.log("Error response:", response);
-        Alert.alert("Error", `Failed to create event: ${responseData}`);
+        Alert.alert("Error", `Failed to create event: ${response.error || 'Unknown error'}`);
       }
     } catch (error) {
       console.error("Create event error:", error);
@@ -288,21 +371,6 @@ export default function AddEventScreen() {
     imageBase64,
     handleBack,
   ]);
-
-  const formatDisplayDate = useCallback((date: Date) => {
-    return date.toLocaleDateString("en-US", {
-      year: "numeric",
-      month: "long",
-      day: "numeric",
-    });
-  }, []);
-
-  const formatDisplayTime = useCallback((time: Date) => {
-    return time.toLocaleTimeString([], {
-      hour: "2-digit",
-      minute: "2-digit",
-    });
-  }, []);
 
   return (
     <View style={{ flex: 1, backgroundColor: "#000000" }}>
