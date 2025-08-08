@@ -28,7 +28,10 @@ const getBaseUrl = async (): Promise<string> => {
   try {
     return await RobustApiService.getBaseUrl();
   } catch (error) {
-    console.warn('Failed to get dynamic base URL, using fallback:', config.backendBaseUrl);
+    console.warn(
+      "Failed to get dynamic base URL, using fallback:",
+      config.backendBaseUrl
+    );
     return config.backendBaseUrl;
   }
 };
@@ -37,5 +40,11 @@ const BASE_URL: string = config.backendBaseUrl; // Fallback for synchronous acce
 const PYTHON_AI_URL: string = config.pythonAiUrl;
 const OPENROUTER_API_KEY: string = config.openrouterApiKey;
 
-export { BASE_URL, OPENROUTER_API_KEY, PYTHON_AI_URL, getBaseUrl, RobustApiService };
+export {
+  BASE_URL,
+  OPENROUTER_API_KEY,
+  PYTHON_AI_URL,
+  getBaseUrl,
+  RobustApiService,
+};
 export default BASE_URL;

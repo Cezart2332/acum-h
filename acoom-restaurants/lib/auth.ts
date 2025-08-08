@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react';
-import { useRouter, useSegments } from 'expo-router';
-import { SecureApiService } from './SecureApiService';
-import React from 'react';
+import { useEffect, useState } from "react";
+import { useRouter, useSegments } from "expo-router";
+import { SecureApiService } from "./SecureApiService";
+import React from "react";
 
 export function useProtectedRoute() {
   const segments = useSegments();
@@ -17,21 +17,24 @@ export function useProtectedRoute() {
     try {
       const authenticated = await SecureApiService.isAuthenticated();
       setIsAuthenticated(authenticated);
-      
-      const currentPath = segments.join('/');
-      const isPublicRoute = currentPath === 'login' || currentPath === 'signup' || currentPath === '';
+
+      const currentPath = segments.join("/");
+      const isPublicRoute =
+        currentPath === "login" ||
+        currentPath === "signup" ||
+        currentPath === "";
 
       if (!authenticated && !isPublicRoute) {
         // Redirect to login if not authenticated and trying to access protected route
-        router.replace('/login');
+        router.replace("/login");
       } else if (authenticated && isPublicRoute) {
         // Redirect to dashboard if authenticated and on public route
-        router.replace('/dashboard');
+        router.replace("/dashboard");
       }
     } catch (error) {
-      console.error('Auth check failed:', error);
+      console.error("Auth check failed:", error);
       setIsAuthenticated(false);
-      router.replace('/login');
+      router.replace("/login");
     } finally {
       setIsLoading(false);
     }
@@ -43,7 +46,7 @@ export function useProtectedRoute() {
 export function withAuth<T extends object>(Component: React.ComponentType<T>) {
   return function AuthenticatedComponent(props: T) {
     const { isAuthenticated, isLoading } = useProtectedRoute();
-    
+
     if (isLoading) {
       return null; // or a loading spinner
     }

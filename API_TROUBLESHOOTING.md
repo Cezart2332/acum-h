@@ -1,11 +1,13 @@
 # 🔧 API Connection Troubleshooting Guide
 
 ## Current Issue: Infinite Redirect Loop
+
 Your API at `api.acoomh.ro` is experiencing infinite redirects. Here are the solutions:
 
 ## 🚀 Quick Fixes to Try
 
 ### 1. Check Coolify Dashboard
+
 - Go to your Coolify application
 - Check "Domains & SSL" settings
 - Temporarily disable "Force HTTPS redirect"

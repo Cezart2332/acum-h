@@ -385,12 +385,18 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
 
   return (
     <SafeAreaView style={styles.container} edges={["top", "left", "right"]}>
-      <StatusBar barStyle="light-content" backgroundColor="#000000" />
+      <StatusBar
+        barStyle="light-content"
+        backgroundColor="#0A0A0A"
+        translucent
+      />
 
-      {/* Modern Header with Black Background */}
+      {/* Modern Header with Enhanced Gradient */}
       <Animated.View
         style={[styles.headerGradient, { opacity: headerOpacity }]}
       >
+        {/* Subtle gradient overlay */}
+        <View style={styles.gradientOverlay} />
         <View style={styles.headerContent}>
           <TouchableOpacity
             onPress={() => {
@@ -398,9 +404,9 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
               navigation.goBack();
             }}
             style={styles.backButtonModern}
-            activeOpacity={0.8}
+            activeOpacity={0.7}
           >
-            <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+            <Ionicons name="arrow-back" size={26} color="#FFFFFF" />
           </TouchableOpacity>
 
           <View style={styles.headerTextContainer}>
@@ -408,7 +414,10 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
             <Text style={styles.headerSubtitle}>{location.name}</Text>
           </View>
 
-          <View style={styles.headerSpacer} />
+          {/* Add a subtle restaurant icon */}
+          <View style={styles.headerIconContainer}>
+            <Ionicons name="restaurant-outline" size={24} color="#9F7AEA" />
+          </View>
         </View>
       </Animated.View>
 
@@ -435,8 +444,27 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
                 },
               ]}
             >
-              {/* Floating Form Card */}
+              {/* Floating Form Card with Header */}
               <View style={styles.floatingCard}>
+                {/* Card Header */}
+                <View style={styles.cardHeader}>
+                  <View style={styles.cardHeaderIcon}>
+                    <Ionicons
+                      name="calendar-outline"
+                      size={24}
+                      color="#9F7AEA"
+                    />
+                  </View>
+                  <View style={styles.cardHeaderText}>
+                    <Text style={styles.cardTitle}>Reservation Details</Text>
+                    <Text style={styles.cardSubtitle}>
+                      Select your preferred date and time
+                    </Text>
+                  </View>
+                </View>
+
+                {/* Divider */}
+                <View style={styles.cardDivider} />
                 {/* Date Selection */}
                 <View style={styles.inputSection}>
                   <Text style={styles.modernLabel}>Select Date</Text>
@@ -604,7 +632,7 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
                 </View>
               </View>
 
-              {/* Floating Action Button */}
+              {/* Enhanced Submit Button with Gradient */}
               <TouchableOpacity
                 onPress={handleSubmit}
                 style={[
@@ -619,8 +647,9 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
                   !isTimeValid(time) ||
                   !isRestaurantOpen(date)
                 }
-                activeOpacity={0.9}
+                activeOpacity={0.8}
               >
+                <View style={styles.submitButtonGlow} />
                 <View
                   style={[
                     styles.submitGradient,
@@ -631,13 +660,21 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
                   ]}
                 >
                   {loading ? (
-                    <ActivityIndicator size="small" color="#FFFFFF" />
+                    <>
+                      <ActivityIndicator size="small" color="#FFFFFF" />
+                      <Text style={styles.submitText}>Processing...</Text>
+                    </>
                   ) : (
                     <>
-                      <Text style={styles.submitText}>Reserve Table</Text>
                       <Ionicons
                         name="checkmark-circle"
-                        size={24}
+                        size={26}
+                        color="#FFFFFF"
+                      />
+                      <Text style={styles.submitText}>Reserve Table</Text>
+                      <Ionicons
+                        name="arrow-forward"
+                        size={20}
                         color="#FFFFFF"
                       />
                     </>
@@ -748,56 +785,86 @@ const createStyles = (theme: any) =>
   StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: "#000000",
+      backgroundColor: "#0A0A0A",
     },
 
-    // Modern Header Styles
+    // Modern Header with Gradient
     headerGradient: {
-      height: 100,
+      height: 110,
       paddingTop: 20,
-      backgroundColor: "#000000",
+      backgroundColor: "#0A0A0A",
+      shadowColor: "#7B2CBF",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 12,
+      elevation: 8,
+      position: "relative",
     },
-    gradient: {
-      flex: 1,
+    gradientOverlay: {
+      position: "absolute",
+      top: 0,
+      left: 0,
+      right: 0,
+      bottom: 0,
+      backgroundColor: "transparent",
+      background:
+        "linear-gradient(135deg, rgba(123, 44, 191, 0.1) 0%, rgba(26, 26, 26, 0.05) 100%)",
     },
     headerContent: {
       flexDirection: "row",
       alignItems: "center",
-      paddingHorizontal: 20,
-      paddingTop: 8,
-      paddingBottom: 20,
+      paddingHorizontal: 24,
+      paddingTop: 12,
+      paddingBottom: 24,
+      zIndex: 1,
     },
     backButtonModern: {
-      width: 36,
-      height: 36,
-      borderRadius: 18,
-      backgroundColor: "rgba(123, 44, 191, 0.2)",
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: "rgba(123, 44, 191, 0.15)",
       alignItems: "center",
       justifyContent: "center",
-      borderWidth: 1,
+      borderWidth: 1.5,
       borderColor: "rgba(123, 44, 191, 0.4)",
+      shadowColor: "#7B2CBF",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.3,
+      shadowRadius: 8,
+      elevation: 4,
     },
     headerTextContainer: {
       flex: 1,
       marginLeft: 20,
     },
     headerTitle: {
-      fontSize: 24,
-      fontWeight: "700",
+      fontSize: 28,
+      fontWeight: "800",
       color: "#FFFFFF",
-      marginBottom: 2,
-      letterSpacing: 0.3,
+      marginBottom: 4,
+      letterSpacing: 0.5,
+      textShadowColor: "rgba(123, 44, 191, 0.3)",
+      textShadowOffset: { width: 0, height: 2 },
+      textShadowRadius: 4,
     },
     headerSubtitle: {
-      fontSize: 14,
+      fontSize: 16,
       color: "#B19CD9",
-      fontWeight: "500",
+      fontWeight: "600",
+      letterSpacing: 0.3,
     },
-    headerSpacer: {
-      width: 40,
+    headerIconContainer: {
+      width: 44,
+      height: 44,
+      borderRadius: 22,
+      backgroundColor: "rgba(159, 122, 234, 0.1)",
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 1,
+      borderColor: "rgba(159, 122, 234, 0.2)",
     },
 
-    // Layout Styles
+    // Layout Styles with Enhanced Spacing
     keyboardView: {
       flex: 1,
     },
@@ -805,200 +872,320 @@ const createStyles = (theme: any) =>
       flex: 1,
     },
     scrollContent: {
-      paddingBottom: 60,
+      paddingBottom: 80,
     },
     formContainer: {
       flex: 1,
-      paddingHorizontal: 20,
-      paddingTop: 24,
+      paddingHorizontal: 24,
+      paddingTop: 32,
     },
 
-    // Modern Card Styles
+    // Glassmorphism Card Design
     floatingCard: {
-      backgroundColor: "#1A1A1A",
-      borderRadius: 16,
-      padding: 20,
-      marginBottom: 20,
+      borderRadius: 24,
+      padding: 28,
+      marginBottom: 24,
       borderWidth: 1,
-      borderColor: "rgba(123, 44, 191, 0.2)",
+      borderColor: "rgba(123, 44, 191, 0.25)",
       shadowColor: "#7B2CBF",
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.1,
-      shadowRadius: 8,
-      elevation: 4,
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.2,
+      shadowRadius: 16,
+      elevation: 12,
+      // Glassmorphism effect with single backgroundColor
+      backgroundColor: "rgba(26, 26, 26, 0.8)",
     },
 
-    // Input Section Styles
+    // Card Header Styles
+    cardHeader: {
+      flexDirection: "row",
+      alignItems: "center",
+      marginBottom: 24,
+    },
+    cardHeaderIcon: {
+      width: 48,
+      height: 48,
+      borderRadius: 24,
+      backgroundColor: "rgba(159, 122, 234, 0.15)",
+      alignItems: "center",
+      justifyContent: "center",
+      borderWidth: 1.5,
+      borderColor: "rgba(159, 122, 234, 0.3)",
+      shadowColor: "#9F7AEA",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.3,
+      shadowRadius: 4,
+      elevation: 2,
+    },
+    cardHeaderText: {
+      flex: 1,
+      marginLeft: 16,
+    },
+    cardTitle: {
+      fontSize: 22,
+      fontWeight: "800",
+      color: "#FFFFFF",
+      marginBottom: 4,
+      letterSpacing: 0.4,
+    },
+    cardSubtitle: {
+      fontSize: 14,
+      color: "#9F7AEA",
+      fontWeight: "500",
+      letterSpacing: 0.2,
+    },
+    cardDivider: {
+      height: 1,
+      backgroundColor: "rgba(123, 44, 191, 0.2)",
+      marginBottom: 24,
+      shadowColor: "#7B2CBF",
+      shadowOffset: { width: 0, height: 1 },
+      shadowOpacity: 0.1,
+      shadowRadius: 2,
+    },
+
+    // Enhanced Input Section Styles
     inputSection: {
-      marginBottom: 20,
+      marginBottom: 28,
     },
     modernLabel: {
-      fontSize: 18,
-      fontWeight: "600",
+      fontSize: 20,
+      fontWeight: "700",
       color: "#FFFFFF",
-      marginBottom: 12,
-      letterSpacing: 0.3,
+      marginBottom: 16,
+      letterSpacing: 0.4,
+      textShadowColor: "rgba(123, 44, 191, 0.2)",
+      textShadowOffset: { width: 0, height: 1 },
+      textShadowRadius: 2,
     },
     scheduleInfo: {
-      fontSize: 12,
-      color: "#B19CD9",
-      marginTop: 4,
+      fontSize: 13,
+      color: "#9F7AEA",
+      marginTop: 8,
       fontStyle: "italic",
+      letterSpacing: 0.2,
     },
     invalidInput: {
-      borderColor: "#DC2626",
-      backgroundColor: "rgba(220, 38, 38, 0.08)",
+      borderColor: "#EF4444",
+      backgroundColor: "rgba(239, 68, 68, 0.1)",
+      shadowColor: "#EF4444",
+      shadowOpacity: 0.2,
     },
     invalidText: {
-      color: "#DC2626",
+      color: "#EF4444",
     },
     validationError: {
-      fontSize: 12,
-      color: "#DC2626",
-      marginTop: 4,
-      marginLeft: 4,
+      fontSize: 13,
+      color: "#EF4444",
+      marginTop: 8,
+      marginLeft: 6,
+      fontWeight: "500",
     },
     modernInput: {
       flexDirection: "row",
       alignItems: "center",
-      backgroundColor: "#0F0F0F",
-      borderRadius: 12,
-      padding: 16,
-      borderWidth: 1,
+      backgroundColor: "rgba(15, 15, 15, 0.8)",
+      borderRadius: 16,
+      padding: 20,
+      borderWidth: 1.5,
       borderColor: "rgba(123, 44, 191, 0.3)",
-      minHeight: 48,
+      minHeight: 56,
+      shadowColor: "#7B2CBF",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.1,
+      shadowRadius: 8,
+      elevation: 2,
     },
     inputIcon: {
-      width: 28,
-      height: 28,
-      borderRadius: 14,
+      width: 36,
+      height: 36,
+      borderRadius: 18,
       backgroundColor: "rgba(123, 44, 191, 0.2)",
       alignItems: "center",
       justifyContent: "center",
-      marginRight: 12,
+      marginRight: 16,
+      shadowColor: "#7B2CBF",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.3,
+      shadowRadius: 4,
+      elevation: 2,
     },
     inputValue: {
       flex: 1,
-      fontSize: 16,
-      fontWeight: "500",
+      fontSize: 17,
+      fontWeight: "600",
       color: "#FFFFFF",
+      letterSpacing: 0.2,
     },
 
-    // Guest Selector Styles
+    // Enhanced Guest Selector
     guestSelector: {
       flexDirection: "row",
       alignItems: "center",
-      backgroundColor: "#0F0F0F",
-      borderRadius: 12,
-      padding: 4,
-      borderWidth: 1,
+      backgroundColor: "rgba(15, 15, 15, 0.8)",
+      borderRadius: 16,
+      padding: 8,
+      borderWidth: 1.5,
       borderColor: "rgba(123, 44, 191, 0.3)",
-      minHeight: 48,
+      minHeight: 56,
+      shadowColor: "#7B2CBF",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.1,
+      shadowRadius: 8,
+      elevation: 2,
     },
     guestButton: {
-      width: 32,
-      height: 32,
-      borderRadius: 16,
-      backgroundColor: "rgba(123, 44, 191, 0.2)",
+      width: 40,
+      height: 40,
+      borderRadius: 20,
+      backgroundColor: "rgba(123, 44, 191, 0.25)",
       alignItems: "center",
       justifyContent: "center",
-      borderWidth: 1,
-      borderColor: "rgba(123, 44, 191, 0.4)",
+      borderWidth: 1.5,
+      borderColor: "rgba(123, 44, 191, 0.5)",
+      shadowColor: "#7B2CBF",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.3,
+      shadowRadius: 4,
+      elevation: 2,
     },
     guestDisplay: {
       flex: 1,
       alignItems: "center",
-      paddingHorizontal: 16,
+      paddingHorizontal: 20,
     },
     guestCount: {
-      fontSize: 20,
-      fontWeight: "700",
+      fontSize: 24,
+      fontWeight: "800",
       color: "#FFFFFF",
+      textShadowColor: "rgba(123, 44, 191, 0.3)",
+      textShadowOffset: { width: 0, height: 1 },
+      textShadowRadius: 2,
     },
     guestLabel: {
-      fontSize: 12,
+      fontSize: 14,
       color: "#B19CD9",
-      fontWeight: "500",
-      marginTop: 2,
+      fontWeight: "600",
+      marginTop: 4,
+      letterSpacing: 0.3,
     },
 
-    // Text Area Styles
+    // Enhanced Text Area
     textAreaContainer: {
-      backgroundColor: "#0F0F0F",
-      borderRadius: 12,
-      borderWidth: 1,
+      backgroundColor: "rgba(15, 15, 15, 0.8)",
+      borderRadius: 16,
+      borderWidth: 1.5,
       borderColor: "rgba(123, 44, 191, 0.3)",
-      minHeight: 80,
+      minHeight: 100,
+      shadowColor: "#7B2CBF",
+      shadowOffset: { width: 0, height: 4 },
+      shadowOpacity: 0.1,
+      shadowRadius: 8,
+      elevation: 2,
     },
     textArea: {
-      padding: 16,
+      padding: 20,
       fontSize: 16,
       color: "#FFFFFF",
       fontWeight: "500",
-      lineHeight: 20,
+      lineHeight: 24,
+      letterSpacing: 0.2,
     },
 
-    // Submit Button Styles
+    // Enhanced Submit Button with Glow
     submitButton: {
-      backgroundColor: "#7B2CBF",
-      borderRadius: 12,
-      marginTop: 20,
+      borderRadius: 20,
+      marginTop: 32,
       shadowColor: "#7B2CBF",
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.3,
-      shadowRadius: 8,
-      elevation: 6,
+      shadowOffset: { width: 0, height: 8 },
+      shadowOpacity: 0.4,
+      shadowRadius: 16,
+      elevation: 12,
+      overflow: "hidden",
+      position: "relative",
+    },
+    submitButtonGlow: {
+      position: "absolute",
+      top: -2,
+      left: -2,
+      right: -2,
+      bottom: -2,
+      borderRadius: 22,
+      backgroundColor: "rgba(123, 44, 191, 0.3)",
+      opacity: 0.6,
     },
     submitGradient: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "center",
-      paddingVertical: 16,
-      paddingHorizontal: 24,
-      minHeight: 56,
-      gap: 8,
+      paddingVertical: 20,
+      paddingHorizontal: 32,
+      minHeight: 64,
+      gap: 12,
+      backgroundColor: "#7B2CBF",
+      // Enhanced gradient simulation with multiple layers
+      borderWidth: 1,
+      borderColor: "rgba(159, 122, 234, 0.5)",
     },
     submitText: {
-      fontSize: 16,
-      fontWeight: "700",
+      fontSize: 18,
+      fontWeight: "800",
       color: "#FFFFFF",
-      letterSpacing: 0.3,
+      letterSpacing: 0.5,
+      textShadowColor: "rgba(0, 0, 0, 0.3)",
+      textShadowOffset: { width: 0, height: 1 },
+      textShadowRadius: 2,
     },
     submitButtonDisabled: {
-      opacity: 0.5,
+      opacity: 0.4,
+      shadowOpacity: 0.1,
     },
 
-    // Modal Styles
+    // Enhanced Modal Styles
     modalOverlay: {
       flex: 1,
-      backgroundColor: "rgba(0,0,0,0.8)",
+      backgroundColor: "rgba(0, 0, 0, 0.85)",
       justifyContent: "flex-end",
+      backdropFilter: "blur(10px)",
     },
     modalContent: {
-      backgroundColor: "#1A1A1A",
-      borderTopLeftRadius: 24,
-      borderTopRightRadius: 24,
-      paddingBottom: Platform.OS === "ios" ? 40 : 20,
-      borderTopWidth: 1,
-      borderTopColor: "rgba(123, 44, 191, 0.3)",
+      backgroundColor: "rgba(26, 26, 26, 0.95)",
+      borderTopLeftRadius: 32,
+      borderTopRightRadius: 32,
+      paddingBottom: Platform.OS === "ios" ? 50 : 30,
+      borderTopWidth: 1.5,
+      borderTopColor: "rgba(123, 44, 191, 0.4)",
+      shadowColor: "#7B2CBF",
+      shadowOffset: { width: 0, height: -4 },
+      shadowOpacity: 0.3,
+      shadowRadius: 16,
+      elevation: 16,
     },
     modalHeader: {
       flexDirection: "row",
       justifyContent: "flex-end",
-      padding: 20,
+      padding: 24,
       borderBottomWidth: 1,
       borderBottomColor: "rgba(123, 44, 191, 0.2)",
     },
     modalButton: {
-      paddingVertical: 12,
-      paddingHorizontal: 20,
-      backgroundColor: "rgba(123, 44, 191, 0.2)",
-      borderRadius: 8,
+      paddingVertical: 16,
+      paddingHorizontal: 28,
+      backgroundColor: "rgba(123, 44, 191, 0.25)",
+      borderRadius: 12,
+      borderWidth: 1,
+      borderColor: "rgba(123, 44, 191, 0.4)",
+      shadowColor: "#7B2CBF",
+      shadowOffset: { width: 0, height: 2 },
+      shadowOpacity: 0.3,
+      shadowRadius: 4,
+      elevation: 2,
     },
     modalButtonText: {
-      fontSize: 16,
-      fontWeight: "600",
-      color: "#7B2CBF",
+      fontSize: 17,
+      fontWeight: "700",
+      color: "#9F7AEA",
+      letterSpacing: 0.3,
     },
   });
 

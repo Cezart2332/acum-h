@@ -61,7 +61,7 @@ export default function Login() {
         success: response.success,
         status: response.status,
         error: response.error,
-        hasData: !!response.data
+        hasData: !!response.data,
       });
 
       if (!response.success) {
@@ -71,7 +71,8 @@ export default function Login() {
           );
         } else {
           setError(
-            response.error || "A apărut o eroare de conexiune. Te rog să încerci din nou."
+            response.error ||
+              "A apărut o eroare de conexiune. Te rog să încerci din nou."
           );
         }
         return;
@@ -81,27 +82,27 @@ export default function Login() {
 
       // Small delay to ensure data is written
       await new Promise((resolve) => setTimeout(resolve, 100));
-      
+
       // Verify data was stored
       const storedCompany = await AsyncStorage.getItem("company");
       const storedUser = await AsyncStorage.getItem("user");
       const storedLoggedIn = await AsyncStorage.getItem("loggedIn");
-      
+
       console.log("Verification - Stored data after login:");
       console.log("Company:", storedCompany ? "Found" : "Not found");
       console.log("User:", storedUser ? "Found" : "Not found");
       console.log("LoggedIn:", storedLoggedIn);
-      
+
       // Add another longer delay before navigation
       console.log("Waiting additional 1 second before navigation...");
       await new Promise((resolve) => setTimeout(resolve, 1000));
-      
+
       // Check one more time before navigation
       const finalCompany = await AsyncStorage.getItem("company");
       const finalUser = await AsyncStorage.getItem("user");
       const finalLoggedIn = await AsyncStorage.getItem("loggedIn");
       const finalAllKeys = await AsyncStorage.getAllKeys();
-      
+
       console.log("FINAL verification before navigation:");
       console.log("Company:", finalCompany ? "Found" : "Not found");
       console.log("User:", finalUser ? "Found" : "Not found");
@@ -109,12 +110,12 @@ export default function Login() {
       console.log("All keys:", finalAllKeys);
 
       console.log("🚀 ABOUT TO NAVIGATE TO DASHBOARD...");
-      
+
       // Navigate to main screen
       router.replace("/dashboard" as any);
-      
+
       console.log("📱 NAVIGATION COMPLETED");
-      
+
       // Check if data still exists after navigation call
       setTimeout(async () => {
         console.log("🔍 POST-NAVIGATION CHECK (500ms later):");
@@ -122,8 +123,11 @@ export default function Login() {
         const postNavUser = await AsyncStorage.getItem("user");
         const postNavLoggedIn = await AsyncStorage.getItem("loggedIn");
         const postNavAllKeys = await AsyncStorage.getAllKeys();
-        
-        console.log("Post-nav Company:", postNavCompany ? "Found" : "Not found");
+
+        console.log(
+          "Post-nav Company:",
+          postNavCompany ? "Found" : "Not found"
+        );
         console.log("Post-nav User:", postNavUser ? "Found" : "Not found");
         console.log("Post-nav LoggedIn:", postNavLoggedIn);
         console.log("Post-nav All keys:", postNavAllKeys);

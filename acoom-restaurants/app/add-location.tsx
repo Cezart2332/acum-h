@@ -182,9 +182,7 @@ export default function AddLocationScreen() {
 
         if (response.status === 409) {
           // Conflict - duplicate name
-          Alert.alert("Nume Locație Duplicat", errorMessage, [
-            { text: "OK" },
-          ]);
+          Alert.alert("Nume Locație Duplicat", errorMessage, [{ text: "OK" }]);
         } else {
           Alert.alert("Eroare", errorMessage);
         }

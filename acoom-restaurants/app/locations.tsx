@@ -50,15 +50,15 @@ export default function LocationsScreen() {
     console.log("📍 LOCATIONS loadCompanyData called");
     try {
       // Add a small delay to ensure AsyncStorage operations from login are complete
-      await new Promise(resolve => setTimeout(resolve, 200));
-      
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
       // First, let's debug what keys actually exist
       const allKeys = await AsyncStorage.getAllKeys();
       console.log("📍 LOCATIONS - All AsyncStorage keys:", allKeys);
-      
+
       // CRITICAL: Let's also try to access AsyncStorage in different ways to see if there's a context issue
       console.log("📍 LOCATIONS - Testing AsyncStorage access methods...");
-      
+
       try {
         // Method 1: Direct getItem calls
         const userData = await AsyncStorage.getItem("user");
@@ -69,39 +69,52 @@ export default function LocationsScreen() {
         console.log("userData:", userData ? "EXISTS" : "NULL");
         console.log("companyData:", companyData ? "EXISTS" : "NULL");
         console.log("loggedIn:", loggedInStatus);
-        
+
         // Method 2: multiGet
-        const multiGetResult = await AsyncStorage.multiGet(["user", "company", "loggedIn"]);
+        const multiGetResult = await AsyncStorage.multiGet([
+          "user",
+          "company",
+          "loggedIn",
+        ]);
         console.log("📍 LOCATIONS - Method 2 (multiGet):", multiGetResult);
-        
+
         // Method 3: getAllKeys then individual gets
         const allKeys2 = await AsyncStorage.getAllKeys();
         console.log("📍 LOCATIONS - Method 3 (getAllKeys):", allKeys2);
-        
+
         for (const key of allKeys2) {
           const value = await AsyncStorage.getItem(key);
-          console.log(`📍 LOCATIONS - Key "${key}":`, value ? "HAS_VALUE" : "NULL");
+          console.log(
+            `📍 LOCATIONS - Key "${key}":`,
+            value ? "HAS_VALUE" : "NULL"
+          );
         }
-        
       } catch (accessError) {
         console.error("📍 LOCATIONS - AsyncStorage access error:", accessError);
       }
-      
+
       // Continue with original logic but with enhanced logging...
       const userData = await AsyncStorage.getItem("user");
       const companyData = await AsyncStorage.getItem("company");
       const loggedInStatus = await AsyncStorage.getItem("loggedIn");
 
       console.log("📍 LOCATIONS - userData:", userData ? "EXISTS" : "NULL");
-      console.log("📍 LOCATIONS - companyData:", companyData ? "EXISTS" : "NULL");
+      console.log(
+        "📍 LOCATIONS - companyData:",
+        companyData ? "EXISTS" : "NULL"
+      );
       console.log("📍 LOCATIONS - loggedIn:", loggedInStatus);
-      
+
       // If no data found, let's check all keys for debugging
       if (!userData && !companyData) {
-        console.log("LocationsScreen - Debugging: No data found, checking all keys:");
+        console.log(
+          "LocationsScreen - Debugging: No data found, checking all keys:"
+        );
         for (const key of allKeys) {
           const value = await AsyncStorage.getItem(key);
-          console.log(`  ${key}: ${value ? value.substring(0, 50) + '...' : 'null'}`);
+          console.log(
+            `  ${key}: ${value ? value.substring(0, 50) + "..." : "null"}`
+          );
         }
       }
 
@@ -122,24 +135,32 @@ export default function LocationsScreen() {
         await fetchLocations(userId);
       } else {
         // No valid user data, but let's check if we're actually logged in first
-        if (loggedInStatus === 'true' || loggedInStatus === '"true"') {
-          console.log("LocationsScreen - LoggedIn is true but no user data, waiting and retrying...");
+        if (loggedInStatus === "true" || loggedInStatus === '"true"') {
+          console.log(
+            "LocationsScreen - LoggedIn is true but no user data, waiting and retrying..."
+          );
           // Wait a bit more and try again
-          await new Promise(resolve => setTimeout(resolve, 500));
-          
+          await new Promise((resolve) => setTimeout(resolve, 500));
+
           const retryUserData = await AsyncStorage.getItem("user");
           const retryCompanyData = await AsyncStorage.getItem("company");
-          
-          console.log("LocationsScreen - Retry userData:", retryUserData ? "EXISTS" : "NULL");
-          console.log("LocationsScreen - Retry companyData:", retryCompanyData ? "EXISTS" : "NULL");
-          
+
+          console.log(
+            "LocationsScreen - Retry userData:",
+            retryUserData ? "EXISTS" : "NULL"
+          );
+          console.log(
+            "LocationsScreen - Retry companyData:",
+            retryCompanyData ? "EXISTS" : "NULL"
+          );
+
           let retryUser = null;
           if (retryUserData) {
             retryUser = JSON.parse(retryUserData);
           } else if (retryCompanyData) {
             retryUser = JSON.parse(retryCompanyData);
           }
-          
+
           if (retryUser && (retryUser.Id || retryUser.id)) {
             const userId = retryUser.Id || retryUser.id;
             console.log("LocationsScreen - retry successful, userId:", userId);
@@ -148,9 +169,11 @@ export default function LocationsScreen() {
             return;
           }
         }
-        
+
         // No valid user data, redirect to login
-        console.log("LocationsScreen - No valid user data found, redirecting to login");
+        console.log(
+          "LocationsScreen - No valid user data found, redirecting to login"
+        );
         console.log("No valid user data found, redirecting to login");
         router.replace("/login");
       }
@@ -608,8 +631,8 @@ export default function LocationsScreen() {
                       letterSpacing: 0.2,
                     }}
                   >
-                    Adaugă prima ta locație pentru a începe să îți gestionezi prezența
-                    comercială
+                    Adaugă prima ta locație pentru a începe să îți gestionezi
+                    prezența comercială
                   </Text>
 
                   <TouchableOpacity

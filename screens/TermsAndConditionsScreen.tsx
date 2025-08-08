@@ -196,9 +196,8 @@ export default function TermsAndConditionsScreen({ navigation }: Props) {
             <View style={styles.section}>
               <Text style={styles.sectionTitle}>4. Activități Interzise</Text>
               <Text style={styles.sectionText}>
-                Orice utilizare a aplicației în scopuri ilegale sau
-                neautorizate este strict interzisă. Activitățile interzise
-                includ:
+                Orice utilizare a aplicației în scopuri ilegale sau neautorizate
+                este strict interzisă. Activitățile interzise includ:
               </Text>
               <View style={styles.bulletList}>
                 <Text style={styles.bulletText}>
@@ -357,7 +356,9 @@ export default function TermsAndConditionsScreen({ navigation }: Props) {
                 <Text style={styles.bulletText}>
                   • Dreptul de restricționare a prelucrării
                 </Text>
-                <Text style={styles.bulletText}>• Dreptul de portabilitate</Text>
+                <Text style={styles.bulletText}>
+                  • Dreptul de portabilitate
+                </Text>
                 <Text style={styles.bulletText}>• Dreptul la opoziție</Text>
                 <Text style={styles.bulletText}>
                   • Dreptul de a retrage consimțământul

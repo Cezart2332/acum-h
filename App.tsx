@@ -55,7 +55,10 @@ function AppNavigator() {
           <>
             <Stack.Screen name="Login" component={LoginScreen} />
             <Stack.Screen name="Register" component={RegisterScreen} />
-            <Stack.Screen name="TermsAndConditions" component={TermsAndConditionsScreen} />
+            <Stack.Screen
+              name="TermsAndConditions"
+              component={TermsAndConditionsScreen}
+            />
           </>
         ) : (
           // Main app screens
@@ -74,11 +77,11 @@ function AppNavigator() {
               name="ChangePassword"
               component={ChangePasswordScreen}
             />
+            <Stack.Screen name="BugReport" component={BugReportScreen} />
             <Stack.Screen
-              name="BugReport"
-              component={BugReportScreen}
+              name="TermsAndConditions"
+              component={TermsAndConditionsScreen}
             />
-            <Stack.Screen name="TermsAndConditions" component={TermsAndConditionsScreen} />
           </>
         )}
       </Stack.Navigator>

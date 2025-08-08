@@ -32,10 +32,10 @@ Make sure these endpoints are in your Program.cs:
 
 ```csharp
 // Health check endpoints
-app.MapGet("/health", () => new { 
-    status = "healthy", 
+app.MapGet("/health", () => new {
+    status = "healthy",
     timestamp = DateTime.UtcNow,
-    environment = app.Environment.EnvironmentName 
+    environment = app.Environment.EnvironmentName
 });
 
 app.MapGet("/health/db", async (AppDbContext context) =>
@@ -44,10 +44,10 @@ app.MapGet("/health/db", async (AppDbContext context) =>
     {
         await context.Database.CanConnectAsync();
         var migrations = await context.Database.GetAppliedMigrationsAsync();
-        return Results.Ok(new { 
-            status = "database connected", 
+        return Results.Ok(new {
+            status = "database connected",
             migrationsApplied = migrations.Count(),
-            timestamp = DateTime.UtcNow 
+            timestamp = DateTime.UtcNow
         });
     }
     catch (Exception ex)
@@ -97,6 +97,7 @@ EXPO_PUBLIC_BACKEND_BASE_URL=https://api.acoomh.ro
 ## 🔍 Debugging
 
 If still not working, check Coolify logs for:
+
 - Application startup errors
 - Port binding issues
 - Database connection problems

@@ -492,7 +492,7 @@ export default function EditLocationScreen() {
                 className="bg-gray-800/50 border border-purple-500/30 rounded-xl px-4 py-4 text-white text-base"
                 multiline
                 numberOfLines={4}
-                style={{ height: 100, textAlignVertical: 'top' }}
+                style={{ height: 100, textAlignVertical: "top" }}
               />
             </View>
 

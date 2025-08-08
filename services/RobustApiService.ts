@@ -1,29 +1,29 @@
 // Robust API service with fallback URLs for development
-import Constants from 'expo-constants';
+import Constants from "expo-constants";
 
 // List of possible API endpoints to try in order
 const POSSIBLE_API_URLS = [
   // Environment variable (highest priority)
   Constants.expoConfig?.extra?.EXPO_PUBLIC_BACKEND_BASE_URL,
   process.env.EXPO_PUBLIC_BACKEND_BASE_URL,
-  
+
   // Primary HTTPS endpoint (Traefik SSL termination)
-  'https://api.acoomh.ro',
-  
+  "https://api.acoomh.ro",
+
   // Coolify direct access patterns (for debugging)
-  'http://rw4oowkk4c048co4g84soos0.188.214.88.28.sslip.io',
-  'https://rw4oowkk4c048co4g84soos0.188.214.88.28.sslip.io',
-  
+  "http://rw4oowkk4c048co4g84soos0.188.214.88.28.sslip.io",
+  "https://rw4oowkk4c048co4g84soos0.188.214.88.28.sslip.io",
+
   // Alternative ports (if needed)
-  'https://api.acoomh.ro:443',
-  'http://api.acoomh.ro:8080',
-  'http://api.acoomh.ro:80',
-  
+  "https://api.acoomh.ro:443",
+  "http://api.acoomh.ro:8080",
+  "http://api.acoomh.ro:80",
+
   // Localhost fallbacks for development
-  'http://localhost:5000',
-  'http://localhost:8080',
-  'http://127.0.0.1:5000',
-  'http://127.0.0.1:8080',
+  "http://localhost:5000",
+  "http://localhost:8080",
+  "http://127.0.0.1:5000",
+  "http://127.0.0.1:8080",
 ].filter(Boolean); // Remove null/undefined values
 
 class RobustApiService {
@@ -38,25 +38,25 @@ class RobustApiService {
       return this.workingBaseUrl;
     }
 
-    console.log('🔍 Searching for working API endpoint...');
-    
+    console.log("🔍 Searching for working API endpoint...");
+
     for (const url of POSSIBLE_API_URLS) {
       try {
         console.log(`🧪 Testing: ${url}`);
-        
+
         const controller = new AbortController();
         const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
-        
+
         const response = await fetch(`${url}/health`, {
-          method: 'GET',
+          method: "GET",
           headers: {
-            'Content-Type': 'application/json',
+            "Content-Type": "application/json",
           },
           signal: controller.signal,
         });
-        
+
         clearTimeout(timeoutId);
-        
+
         if (response.ok) {
           console.log(`✅ Found working API: ${url}`);
           this.workingBaseUrl = url;
@@ -69,9 +69,9 @@ class RobustApiService {
         console.log(`❌ ${url} failed: ${error.message}`);
       }
     }
-    
+
     // If no URL works, use the first one as fallback
-    const fallback = POSSIBLE_API_URLS[0] || 'http://localhost:5000';
+    const fallback = POSSIBLE_API_URLS[0] || "http://localhost:5000";
     console.log(`⚠️ No working API found, using fallback: ${fallback}`);
     this.workingBaseUrl = fallback;
     this.isInitialized = true;
@@ -96,15 +96,17 @@ class RobustApiService {
     options: RequestInit = {}
   ): Promise<T> {
     const baseUrl = await this.getBaseUrl();
-    const url = `${baseUrl}${endpoint.startsWith('/') ? endpoint : '/' + endpoint}`;
-    
+    const url = `${baseUrl}${
+      endpoint.startsWith("/") ? endpoint : "/" + endpoint
+    }`;
+
     try {
       console.log(`📡 API Request: ${url}`);
-      
+
       const response = await fetch(url, {
         ...options,
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
           ...options.headers,
         },
       });
@@ -118,20 +120,20 @@ class RobustApiService {
       return data;
     } catch (error) {
       console.error(`❌ API Error: ${endpoint}`, error);
-      
+
       // If current URL fails, try to reinitialize with a different URL
       if (this.workingBaseUrl && POSSIBLE_API_URLS.length > 1) {
-        console.log('🔄 Retrying with different URL...');
+        console.log("🔄 Retrying with different URL...");
         this.workingBaseUrl = null;
         this.isInitialized = false;
-        
+
         // Try once more with a new URL
         const newBaseUrl = await this.initialize();
         if (newBaseUrl !== baseUrl) {
           return await this.request(endpoint, options);
         }
       }
-      
+
       throw error;
     }
   }
@@ -140,7 +142,7 @@ class RobustApiService {
    * GET request
    */
   static async get<T = any>(endpoint: string): Promise<T> {
-    return this.request<T>(endpoint, { method: 'GET' });
+    return this.request<T>(endpoint, { method: "GET" });
   }
 
   /**
@@ -148,7 +150,7 @@ class RobustApiService {
    */
   static async post<T = any>(endpoint: string, data?: any): Promise<T> {
     return this.request<T>(endpoint, {
-      method: 'POST',
+      method: "POST",
       body: data ? JSON.stringify(data) : undefined,
     });
   }
@@ -158,7 +160,7 @@ class RobustApiService {
    */
   static async put<T = any>(endpoint: string, data?: any): Promise<T> {
     return this.request<T>(endpoint, {
-      method: 'PUT',
+      method: "PUT",
       body: data ? JSON.stringify(data) : undefined,
     });
   }
@@ -167,7 +169,7 @@ class RobustApiService {
    * DELETE request
    */
   static async delete<T = any>(endpoint: string): Promise<T> {
-    return this.request<T>(endpoint, { method: 'DELETE' });
+    return this.request<T>(endpoint, { method: "DELETE" });
   }
 
   /**
@@ -175,19 +177,19 @@ class RobustApiService {
    */
   static async testAllEndpoints(): Promise<{ [url: string]: boolean }> {
     const results: { [url: string]: boolean } = {};
-    
+
     for (const url of POSSIBLE_API_URLS) {
       try {
         const response = await fetch(`${url}/health`, {
-          method: 'GET',
-          headers: { 'Content-Type': 'application/json' },
+          method: "GET",
+          headers: { "Content-Type": "application/json" },
         });
         results[url] = response.ok;
       } catch (error) {
         results[url] = false;
       }
     }
-    
+
     return results;
   }
 }
@@ -195,6 +197,6 @@ class RobustApiService {
 export default RobustApiService;
 
 // Auto-initialize when imported
-RobustApiService.initialize().catch(error => {
-  console.error('Failed to initialize RobustApiService:', error);
+RobustApiService.initialize().catch((error) => {
+  console.error("Failed to initialize RobustApiService:", error);
 });

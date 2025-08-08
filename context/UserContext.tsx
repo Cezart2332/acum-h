@@ -94,24 +94,24 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
     try {
       // For React Native, we need to create a file URI and use it directly
       // First, let's try a simpler approach by using the working Profile-Enhanced logic
-      
+
       // Create a temporary file URI approach
-      const base64Data = imageBase64.replace(/^data:image\/[a-z]+;base64,/, '');
-      
+      const base64Data = imageBase64.replace(/^data:image\/[a-z]+;base64,/, "");
+
       // Create the form data using the approach that works in Profile-Enhanced
       const form = new FormData();
       form.append("id", user.id.toString());
-      
+
       // Use the base64 data directly as a file-like object for React Native
       form.append("file", {
         uri: `data:image/jpeg;base64,${base64Data}`,
         name: "profile.jpg",
-        type: "image/jpeg"
+        type: "image/jpeg",
       } as any);
 
       console.log("FormData created with id:", user.id);
       console.log("Uploading profile image to backend...");
-      
+
       const response = await fetch(`${BASE_URL}/changepfp`, {
         method: "PUT",
         body: form,
@@ -119,7 +119,7 @@ export const UserProvider: React.FC<UserProviderProps> = ({ children }) => {
       });
 
       console.log("Backend response status:", response.status);
-      
+
       if (response.ok) {
         console.log("Profile image uploaded successfully");
         const updatedUser = {

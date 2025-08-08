@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef } from "react";
 import {
   View,
   Text,
@@ -12,19 +12,19 @@ import {
   Animated,
   Dimensions,
   Platform,
-} from 'react-native';
-import { LinearGradient } from 'expo-linear-gradient';
-import { Ionicons } from '@expo/vector-icons';
-import type { NativeStackNavigationProp } from '@react-navigation/native-stack';
-import { RootStackParamList } from './RootStackParamList';
-import { useUser } from '../context/UserContext';
-import { BASE_URL } from '../config';
+} from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
+import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+import { RootStackParamList } from "./RootStackParamList";
+import { useUser } from "../context/UserContext";
+import { BASE_URL } from "../config";
 
-const { width } = Dimensions.get('window');
+const { width } = Dimensions.get("window");
 
 type BugReportScreenNavigationProp = NativeStackNavigationProp<
   RootStackParamList,
-  'BugReport'
+  "BugReport"
 >;
 
 interface Props {
@@ -33,8 +33,8 @@ interface Props {
 
 const BugReportScreen: React.FC<Props> = ({ navigation }) => {
   const { user } = useUser();
-  const [title, setTitle] = useState('');
-  const [description, setDescription] = useState('');
+  const [title, setTitle] = useState("");
+  const [description, setDescription] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
   // Animations
@@ -68,25 +68,31 @@ const BugReportScreen: React.FC<Props> = ({ navigation }) => {
     return {
       platform: Platform.OS,
       osVersion: Platform.Version,
-      device: Platform.OS === 'ios' ? 'iOS Device' : 'Android Device',
+      device: Platform.OS === "ios" ? "iOS Device" : "Android Device",
     };
   };
 
   const validateForm = () => {
     if (!title.trim()) {
-      Alert.alert('Eroare', 'Te rugăm să introduci un titlu pentru raportarea problemei.');
+      Alert.alert(
+        "Eroare",
+        "Te rugăm să introduci un titlu pentru raportarea problemei."
+      );
       return false;
     }
     if (!description.trim()) {
-      Alert.alert('Eroare', 'Te rugăm să descrii problema întâmpinată.');
+      Alert.alert("Eroare", "Te rugăm să descrii problema întâmpinată.");
       return false;
     }
     if (title.trim().length < 5) {
-      Alert.alert('Eroare', 'Titlul trebuie să conțină cel puțin 5 caractere.');
+      Alert.alert("Eroare", "Titlul trebuie să conțină cel puțin 5 caractere.");
       return false;
     }
     if (description.trim().length < 10) {
-      Alert.alert('Eroare', 'Descrierea trebuie să conțină cel puțin 10 caractere.');
+      Alert.alert(
+        "Eroare",
+        "Descrierea trebuie să conțină cel puțin 10 caractere."
+      );
       return false;
     }
     return true;
@@ -96,12 +102,12 @@ const BugReportScreen: React.FC<Props> = ({ navigation }) => {
     if (!validateForm()) return;
 
     setIsSubmitting(true);
-    
+
     try {
       const deviceInfo = getDeviceInfo();
-      
+
       const bugReportData = {
-        username: user?.email || 'Unknown',
+        username: user?.email || "Unknown",
         title: title.trim(),
         description: description.trim(),
         deviceType: deviceInfo.platform,
@@ -109,33 +115,33 @@ const BugReportScreen: React.FC<Props> = ({ navigation }) => {
       };
 
       const response = await fetch(`${BASE_URL}/api/BugReport`, {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(bugReportData),
       });
 
       if (response.ok) {
         Alert.alert(
-          'Succes!',
-          'Raportarea problemei a fost trimisă cu succes. Îți mulțumim pentru feedback!',
+          "Succes!",
+          "Raportarea problemei a fost trimisă cu succes. Îți mulțumim pentru feedback!",
           [
             {
-              text: 'OK',
+              text: "OK",
               onPress: () => navigation.goBack(),
             },
           ]
         );
       } else {
-        throw new Error('Failed to submit bug report');
+        throw new Error("Failed to submit bug report");
       }
     } catch (error) {
-      console.error('Error submitting bug report:', error);
+      console.error("Error submitting bug report:", error);
       Alert.alert(
-        'Eroare',
-        'A apărut o problemă la trimiterea raportului. Te rugăm să încerci din nou.',
-        [{ text: 'OK' }]
+        "Eroare",
+        "A apărut o problemă la trimiterea raportului. Te rugăm să încerci din nou.",
+        [{ text: "OK" }]
       );
     } finally {
       setIsSubmitting(false);
@@ -162,7 +168,7 @@ const BugReportScreen: React.FC<Props> = ({ navigation }) => {
           activeOpacity={0.7}
         >
           <LinearGradient
-            colors={['#6C3AFF', '#9D4EDD']}
+            colors={["#6C3AFF", "#9D4EDD"]}
             style={styles.backButtonGradient}
           >
             <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
@@ -188,17 +194,14 @@ const BugReportScreen: React.FC<Props> = ({ navigation }) => {
             styles.content,
             {
               opacity: fadeAnim,
-              transform: [
-                { translateY: slideAnim },
-                { scale: scaleAnim },
-              ],
+              transform: [{ translateY: slideAnim }, { scale: scaleAnim }],
             },
           ]}
         >
           {/* Bug Icon */}
           <View style={styles.iconContainer}>
             <LinearGradient
-              colors={['#6C3AFF', '#9D4EDD', '#C77DFF']}
+              colors={["#6C3AFF", "#9D4EDD", "#C77DFF"]}
               style={styles.iconGradient}
             >
               <Ionicons name="bug-outline" size={40} color="#FFFFFF" />
@@ -214,7 +217,7 @@ const BugReportScreen: React.FC<Props> = ({ navigation }) => {
               </Text>
               <View style={styles.inputWrapper}>
                 <LinearGradient
-                  colors={['#1A0B2E', '#2A1A4A']}
+                  colors={["#1A0B2E", "#2A1A4A"]}
                   style={styles.inputGradient}
                 >
                   <TextInput
@@ -234,11 +237,16 @@ const BugReportScreen: React.FC<Props> = ({ navigation }) => {
             {/* Description Input */}
             <View style={styles.inputGroup}>
               <Text style={styles.inputLabel}>
-                <Ionicons name="document-text-outline" size={16} color="#B19CD9" /> Descriere Detaliată
+                <Ionicons
+                  name="document-text-outline"
+                  size={16}
+                  color="#B19CD9"
+                />{" "}
+                Descriere Detaliată
               </Text>
               <View style={styles.inputWrapper}>
                 <LinearGradient
-                  colors={['#1A0B2E', '#2A1A4A']}
+                  colors={["#1A0B2E", "#2A1A4A"]}
                   style={[styles.inputGradient, styles.textAreaGradient]}
                 >
                   <TextInput
@@ -254,22 +262,29 @@ const BugReportScreen: React.FC<Props> = ({ navigation }) => {
                     editable={!isSubmitting}
                   />
                 </LinearGradient>
-                <Text style={styles.characterCount}>{description.length}/500</Text>
+                <Text style={styles.characterCount}>
+                  {description.length}/500
+                </Text>
               </View>
             </View>
 
             {/* Device Info */}
             <View style={styles.deviceInfoContainer}>
               <Text style={styles.deviceInfoTitle}>
-                <Ionicons name="phone-portrait-outline" size={16} color="#B19CD9" /> Informații Dispozitiv
+                <Ionicons
+                  name="phone-portrait-outline"
+                  size={16}
+                  color="#B19CD9"
+                />{" "}
+                Informații Dispozitiv
               </Text>
               <View style={styles.deviceInfoCard}>
                 <LinearGradient
-                  colors={['#1A0B2E', '#2A1A4A']}
+                  colors={["#1A0B2E", "#2A1A4A"]}
                   style={styles.deviceInfoGradient}
                 >
                   <Text style={styles.deviceInfoText}>
-                    Platformă: {Platform.OS === 'ios' ? 'iOS' : 'Android'}
+                    Platformă: {Platform.OS === "ios" ? "iOS" : "Android"}
                   </Text>
                   <Text style={styles.deviceInfoText}>
                     Versiune: {Platform.Version}
@@ -283,7 +298,10 @@ const BugReportScreen: React.FC<Props> = ({ navigation }) => {
 
             {/* Submit Button */}
             <TouchableOpacity
-              style={[styles.submitButton, isSubmitting && styles.submitButtonDisabled]}
+              style={[
+                styles.submitButton,
+                isSubmitting && styles.submitButtonDisabled,
+              ]}
               onPress={handleSubmit}
               disabled={isSubmitting}
               activeOpacity={0.8}
@@ -291,20 +309,26 @@ const BugReportScreen: React.FC<Props> = ({ navigation }) => {
               <LinearGradient
                 colors={
                   isSubmitting
-                    ? ['#4A4A4A', '#666666']
-                    : ['#6C3AFF', '#9D4EDD', '#C77DFF']
+                    ? ["#4A4A4A", "#666666"]
+                    : ["#6C3AFF", "#9D4EDD", "#C77DFF"]
                 }
                 style={styles.submitButtonGradient}
               >
                 {isSubmitting ? (
                   <View style={styles.submitButtonContent}>
-                    <Ionicons name="hourglass-outline" size={20} color="#FFFFFF" />
+                    <Ionicons
+                      name="hourglass-outline"
+                      size={20}
+                      color="#FFFFFF"
+                    />
                     <Text style={styles.submitButtonText}>Se trimite...</Text>
                   </View>
                 ) : (
                   <View style={styles.submitButtonContent}>
                     <Ionicons name="send-outline" size={20} color="#FFFFFF" />
-                    <Text style={styles.submitButtonText}>Trimite Raportul</Text>
+                    <Text style={styles.submitButtonText}>
+                      Trimite Raportul
+                    </Text>
                   </View>
                 )}
               </LinearGradient>
@@ -319,11 +343,11 @@ const BugReportScreen: React.FC<Props> = ({ navigation }) => {
 const styles = StyleSheet.create({
   container: {
     flex: 1,
-    backgroundColor: '#000000',
+    backgroundColor: "#000000",
   },
   header: {
-    flexDirection: 'row',
-    alignItems: 'center',
+    flexDirection: "row",
+    alignItems: "center",
     paddingHorizontal: 20,
     paddingTop: 20,
     paddingBottom: 20,
@@ -335,21 +359,21 @@ const styles = StyleSheet.create({
     width: 40,
     height: 40,
     borderRadius: 20,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   headerContent: {
     flex: 1,
   },
   headerTitle: {
     fontSize: 24,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
+    fontWeight: "bold",
+    color: "#FFFFFF",
     marginBottom: 4,
   },
   headerSubtitle: {
     fontSize: 14,
-    color: '#B19CD9',
+    color: "#B19CD9",
   },
   scrollView: {
     flex: 1,
@@ -361,15 +385,15 @@ const styles = StyleSheet.create({
     paddingHorizontal: 20,
   },
   iconContainer: {
-    alignItems: 'center',
+    alignItems: "center",
     marginBottom: 30,
   },
   iconGradient: {
     width: 80,
     height: 80,
     borderRadius: 40,
-    justifyContent: 'center',
-    alignItems: 'center',
+    justifyContent: "center",
+    alignItems: "center",
   },
   formContainer: {
     gap: 24,
@@ -379,8 +403,8 @@ const styles = StyleSheet.create({
   },
   inputLabel: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: "600",
+    color: "#FFFFFF",
     marginBottom: 8,
   },
   inputWrapper: {
@@ -394,33 +418,33 @@ const styles = StyleSheet.create({
     minHeight: 120,
   },
   textInput: {
-    backgroundColor: '#0A0A0A',
+    backgroundColor: "#0A0A0A",
     borderRadius: 11,
     padding: 16,
     fontSize: 16,
-    color: '#FFFFFF',
-    fontFamily: 'System',
+    color: "#FFFFFF",
+    fontFamily: "System",
   },
   textArea: {
     minHeight: 100,
-    textAlignVertical: 'top',
+    textAlignVertical: "top",
   },
   characterCount: {
     fontSize: 12,
-    color: '#666B8A',
-    textAlign: 'right',
+    color: "#666B8A",
+    textAlign: "right",
   },
   deviceInfoContainer: {
     gap: 8,
   },
   deviceInfoTitle: {
     fontSize: 16,
-    fontWeight: '600',
-    color: '#FFFFFF',
+    fontWeight: "600",
+    color: "#FFFFFF",
   },
   deviceInfoCard: {
     borderRadius: 12,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   deviceInfoGradient: {
     padding: 16,
@@ -428,19 +452,19 @@ const styles = StyleSheet.create({
   },
   deviceInfoText: {
     fontSize: 14,
-    color: '#FFFFFF',
+    color: "#FFFFFF",
     marginBottom: 4,
   },
   deviceInfoSubtext: {
     fontSize: 12,
-    color: '#666B8A',
+    color: "#666B8A",
     marginTop: 8,
-    fontStyle: 'italic',
+    fontStyle: "italic",
   },
   submitButton: {
     marginTop: 20,
     borderRadius: 12,
-    overflow: 'hidden',
+    overflow: "hidden",
   },
   submitButtonDisabled: {
     opacity: 0.6,
@@ -451,15 +475,15 @@ const styles = StyleSheet.create({
     borderRadius: 12,
   },
   submitButtonContent: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
     gap: 8,
   },
   submitButtonText: {
     fontSize: 16,
-    fontWeight: 'bold',
-    color: '#FFFFFF',
+    fontWeight: "bold",
+    color: "#FFFFFF",
   },
 });
 

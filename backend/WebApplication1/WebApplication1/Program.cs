@@ -714,7 +714,8 @@ app.MapGet("/companies", async (AppDbContext db) =>
             Email = c.Email,
             Description = c.Description,
             Cui = c.Cui,
-            Category = c.Category
+            Category = c.Category,
+            IsActive = c.IsActive
         };
         companiesResponses.Add(cr);
     }

@@ -224,10 +224,13 @@ export default function RegisterScreen({ navigation }: Props) {
         LastName: lastName,
         Email: email,
         Password: password,
-        PhoneNumber: phoneNumber
+        PhoneNumber: phoneNumber,
       };
 
-      console.log("Sending registration request to:", `${baseUrl}/auth/register`);
+      console.log(
+        "Sending registration request to:",
+        `${baseUrl}/auth/register`
+      );
 
       const registerResponse = await fetch(`${baseUrl}/auth/register`, {
         method: "POST",
@@ -277,7 +280,7 @@ export default function RegisterScreen({ navigation }: Props) {
         type: jwtData.user.role, // "User" or "Company"
         accessToken: jwtData.accessToken,
         refreshToken: jwtData.refreshToken,
-        expiresAt: jwtData.expiresAt
+        expiresAt: jwtData.expiresAt,
       };
 
       // Use the UserContext to handle login
@@ -286,10 +289,10 @@ export default function RegisterScreen({ navigation }: Props) {
       // Upload default profile picture after registration
       try {
         console.log("Uploading default profile picture...");
-        
+
         const defaultImage = require("../acoomh.png");
         const defaultImageUri = Image.resolveAssetSource(defaultImage).uri;
-        
+
         const formData = new FormData();
         const response = await fetch(defaultImageUri);
         const blob = await response.blob();
@@ -313,7 +316,10 @@ export default function RegisterScreen({ navigation }: Props) {
             await updateProfileImage(updatedUserData.profileImage);
           }
         } else {
-          console.error("Failed to upload profile picture:", uploadResponse.status);
+          console.error(
+            "Failed to upload profile picture:",
+            uploadResponse.status
+          );
         }
       } catch (error) {
         console.error("Error uploading profile picture:", error);
@@ -542,7 +548,7 @@ export default function RegisterScreen({ navigation }: Props) {
             </Text>
           </TouchableOpacity>
         </View>
-        
+
         {/* Terms and Conditions Link */}
         <View style={styles.termsContainer}>
           <TouchableOpacity onPress={navigateToTerms} activeOpacity={0.8}>

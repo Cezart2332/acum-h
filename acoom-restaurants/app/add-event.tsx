@@ -207,31 +207,33 @@ export default function AddEventScreen() {
 
       // Get company data to verify we're logged in - with more robust checking
       console.log("Checking AsyncStorage for company data...");
-      
+
       // First, let's get all AsyncStorage keys to debug
       const allKeys = await AsyncStorage.getAllKeys();
       console.log("All AsyncStorage keys:", allKeys);
-      
+
       // Check all possible storage keys
       const companyData = await AsyncStorage.getItem("company");
       const userData = await AsyncStorage.getItem("user");
       const loggedInStatus = await AsyncStorage.getItem("loggedIn");
-      
+
       console.log("Company data:", companyData ? "Found" : "Not found");
       console.log("User data:", userData ? "Found" : "Not found");
       console.log("Logged in status:", loggedInStatus);
-      
+
       // If no data found, try to get raw values to debug
       if (!companyData && !userData) {
         console.log("Debugging: Raw AsyncStorage values:");
         for (const key of allKeys) {
           const value = await AsyncStorage.getItem(key);
-          console.log(`  ${key}: ${value ? value.substring(0, 100) + '...' : 'null'}`);
+          console.log(
+            `  ${key}: ${value ? value.substring(0, 100) + "..." : "null"}`
+          );
         }
       }
-      
+
       let activeData = null;
-      
+
       if (companyData) {
         try {
           activeData = JSON.parse(companyData);
@@ -240,7 +242,7 @@ export default function AddEventScreen() {
           console.error("Error parsing company data:", e);
         }
       }
-      
+
       if (!activeData && userData) {
         try {
           activeData = JSON.parse(userData);
@@ -249,15 +251,22 @@ export default function AddEventScreen() {
           console.error("Error parsing user data:", e);
         }
       }
-      
+
       if (!activeData) {
         console.log("No company/user data found in any storage location");
-        Alert.alert("Authentication Error", "Please log in again to create events.", [
-          { text: "OK", onPress: () => {
-            // Navigate to login screen or dashboard
-            router.replace("/login");
-          }}
-        ]);
+        Alert.alert(
+          "Authentication Error",
+          "Please log in again to create events.",
+          [
+            {
+              text: "OK",
+              onPress: () => {
+                // Navigate to login screen or dashboard
+                router.replace("/login");
+              },
+            },
+          ]
+        );
         setIsCreating(false);
         return;
       }
@@ -266,23 +275,30 @@ export default function AddEventScreen() {
         type: activeData.type,
         id: activeData.id || activeData.Id,
         name: activeData.name,
-        email: activeData.email
+        email: activeData.email,
       });
-      
+
       // Check if we have authentication tokens
       const accessToken = await AsyncStorage.getItem("access_token");
       const refreshToken = await AsyncStorage.getItem("refresh_token");
-      
+
       console.log("Access token:", accessToken ? "Found" : "Not found");
       console.log("Refresh token:", refreshToken ? "Found" : "Not found");
-      
+
       if (!accessToken && !refreshToken) {
         console.log("No authentication tokens found");
-        Alert.alert("Authentication Error", "No valid session found. Please log in again.", [
-          { text: "OK", onPress: () => {
-            router.replace("/login");
-          }}
-        ]);
+        Alert.alert(
+          "Authentication Error",
+          "No valid session found. Please log in again.",
+          [
+            {
+              text: "OK",
+              onPress: () => {
+                router.replace("/login");
+              },
+            },
+          ]
+        );
         setIsCreating(false);
         return;
       }
@@ -350,7 +366,10 @@ export default function AddEventScreen() {
         ]);
       } else {
         console.log("Error response:", response);
-        Alert.alert("Error", `Failed to create event: ${response.error || 'Unknown error'}`);
+        Alert.alert(
+          "Error",
+          `Failed to create event: ${response.error || "Unknown error"}`
+        );
       }
     } catch (error) {
       console.error("Create event error:", error);

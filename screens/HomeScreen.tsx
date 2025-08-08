@@ -156,11 +156,13 @@ export default function HomeScreen({ navigation }: { navigation: HomeNav }) {
   };
 
   // Filter locations by category
-  const filteredRestaurants = selectedCategory === "toate" 
-    ? restaurants 
-    : restaurants.filter(location => 
-        location.category?.toLowerCase() === selectedCategory.toLowerCase()
-      );
+  const filteredRestaurants =
+    selectedCategory === "toate"
+      ? restaurants
+      : restaurants.filter(
+          (location) =>
+            location.category?.toLowerCase() === selectedCategory.toLowerCase()
+        );
 
   const currentData = eOrR ? events : filteredRestaurants;
 
@@ -187,11 +189,7 @@ export default function HomeScreen({ navigation }: { navigation: HomeNav }) {
           imageStyle={styles.cardImageStyle}
         >
           <LinearGradient
-            colors={[
-              "transparent", 
-              "rgba(0,0,0,0.4)", 
-              "rgba(16, 16, 16, 0.9)"
-            ]}
+            colors={["transparent", "rgba(0,0,0,0.4)", "rgba(16, 16, 16, 0.9)"]}
             style={styles.cardOverlay}
           >
             <View style={styles.cardContent}>
@@ -202,7 +200,9 @@ export default function HomeScreen({ navigation }: { navigation: HomeNav }) {
                   color="#A78BFA"
                 />
                 <Text style={styles.cardBadgeText}>
-                  {isEvent ? "EVENT" : locationItem.category?.toUpperCase() || "LOCAȚIE"}
+                  {isEvent
+                    ? "EVENT"
+                    : locationItem.category?.toUpperCase() || "LOCAȚIE"}
                 </Text>
               </View>
               <Text style={styles.cardTitle}>
@@ -376,8 +376,8 @@ export default function HomeScreen({ navigation }: { navigation: HomeNav }) {
         {/* Category Filter Section - Only show when locations are selected */}
         {!eOrR && (
           <View style={styles.categorySection}>
-            <ScrollView 
-              horizontal 
+            <ScrollView
+              horizontal
               showsHorizontalScrollIndicator={false}
               contentContainerStyle={styles.categoryContainer}
             >
@@ -387,13 +387,15 @@ export default function HomeScreen({ navigation }: { navigation: HomeNav }) {
                   style={[
                     styles.categoryButton,
                     {
-                      backgroundColor: selectedCategory === category.id 
-                        ? "#6B46C1" 
-                        : "rgba(255, 255, 255, 0.1)",
-                      borderColor: selectedCategory === category.id 
-                        ? "#8B5CF6" 
-                        : "rgba(255, 255, 255, 0.2)",
-                    }
+                      backgroundColor:
+                        selectedCategory === category.id
+                          ? "#6B46C1"
+                          : "rgba(255, 255, 255, 0.1)",
+                      borderColor:
+                        selectedCategory === category.id
+                          ? "#8B5CF6"
+                          : "rgba(255, 255, 255, 0.2)",
+                    },
                   ]}
                   onPress={() => {
                     hapticFeedback("light");
@@ -401,16 +403,21 @@ export default function HomeScreen({ navigation }: { navigation: HomeNav }) {
                   }}
                   activeOpacity={0.8}
                 >
-                  <Ionicons 
-                    name={category.icon as any} 
-                    size={18} 
-                    color={selectedCategory === category.id ? "#FFFFFF" : "#A78BFA"} 
+                  <Ionicons
+                    name={category.icon as any}
+                    size={18}
+                    color={
+                      selectedCategory === category.id ? "#FFFFFF" : "#A78BFA"
+                    }
                   />
                   <Text
                     style={[
                       styles.categoryText,
                       {
-                        color: selectedCategory === category.id ? "#FFFFFF" : "#A78BFA",
+                        color:
+                          selectedCategory === category.id
+                            ? "#FFFFFF"
+                            : "#A78BFA",
                       },
                     ]}
                   >

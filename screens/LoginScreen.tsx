@@ -369,7 +369,7 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
             Înregistrează-te
           </Text>
         </TouchableOpacity>
-        
+
         {/* Terms and Conditions Link */}
         <TouchableOpacity
           onPress={handleTermsPress}

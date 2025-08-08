@@ -5,14 +5,16 @@
 Based on the endpoint testing, your API is partially working:
 
 ✅ **Working Endpoints:**
-- `/health` - API is healthy 
+
+- `/health` - API is healthy
 - `/health/db` - Database connected (6 migrations applied)
 - `/users` - Exists but needs authentication (401)
 
 ❌ **Missing Endpoints (404 Not Found):**
-- `/companies` 
+
+- `/companies`
 - `/events`
-- `/locations` 
+- `/locations`
 - `/api/*` paths
 
 ## 🔍 Root Cause
@@ -56,6 +58,7 @@ app.MapControllers();
 If controllers are missing, here are minimal implementations:
 
 #### CompaniesController.cs
+
 ```csharp
 using Microsoft.AspNetCore.Mvc;
 
@@ -72,6 +75,7 @@ public class CompaniesController : ControllerBase
 ```
 
 #### EventsController.cs
+
 ```csharp
 using Microsoft.AspNetCore.Mvc;
 
@@ -88,6 +92,7 @@ public class EventsController : ControllerBase
 ```
 
 #### LocationsController.cs
+
 ```csharp
 using Microsoft.AspNetCore.Mvc;
 
@@ -129,18 +134,18 @@ if (app.Environment.IsDevelopment())
 }
 
 // Health checks (working)
-app.MapGet("/health", () => new { 
-    status = "healthy", 
+app.MapGet("/health", () => new {
+    status = "healthy",
     timestamp = DateTime.UtcNow,
-    environment = app.Environment.EnvironmentName 
+    environment = app.Environment.EnvironmentName
 });
 
 app.MapGet("/health/db", async (YourDbContext context) => {
     var migrationsApplied = await context.Database.GetAppliedMigrationsAsync();
-    return new { 
-        status = "database connected", 
+    return new {
+        status = "database connected",
         migrationsApplied = migrationsApplied.Count(),
-        timestamp = DateTime.UtcNow 
+        timestamp = DateTime.UtcNow
     };
 });
 
@@ -155,14 +160,15 @@ app.Run();
 1. **Add missing controllers** to your backend repository
 2. **Verify Program.cs** has `AddControllers()` and `MapControllers()`
 3. **Build and test locally** to ensure endpoints work
-4. **Deploy to Coolify** 
+4. **Deploy to Coolify**
 5. **Test endpoints** using the Python script again
 
 ## 📱 Mobile App Temporary Fix
 
 I've created `ApiServiceWithFallback.ts` that will:
+
 - ✅ Handle missing endpoints gracefully
-- ✅ Provide mock data when APIs are unavailable  
+- ✅ Provide mock data when APIs are unavailable
 - ✅ Allow your app to function while backend is being fixed
 - ✅ Automatically switch to real data once APIs are deployed
 
@@ -183,9 +189,10 @@ for endpoint in test_endpoints:
 ## ⚡ Quick Test Commands
 
 Test individual endpoints:
+
 ```bash
 curl -k https://api.acoomh.ro/companies
-curl -k https://api.acoomh.ro/events  
+curl -k https://api.acoomh.ro/events
 curl -k https://api.acoomh.ro/locations
 ```
 
