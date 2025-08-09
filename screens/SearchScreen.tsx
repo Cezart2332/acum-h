@@ -35,6 +35,8 @@ import { BASE_URL } from "../config";
 import { useTheme } from "../context/ThemeContext";
 import UniversalScreen from "../components/UniversalScreen";
 import EnhancedInput from "../components/EnhancedInput";
+import LazyImage from "../components/LazyImage";
+import OptimizedApiService from "../services/OptimizedApiService";
 import {
   getShadow,
   hapticFeedback,
@@ -104,6 +106,7 @@ const SearchScreen: React.FC = () => {
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
+  const [loadingMore, setLoadingMore] = useState(false);
   const [allItems, setAllItems] = useState<SearchItem[]>([]);
   const [filteredItems, setFilteredItems] = useState<SearchItem[]>([]);
   const [restaurants, setRestaurants] = useState<LocationData[]>([]);
@@ -111,6 +114,12 @@ const SearchScreen: React.FC = () => {
   const [selectedFilter, setSelectedFilter] = useState<FilterType>("all");
   const [categoryFilters, setCategoryFilters] = useState<CategoryFilter[]>([]);
   const [showFilters, setShowFilters] = useState(false);
+  
+  // Pagination state
+  const [currentPage, setCurrentPage] = useState(1);
+  const [hasMoreData, setHasMoreData] = useState(true);
+  const [totalItems, setTotalItems] = useState(0);
+  const pageSize = 20;
 
   // Animation refs
   const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -133,36 +142,302 @@ const SearchScreen: React.FC = () => {
     ]).start();
 
     // Load initial data
-    loadData();
+    loadData(true);
   }, []);
 
-  const loadData = async () => {
-    setLoading(true);
-    try {
-      const [restaurantsData, eventsData] = await Promise.all([
-        loadRestaurants(),
-        loadEvents(),
-      ]);
+  // Debounced search with pagination reset
+  const debouncedSearch = useMemo(
+    () =>
+      debounce((query: string) => {
+        if (query !== searchQuery) {
+          setCurrentPage(1);
+          setHasMoreData(true);
+          loadData(true, query);
+        }
+      }, 500),
+    []
+  );
 
-      setRestaurants(restaurantsData);
-      setEvents(eventsData);
+  const loadData = async (reset: boolean = false, query: string = searchQuery) => {
+    if (reset) {
+      setLoading(true);
+      setCurrentPage(1);
+      setHasMoreData(true);
+      setAllItems([]);
+      setFilteredItems([]);
+    } else {
+      setLoadingMore(true);
+    }
+
+    try {
+      const page = reset ? 1 : currentPage;
+      console.log("Loading data from production backend...");
       
-      // Transform data into unified search items
-      const allSearchItems = transformDataToSearchItems(restaurantsData, eventsData);
-      setAllItems(allSearchItems);
+      // Load data based on current filter
+      let newItems: SearchItem[] = [];
       
-      // Build category filters
-      buildCategoryFilters(restaurantsData);
+      if (selectedFilter === "events") {
+        try {
+          const eventsResponse = await OptimizedApiService.getEvents({
+            page,
+            limit: pageSize,
+            search: query,
+          });
+          
+          const eventItems = eventsResponse.data.map((event) => ({
+            id: event.id,
+            title: event.title,
+            subtitle: event.company,
+            image: event.photo || "",
+            type: "event" as const,
+            address: `${event.address}, ${event.city}`,
+            tags: event.tags,
+            likes: event.likes,
+            originalData: event,
+          }));
+          
+          newItems = eventItems;
+          setHasMoreData(eventsResponse.pagination.hasNext);
+          setTotalItems(eventsResponse.pagination.total);
+        } catch (error) {
+          console.warn("Events API failed, using mock data:", error);
+          // Fallback to mock events data
+          if (reset) {
+            const mockEvents = getMockEvents();
+            newItems = mockEvents.map((event) => ({
+              id: event.id,
+              title: event.title,
+              subtitle: event.company,
+              image: event.photo || "",
+              type: "event" as const,
+              address: `${event.address}, ${event.city}`,
+              tags: event.tags,
+              likes: event.likes,
+              originalData: event,
+            }));
+            setHasMoreData(false);
+            setTotalItems(mockEvents.length);
+          }
+        }
+      } else {
+        try {
+          // Load locations (with category filter if specified)
+          const category = selectedFilter !== "all" && selectedFilter !== "restaurants" && selectedFilter !== "coffee" && selectedFilter !== "pubs" && selectedFilter !== "clubs" 
+            ? selectedFilter 
+            : undefined;
+            
+          const locationsResponse = await OptimizedApiService.getLocations({
+            page,
+            limit: pageSize,
+            search: query,
+            category,
+          });
+          
+          const locationItems = locationsResponse.data.map((restaurant) => ({
+            id: restaurant.id || 0,
+            title: restaurant.name || "",
+            subtitle: restaurant.category,
+            image: restaurant.photo || "",
+            type: getLocationTypeFromCategory(restaurant.category),
+            address: restaurant.address,
+            tags: restaurant.tags,
+            category: restaurant.category,
+            originalData: restaurant,
+          }));
+          
+          newItems = locationItems;
+          setHasMoreData(locationsResponse.pagination.hasNext);
+          setTotalItems(locationsResponse.pagination.total);
+          
+          // Build category filters from first page
+          if (reset) {
+            buildCategoryFilters(locationsResponse.data);
+          }
+          
+          // Preload photos for visible items (background task)
+          const locationIds = locationItems.map(item => item.id);
+          OptimizedApiService.preloadPhotos(locationIds);
+        } catch (error) {
+          console.warn("Locations API failed, using mock data:", error);
+          // Fallback to mock locations data
+          if (reset) {
+            const mockLocations = getMockRestaurants();
+            newItems = mockLocations.map((restaurant) => ({
+              id: restaurant.id || 0,
+              title: restaurant.name || "",
+              subtitle: restaurant.category,
+              image: restaurant.photo || "",
+              type: getLocationTypeFromCategory(restaurant.category),
+              address: restaurant.address,
+              tags: restaurant.tags,
+              category: restaurant.category,
+              originalData: restaurant,
+            }));
+            setHasMoreData(false);
+            setTotalItems(mockLocations.length);
+            buildCategoryFilters(mockLocations);
+          }
+        }
+      }
       
-      // Apply initial filtering
-      applyFilters(allSearchItems, searchQuery, selectedFilter);
+      // Filter items based on type filters (coffee, pubs, clubs)
+      if (selectedFilter === "coffee" || selectedFilter === "pubs" || selectedFilter === "clubs") {
+        newItems = newItems.filter(item => item.type === selectedFilter.slice(0, -1)); // Remove 's'
+      }
+      
+      if (reset) {
+        setAllItems(newItems);
+        setFilteredItems(newItems);
+      } else {
+        setAllItems(prev => [...prev, ...newItems]);
+        setFilteredItems(prev => [...prev, ...newItems]);
+        setCurrentPage(prev => prev + 1);
+      }
+      
     } catch (error) {
       console.error("Error loading data:", error);
-      Alert.alert("Error", "Could not load data. Please try again.");
+      if (reset) {
+        // Complete fallback to mock data
+        console.log("Complete API failure, falling back to mock data");
+        const mockLocations = getMockRestaurants();
+        const mockLocationItems = mockLocations.map((restaurant) => ({
+          id: restaurant.id || 0,
+          title: restaurant.name || "",
+          subtitle: restaurant.category,
+          image: restaurant.photo || "",
+          type: getLocationTypeFromCategory(restaurant.category),
+          address: restaurant.address,
+          tags: restaurant.tags,
+          category: restaurant.category,
+          originalData: restaurant,
+        }));
+        
+        setAllItems(mockLocationItems);
+        setFilteredItems(mockLocationItems);
+        setHasMoreData(false);
+        setTotalItems(mockLocationItems.length);
+        buildCategoryFilters(mockLocations);
+      }
     } finally {
       setLoading(false);
+      setLoadingMore(false);
     }
   };
+
+  const getLocationTypeFromCategory = (category: string | undefined): "restaurant" | "coffee" | "pub" | "club" => {
+    if (!category) return "restaurant";
+    
+    const cat = category.toLowerCase();
+    if (/(coffee|cafe|cafenea|caf(e|é)|espresso|coffee shop)/i.test(cat)) return "coffee";
+    if (/(pub|bar|tavern|brasserie)/i.test(cat)) return "pub";
+    if (/(club|nightclub|discotheque|disco)/i.test(cat)) return "club";
+    return "restaurant";
+  };
+
+  // Mock data functions for fallback when API fails
+  const getMockRestaurants = (): LocationData[] => [
+    {
+      id: 1,
+      name: "La Mama",
+      address: "Str. Republicii nr. 15, Timișoara",
+      latitude: 45.7494,
+      longitude: 21.2272,
+      tags: ["traditional", "românesc", "casnic"],
+      photo: "",
+      category: "restaurant",
+      company: { id: 1 },
+      menuName: "Meniu Traditional",
+      hasMenu: true,
+      createdAt: "2024-01-01T00:00:00Z",
+      updatedAt: "2024-01-01T00:00:00Z",
+    },
+    {
+      id: 2,
+      name: "Pizza Bella",
+      address: "Bulevardul Revoluției nr. 42, Timișoara",
+      latitude: 45.7597,
+      longitude: 21.2301,
+      tags: ["pizza", "italian", "autentic"],
+      photo: "",
+      menuName: "Meniu Italian",
+      hasMenu: true,
+      category: "restaurant",
+      company: { id: 2 },
+      createdAt: "2024-01-01T00:00:00Z",
+      updatedAt: "2024-01-01T00:00:00Z",
+    },
+    {
+      id: 3,
+      name: "Coffee Corner",
+      address: "Str. Mărășești nr. 25, Timișoara",
+      latitude: 45.7550,
+      longitude: 21.2250,
+      tags: ["coffee", "espresso", "latte"],
+      photo: "",
+      menuName: "Meniu Cafenea",
+      hasMenu: true,
+      category: "cafenea",
+      company: { id: 3 },
+      createdAt: "2024-01-01T00:00:00Z",
+      updatedAt: "2024-01-01T00:00:00Z",
+    },
+    {
+      id: 4,
+      name: "The Irish Pub",
+      address: "Str. Unirii nr. 10, Timișoara",
+      latitude: 45.7580,
+      longitude: 21.2290,
+      tags: ["beer", "irish", "pub"],
+      photo: "",
+      menuName: "Meniu Pub",
+      hasMenu: true,
+      category: "pub",
+      company: { id: 4 },
+      createdAt: "2024-01-01T00:00:00Z",
+      updatedAt: "2024-01-01T00:00:00Z",
+    },
+  ];
+
+  const getMockEvents = (): EventData[] => [
+    {
+      id: 1,
+      title: "Concert Rock în Centrul Vechi",
+      description: "Seară de rock cu cele mai bune trupe locale",
+      eventDate: "2024-02-15",
+      startTime: "20:00",
+      endTime: "23:00",
+      address: "Strada Mărășești 1-3",
+      city: "Timișoara",
+      photo: "",
+      isActive: true,
+      createdAt: "2024-01-01T00:00:00Z",
+      companyId: 1,
+      company: "Rock Club Timișoara",
+      tags: ["rock", "muzică", "concert"],
+      likes: 127,
+      latitude: 45.7494,
+      longitude: 21.2272,
+    },
+    {
+      id: 2,
+      title: "Festival de Artă Stradală",
+      description: "Trei zile de spectacole de artă stradală",
+      eventDate: "2024-02-20",
+      startTime: "18:00",
+      endTime: "22:00",
+      address: "Piața Victoriei",
+      city: "Timișoara",
+      photo: "",
+      isActive: true,
+      createdAt: "2024-01-01T00:00:00Z",
+      companyId: 2,
+      company: "Primăria Timișoara",
+      tags: ["artă", "festival", "stradală"],
+      likes: 89,
+      latitude: 45.7597,
+      longitude: 21.2301,
+    },
+  ];
 
   const transformDataToSearchItems = (
     restaurantsData: LocationData[],
@@ -288,173 +563,23 @@ const SearchScreen: React.FC = () => {
     setFilteredItems(filtered);
   };
 
-  const loadRestaurants = async (): Promise<LocationData[]> => {
-    try {
-      const response = await fetch(`${BASE_URL}/locations`);
-      if (response.ok) {
-        return await response.json();
-      }
-      throw new Error("Failed to load restaurants");
-    } catch (error) {
-      console.warn("Using mock restaurant data");
-      return getMockRestaurants();
-    }
+  // Helper function to get filter counts for quick filters
+  const getFilterCounts = () => {
+    const restaurantCount = filteredItems.filter(item => item.type === "restaurant").length;
+    const coffeeCount = filteredItems.filter(item => item.type === "coffee").length;
+    const pubCount = filteredItems.filter(item => item.type === "pub").length;
+    const clubCount = filteredItems.filter(item => item.type === "club").length;
+    const eventCount = filteredItems.filter(item => item.type === "event").length;
+    
+    return {
+      all: filteredItems.length,
+      restaurants: restaurantCount,
+      coffee: coffeeCount,
+      pubs: pubCount,
+      clubs: clubCount,
+      events: eventCount,
+    };
   };
-
-  const loadEvents = async (): Promise<EventData[]> => {
-    try {
-      const response = await fetch(`${BASE_URL}/events`);
-      if (response.ok) {
-        return await response.json();
-      }
-      throw new Error("Failed to load events");
-    } catch (error) {
-      console.warn("Using mock event data");
-      return getMockEvents();
-    }
-  };
-
-  const getMockRestaurants = (): LocationData[] => [
-    {
-      id: 1,
-      name: "La Mama",
-      address: "Str. Republicii nr. 15, Timișoara",
-      latitude: 45.7494,
-      longitude: 21.2272,
-      tags: ["traditional", "românesc", "casnic"],
-      photo: "",
-      category: "restaurant",
-      company: {
-        id: 1,
-      },
-      menuName: "Meniu Traditional",
-      hasMenu: true,
-      createdAt: "2024-01-01T00:00:00Z",
-      updatedAt: "2024-01-01T00:00:00Z",
-    },
-    {
-      id: 2,
-      name: "Pizza Bella",
-      address: "Bulevardul Revoluției nr. 42, Timișoara",
-      latitude: 45.7597,
-      longitude: 21.2301,
-      tags: ["pizza", "italian", "autentic"],
-      photo: "",
-      menuName: "Meniu Italian",
-      hasMenu: true,
-      category: "restaurant",
-      company: {
-        id: 1,
-      },
-      createdAt: "2024-01-01T00:00:00Z",
-      updatedAt: "2024-01-01T00:00:00Z",
-    },
-    {
-      id: 3,
-      name: "Sushi Zen",
-      address: "Str. Eminescu nr. 8, Timișoara",
-      latitude: 45.7489,
-      longitude: 21.2087,
-      tags: ["sushi", "japonez", "fresh"],
-      photo: "",
-      menuName: "Meniu Japonez",
-      hasMenu: true,
-      category: "restaurant",
-      company: {
-        id: 1,
-      },
-      createdAt: "2024-01-01T00:00:00Z",
-      updatedAt: "2024-01-01T00:00:00Z",
-    },
-    {
-      id: 4,
-      name: "Coffee Corner",
-      address: "Str. Mărășești nr. 25, Timișoara",
-      latitude: 45.7550,
-      longitude: 21.2250,
-      tags: ["coffee", "espresso", "latte"],
-      photo: "",
-      menuName: "Meniu Cafenea",
-      hasMenu: true,
-      category: "cafenea",
-      company: {
-        id: 2,
-      },
-      createdAt: "2024-01-01T00:00:00Z",
-      updatedAt: "2024-01-01T00:00:00Z",
-    },
-    {
-      id: 5,
-      name: "The Irish Pub",
-      address: "Str. Unirii nr. 10, Timișoara",
-      latitude: 45.7580,
-      longitude: 21.2290,
-      tags: ["beer", "irish", "pub"],
-      photo: "",
-      menuName: "Meniu Pub",
-      hasMenu: true,
-      category: "pub",
-      company: {
-        id: 3,
-      },
-      createdAt: "2024-01-01T00:00:00Z",
-      updatedAt: "2024-01-01T00:00:00Z",
-    },
-    {
-      id: 6,
-      name: "Club Euphoria",
-      address: "Str. Victoriei nr. 55, Timișoara",
-      latitude: 45.7600,
-      longitude: 21.2310,
-      tags: ["club", "dancing", "nightlife"],
-      photo: "",
-      menuName: "Meniu Bar",
-      hasMenu: false,
-      category: "club",
-      company: {
-        id: 4,
-      },
-      createdAt: "2024-01-01T00:00:00Z",
-      updatedAt: "2024-01-01T00:00:00Z",
-    },
-  ];
-
-  const getMockEvents = (): EventData[] => [
-    {
-      id: 1,
-      title: "Concert Rock în Centrul Vechi",
-      description: "Seară de rock cu cele mai bune trupe locale",
-      eventDate: "2024-02-15",
-      startTime: "20:00",
-      endTime: "23:00",
-      address: "Strada Mărășești 1-3",
-      city: "Timișoara",
-      photo: "",
-      isActive: true,
-      createdAt: "2024-01-01T00:00:00Z",
-      companyId: 1,
-      company: "Rock Club Timișoara",
-      tags: ["rock", "muzică", "concert"],
-      likes: 127,
-    },
-    {
-      id: 2,
-      title: "Festival de Artă Stradală",
-      description: "Trei zile de spectacole de artă stradală",
-      eventDate: "2024-02-20",
-      startTime: "18:00",
-      endTime: "22:00",
-      address: "Piața Victoriei",
-      city: "Timișoara",
-      photo: "",
-      isActive: true,
-      createdAt: "2024-01-01T00:00:00Z",
-      companyId: 2,
-      company: "Primăria Timișoara",
-      tags: ["artă", "festival", "stradală"],
-      likes: 89,
-    },
-  ];
 
   const updateSections = (
     restaurantData: LocationData[],
@@ -462,17 +587,9 @@ const SearchScreen: React.FC = () => {
     query: string,
     filter: string
   ) => {
-    // This function is replaced by applyFilters - keeping for compatibility
-    console.warn("updateSections is deprecated, use applyFilters instead");
+    // This function is replaced by loadData - keeping for compatibility
+    console.warn("updateSections is deprecated, use loadData instead");
   };
-
-  const debouncedSearch = useMemo(
-    () =>
-      debounce((query: string) => {
-        applyFilters(allItems, query, selectedFilter);
-      }, 300),
-    [allItems, selectedFilter]
-  );
 
   const handleSearchChange = (text: string) => {
     setSearchQuery(text);
@@ -482,7 +599,9 @@ const SearchScreen: React.FC = () => {
   const handleFilterChange = (filter: FilterType) => {
     hapticFeedback("light");
     setSelectedFilter(filter);
-    applyFilters(allItems, searchQuery, filter);
+    setCurrentPage(1);
+    setHasMoreData(true);
+    loadData(true);
   };
 
   const toggleFilters = () => {
@@ -496,8 +615,15 @@ const SearchScreen: React.FC = () => {
 
   const onRefresh = async () => {
     setRefreshing(true);
-    await loadData();
+    OptimizedApiService.clearCache(); // Clear cache on refresh
+    await loadData(true);
     setRefreshing(false);
+  };
+
+  const handleLoadMore = () => {
+    if (!loadingMore && hasMoreData) {
+      loadData(false);
+    }
   };
 
   const handleItemPress = (item: SearchItem) => {
@@ -606,33 +732,22 @@ const SearchScreen: React.FC = () => {
         colors={[PALETTE.surface, PALETTE.surfaceElevated]}
         style={styles.itemCard}
       >
-        {item.image ? (
-          <Image
-            source={{ uri: `data:image/jpg;base64,${item.image}` }}
-            style={styles.itemImage}
-          />
-        ) : (
-          <LinearGradient
-            colors={[PALETTE.borderLight, PALETTE.border]}
-            style={styles.itemImagePlaceholder}
-          >
-            <Ionicons
-              name={
-                item.type === "restaurant"
-                  ? "restaurant-outline"
-                  : item.type === "coffee"
-                  ? "cafe-outline"
-                  : item.type === "pub"
-                  ? "wine-outline"
-                  : item.type === "club"
-                  ? "musical-notes-outline"
-                  : "calendar-outline"
-              }
-              size={24}
-              color={PALETTE.textTertiary}
-            />
-          </LinearGradient>
-        )}
+        <LazyImage
+          locationId={item.type !== "event" ? item.id : undefined}
+          defaultPhoto={item.image}
+          style={styles.itemImage}
+          fallbackImage={
+            item.type === "restaurant"
+              ? "restaurant-outline"
+              : item.type === "coffee"
+              ? "cafe-outline"
+              : item.type === "pub"
+              ? "wine-outline"
+              : item.type === "club"
+              ? "musical-notes-outline"
+              : "calendar-outline"
+          }
+        />
 
         <View style={styles.itemContent}>
           <Text
@@ -760,15 +875,6 @@ const SearchScreen: React.FC = () => {
     </View>
   );
 
-  const getFilterCounts = () => {
-    const restaurants = allItems.filter((item) => item.type === "restaurant").length;
-    const coffee = allItems.filter((item) => item.type === "coffee").length;
-    const pubs = allItems.filter((item) => item.type === "pub").length;
-    const clubs = allItems.filter((item) => item.type === "club").length;
-    const events = allItems.filter((item) => item.type === "event").length;
-    return { restaurants, coffee, pubs, clubs, events, all: allItems.length };
-  };
-
   const counts = getFilterCounts();
 
   return (
@@ -880,6 +986,26 @@ const SearchScreen: React.FC = () => {
             renderItem={renderItem}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
+            onEndReached={handleLoadMore}
+            onEndReachedThreshold={0.1}
+            ListFooterComponent={() => 
+              loadingMore ? (
+                <View style={styles.loadingMore}>
+                  <ActivityIndicator size="small" color={PALETTE.accent} />
+                  <Text style={[styles.loadingMoreText, { color: PALETTE.textSecondary }]}>
+                    Loading more...
+                  </Text>
+                </View>
+              ) : hasMoreData ? null : (
+                filteredItems.length > 0 ? (
+                  <View style={styles.endOfList}>
+                    <Text style={[styles.endOfListText, { color: PALETTE.textTertiary }]}>
+                      You've reached the end! ({totalItems} total items)
+                    </Text>
+                  </View>
+                ) : null
+              )
+            }
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
@@ -1126,6 +1252,26 @@ const styles = StyleSheet.create({
   filterButtonText: {
     fontSize: TYPOGRAPHY.bodySmall,
     fontWeight: "600",
+  },
+  loadingMore: {
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    paddingVertical: getResponsiveSpacing("lg"),
+    gap: getResponsiveSpacing("sm"),
+  },
+  loadingMoreText: {
+    fontSize: TYPOGRAPHY.bodySmall,
+    fontWeight: "500",
+  },
+  endOfList: {
+    alignItems: "center",
+    paddingVertical: getResponsiveSpacing("lg"),
+  },
+  endOfListText: {
+    fontSize: TYPOGRAPHY.bodySmall,
+    fontWeight: "500",
+    textAlign: "center",
   },
 });
 

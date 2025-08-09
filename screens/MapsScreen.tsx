@@ -108,7 +108,13 @@ export default function MapsScreen({ navigation }: { navigation: MapNav }) {
         if (!response.ok) {
           throw new Error(`HTTP error! status: ${response.status}`);
         }
-        const locationsData = await response.json();
+        const locationsResponse = await response.json();
+        
+        // Handle both old and new API response formats
+        const locationsData = Array.isArray(locationsResponse) 
+          ? locationsResponse 
+          : (locationsResponse?.data || []);
+          
         setLocations(locationsData);
       } catch (error) {
         console.error("Error loading map data:", error);

@@ -273,7 +273,12 @@ const AIChatScreen: React.FC<{ navigation: any; route: any }> = ({
       const companies = companiesResponse.ok
         ? await companiesResponse.json()
         : [];
-      const events = eventsResponse.ok ? await eventsResponse.json() : [];
+      
+      const eventsResponseData = eventsResponse.ok ? await eventsResponse.json() : [];
+      // Handle both old and new API response formats for events
+      const events = Array.isArray(eventsResponseData) 
+        ? eventsResponseData 
+        : (eventsResponseData?.data || []);
 
       console.log(
         `Loaded ${companies.length} companies and ${events.length} events from backend`
@@ -695,7 +700,12 @@ const AIChatScreen: React.FC<{ navigation: any; route: any }> = ({
   const getEventDetails = useCallback(async (eventId: number) => {
     try {
       const response = await fetch(`${BASE_URL}/events`);
-      const data = await response.json();
+      const responseData = await response.json();
+      
+      // Handle both old and new API response formats for events
+      const data = Array.isArray(responseData) 
+        ? responseData 
+        : (responseData?.data || []);
 
       const event = data.find((e: any) => e.id === eventId);
       if (event) {

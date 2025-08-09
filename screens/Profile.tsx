@@ -134,7 +134,12 @@ const Profile: React.FC<{ navigation?: any }> = ({ navigation }) => {
           // First, get all events
           const eventsResponse = await fetch(`${BASE_URL}/events`);
           if (eventsResponse.ok) {
-            const allEvents = await eventsResponse.json();
+            const eventsResponseData = await eventsResponse.json();
+            
+            // Handle both old and new API response formats for events
+            const allEvents = Array.isArray(eventsResponseData) 
+              ? eventsResponseData 
+              : (eventsResponseData?.data || []);
 
             // Check like status for each event
             const likePromises = allEvents.map(async (event: any) => {

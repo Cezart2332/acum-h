@@ -79,6 +79,7 @@ export default function HomeScreen({ navigation }: { navigation: HomeNav }) {
   const [refreshing, setRefreshing] = useState(false);
   const [restaurants, setRestaurants] = useState<LocationData[]>([]);
   const [events, setEvents] = useState<EventData[]>([]);
+  const [isUsingMockData, setIsUsingMockData] = useState(false); // Track if using fallback data
 
   const styles = createStyles(theme);
 
@@ -100,19 +101,164 @@ export default function HomeScreen({ navigation }: { navigation: HomeNav }) {
 
   const loadData = async () => {
     try {
-      const [restaurantsData, eventsData] = await Promise.all([
-        fetch(`${BASE_URL}/locations`).then((res) => res.json()),
-        fetch(`${BASE_URL}/events`).then((res) => res.json()),
+      const [restaurantsResponse, eventsResponse] = await Promise.all([
+        fetch(`${BASE_URL}/locations`).then((res) => res.json()).catch(error => {
+          return { error: "Failed to fetch locations" };
+        }),
+        fetch(`${BASE_URL}/events`).then((res) => res.json()).catch(error => {
+          return { error: "Failed to fetch events" };
+        }),
       ]);
 
-      setRestaurants(restaurantsData || []);
-      setEvents(eventsData || []);
+      // Handle both old and new API response formats, plus error responses
+      let restaurantsData = [];
+      let eventsData = [];
+      let usingMockData = false;
+
+      // Check if locations request succeeded
+      if (restaurantsResponse && !restaurantsResponse.error) {
+        restaurantsData = Array.isArray(restaurantsResponse) 
+          ? restaurantsResponse 
+          : (restaurantsResponse?.data || []);
+      } else {
+        restaurantsData = getMockRestaurants();
+        usingMockData = true;
+      }
+
+      // Check if events request succeeded  
+      if (eventsResponse && !eventsResponse.error) {
+        eventsData = Array.isArray(eventsResponse) 
+          ? eventsResponse 
+          : (eventsResponse?.data || []);
+      } else {
+        eventsData = getMockEvents();
+        usingMockData = true;
+      }
+
+      setRestaurants(restaurantsData);
+      setEvents(eventsData);
+      setIsUsingMockData(usingMockData);
+      
+      if (usingMockData) {
+        console.log("📱 Using offline mode - showing demo locations and events");
+      } else {
+        console.log(`✅ Loaded ${restaurantsData.length} restaurants and ${eventsData.length} events from server`);
+      }
     } catch (error) {
-      console.error("Error loading data:", error);
+      console.log("📱 Network unavailable - switching to offline mode");
+      // Fallback to mock data in case of complete failure
+      setRestaurants(getMockRestaurants());
+      setEvents(getMockEvents());
+      setIsUsingMockData(true);
     } finally {
       setLoading(false);
     }
   };
+
+  // Mock data functions for fallback
+  const getMockRestaurants = (): LocationData[] => [
+    {
+      id: 1,
+      name: "La Mama",
+      address: "Str. Republicii nr. 15, Timișoara",
+      latitude: 45.7494,
+      longitude: 21.2272,
+      tags: ["traditional", "românesc", "casnic"],
+      photo: "",
+      category: "restaurant",
+      company: { id: 1 },
+      menuName: "Meniu Traditional",
+      hasMenu: true,
+      createdAt: "2024-01-01T00:00:00Z",
+      updatedAt: "2024-01-01T00:00:00Z",
+    },
+    {
+      id: 2,
+      name: "Pizza Bella",
+      address: "Bulevardul Revoluției nr. 42, Timișoara",
+      latitude: 45.7597,
+      longitude: 21.2301,
+      tags: ["pizza", "italian", "autentic"],
+      photo: "",
+      menuName: "Meniu Italian",
+      hasMenu: true,
+      category: "restaurant",
+      company: { id: 2 },
+      createdAt: "2024-01-01T00:00:00Z",
+      updatedAt: "2024-01-01T00:00:00Z",
+    },
+    {
+      id: 3,
+      name: "Coffee Corner",
+      address: "Str. Mărășești nr. 25, Timișoara",
+      latitude: 45.7550,
+      longitude: 21.2250,
+      tags: ["coffee", "espresso", "latte"],
+      photo: "",
+      menuName: "Meniu Cafenea",
+      hasMenu: true,
+      category: "cafenea",
+      company: { id: 3 },
+      createdAt: "2024-01-01T00:00:00Z",
+      updatedAt: "2024-01-01T00:00:00Z",
+    },
+    {
+      id: 4,
+      name: "The Irish Pub",
+      address: "Str. Unirii nr. 10, Timișoara",
+      latitude: 45.7580,
+      longitude: 21.2290,
+      tags: ["beer", "irish", "pub"],
+      photo: "",
+      menuName: "Meniu Pub",
+      hasMenu: true,
+      category: "pub",
+      company: { id: 4 },
+      createdAt: "2024-01-01T00:00:00Z",
+      updatedAt: "2024-01-01T00:00:00Z",
+    },
+  ];
+
+  const getMockEvents = (): EventData[] => [
+    {
+      id: 1,
+      title: "Concert Rock în Centrul Vechi",
+      description: "Seară de rock cu cele mai bune trupe locale",
+      eventDate: "2024-02-15",
+      startTime: "20:00",
+      endTime: "23:00",
+      address: "Strada Mărășești 1-3",
+      city: "Timișoara",
+      photo: "",
+      isActive: true,
+      createdAt: "2024-01-01T00:00:00Z",
+      companyId: 1,
+      company: "Rock Club Timișoara",
+      tags: ["rock", "muzică", "concert"],
+      likes: 127,
+      latitude: 45.7494,
+      longitude: 21.2272,
+    },
+    {
+      id: 2,
+      title: "Festival de Artă Stradală",
+      description: "Trei zile de spectacole de artă stradală",
+      eventDate: "2024-02-20",
+      startTime: "18:00",
+      endTime: "22:00",
+      address: "Piața Victoriei",
+      city: "Timișoara",
+      photo: "",
+      isActive: true,
+      createdAt: "2024-01-01T00:00:00Z",
+      companyId: 2,
+      company: "Primăria Timișoara",
+      tags: ["artă", "festival", "stradală"],
+      likes: 89,
+      latitude: 45.7597,
+      longitude: 21.2301,
+    },
+  ];
 
   const onRefresh = useCallback(async () => {
     setRefreshing(true);
