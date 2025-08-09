@@ -19,10 +19,12 @@ import {
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
-import type { RouteProp } from "@react-navigation/native";
+// Using loose types to avoid ESM/CJS interop issues in this environment
+type NativeStackNavigationProp<T, R extends keyof T> = any;
+type RouteProp<T, R extends keyof T> = any;
 import type { RootStackParamList, LocationData } from "./RootStackParamList";
 import { useTheme } from "../context/ThemeContext";
 import {
@@ -49,6 +51,23 @@ interface Props {
 const Reservation: React.FC<Props> = ({ navigation, route }) => {
   const { theme } = useTheme();
   const { location } = route.params || {};
+
+  // Centralized dark palette for this screen (can be moved to theme later)
+  const PALETTE = {
+    black: "#050507",
+    backdrop: "#0A0A0F",
+    surface: "#12101A",
+    surfaceAlt: "#191628",
+    border: "#2E2150",
+    borderAlt: "#3C2E63",
+    accent: "#7B2CBF",
+    accentBright: "#9F7AEA",
+    accentSoft: "#52307A",
+    error: "#EF4444",
+    text: "#FFFFFF",
+    textSecondary: "#B8A9D9",
+    glow: "#7B2CBF40",
+  } as const;
 
   // Early return if location is not provided
   if (!location) {
@@ -83,7 +102,7 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
   const headerOpacity = useRef(new Animated.Value(0)).current;
   const formOpacity = useRef(new Animated.Value(0)).current;
 
-  const styles = createStyles(theme);
+  const styles = createStyles(theme, PALETTE);
 
   // Calculate max date (1 week from now)
   const maxDate = new Date();
@@ -392,11 +411,13 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
       />
 
       {/* Modern Header with Enhanced Gradient */}
-      <Animated.View
-        style={[styles.headerGradient, { opacity: headerOpacity }]}
-      >
-        {/* Subtle gradient overlay */}
-        <View style={styles.gradientOverlay} />
+      <Animated.View style={[styles.headerWrapper, { opacity: headerOpacity }]}>        
+        <LinearGradient
+          colors={[PALETTE.surfaceAlt, PALETTE.surface, PALETTE.black]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.headerGradient}
+        >
         <View style={styles.headerContent}>
           <TouchableOpacity
             onPress={() => {
@@ -416,9 +437,17 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
 
           {/* Add a subtle restaurant icon */}
           <View style={styles.headerIconContainer}>
-            <Ionicons name="restaurant-outline" size={24} color="#9F7AEA" />
+            <LinearGradient
+              colors={[PALETTE.accent, PALETTE.accentBright]}
+              style={styles.headerIconGradient}
+              start={{ x: 0, y: 0 }}
+              end={{ x: 1, y: 1 }}
+            >
+              <Ionicons name="restaurant-outline" size={24} color="#FFFFFF" />
+            </LinearGradient>
           </View>
         </View>
+        </LinearGradient>
       </Animated.View>
 
       <KeyboardAvoidingView
@@ -445,14 +474,19 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
               ]}
             >
               {/* Floating Form Card with Header */}
-              <View style={styles.floatingCard}>
+              <LinearGradient
+                colors={[PALETTE.surfaceAlt, PALETTE.surface]}
+                start={{ x: 0, y: 0 }}
+                end={{ x: 1, y: 1 }}
+                style={styles.floatingCard}
+              >
                 {/* Card Header */}
                 <View style={styles.cardHeader}>
                   <View style={styles.cardHeaderIcon}>
                     <Ionicons
                       name="calendar-outline"
                       size={24}
-                      color="#9F7AEA"
+                      color={PALETTE.accentBright}
                     />
                   </View>
                   <View style={styles.cardHeaderText}>
@@ -466,7 +500,7 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
                 {/* Divider */}
                 <View style={styles.cardDivider} />
                 {/* Date Selection */}
-                <View style={styles.inputSection}>
+        <View style={styles.inputSection}>
                   <Text style={styles.modernLabel}>Select Date</Text>
                   <TouchableOpacity
                     onPress={() => {
@@ -485,8 +519,8 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
                         size={22}
                         color={
                           isRestaurantOpen(date)
-                            ? theme.colors.primary
-                            : theme.colors.error
+            ? PALETTE.accentBright
+            : PALETTE.error
                         }
                       />
                     </View>
@@ -505,7 +539,7 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
                     <Ionicons
                       name="chevron-forward"
                       size={20}
-                      color={theme.colors.textSecondary}
+          color={PALETTE.textSecondary}
                     />
                   </TouchableOpacity>
                   {!isRestaurantOpen(date) && (
@@ -516,7 +550,7 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
                 </View>
 
                 {/* Time Selection */}
-                <View style={styles.inputSection}>
+        <View style={styles.inputSection}>
                   <Text style={styles.modernLabel}>Select Time</Text>
                   <TouchableOpacity
                     onPress={() => {
@@ -535,8 +569,8 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
                         size={22}
                         color={
                           isTimeValid(time)
-                            ? theme.colors.primary
-                            : theme.colors.error
+            ? PALETTE.accentBright
+            : PALETTE.error
                         }
                       />
                     </View>
@@ -551,7 +585,7 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
                     <Ionicons
                       name="chevron-forward"
                       size={20}
-                      color={theme.colors.textSecondary}
+          color={PALETTE.textSecondary}
                     />
                   </TouchableOpacity>
                   {!isTimeValid(time) && (
@@ -568,7 +602,7 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
                 </View>
 
                 {/* Guest Count */}
-                <View style={styles.inputSection}>
+    <View style={styles.inputSection}>
                   <Text style={styles.modernLabel}>Number of Guests</Text>
                   <View style={styles.guestSelector}>
                     <TouchableOpacity
@@ -584,7 +618,7 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
                       <Ionicons
                         name="remove"
                         size={18}
-                        color={theme.colors.primary}
+      color={PALETTE.accentBright}
                       />
                     </TouchableOpacity>
 
@@ -608,20 +642,20 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
                       <Ionicons
                         name="add"
                         size={18}
-                        color={theme.colors.primary}
+                        color={PALETTE.accentBright}
                       />
                     </TouchableOpacity>
                   </View>
                 </View>
 
                 {/* Special Requests */}
-                <View style={styles.inputSection}>
+        <View style={styles.inputSection}>
                   <Text style={styles.modernLabel}>Special Requests</Text>
                   <View style={styles.textAreaContainer}>
                     <TextInput
                       style={styles.textArea}
                       placeholder="Any special requirements or notes..."
-                      placeholderTextColor={theme.colors.textSecondary}
+          placeholderTextColor={PALETTE.textSecondary}
                       value={specialRequest}
                       onChangeText={setSpecialRequest}
                       multiline
@@ -630,7 +664,7 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
                     />
                   </View>
                 </View>
-              </View>
+      </LinearGradient>
 
               {/* Enhanced Submit Button with Gradient */}
               <TouchableOpacity
@@ -647,17 +681,13 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
                   !isTimeValid(time) ||
                   !isRestaurantOpen(date)
                 }
-                activeOpacity={0.8}
+                activeOpacity={0.85}
               >
-                <View style={styles.submitButtonGlow} />
-                <View
-                  style={[
-                    styles.submitGradient,
-                    (loading ||
-                      !isTimeValid(time) ||
-                      !isRestaurantOpen(date)) &&
-                      styles.submitButtonDisabled,
-                  ]}
+                <LinearGradient
+                  colors={[PALETTE.accent, PALETTE.accentBright]}
+                  start={{ x: 0, y: 0 }}
+                  end={{ x: 1, y: 1 }}
+                  style={styles.submitGradient}
                 >
                   {loading ? (
                     <>
@@ -679,7 +709,7 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
                       />
                     </>
                   )}
-                </View>
+                </LinearGradient>
               </TouchableOpacity>
             </Animated.View>
           </ScrollView>
@@ -781,34 +811,24 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
   );
 };
 
-const createStyles = (theme: any) =>
+const createStyles = (theme: any, PALETTE: any) =>
   StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: "#0A0A0A",
+      backgroundColor: PALETTE.black,
     },
 
-    // Modern Header with Gradient
+    headerWrapper: { height: 110 },
     headerGradient: {
-      height: 110,
+      flex: 1,
       paddingTop: 20,
-      backgroundColor: "#0A0A0A",
-      shadowColor: "#7B2CBF",
-      shadowOffset: { width: 0, height: 4 },
-      shadowOpacity: 0.3,
-      shadowRadius: 12,
-      elevation: 8,
-      position: "relative",
-    },
-    gradientOverlay: {
-      position: "absolute",
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
-      backgroundColor: "transparent",
-      background:
-        "linear-gradient(135deg, rgba(123, 44, 191, 0.1) 0%, rgba(26, 26, 26, 0.05) 100%)",
+      borderBottomWidth: 1,
+      borderColor: PALETTE.border,
+      shadowColor: PALETTE.accent,
+      shadowOffset: { width: 0, height: 6 },
+      shadowOpacity: 0.35,
+      shadowRadius: 14,
+      elevation: 10,
     },
     headerContent: {
       flexDirection: "row",
@@ -822,12 +842,12 @@ const createStyles = (theme: any) =>
       width: 44,
       height: 44,
       borderRadius: 22,
-      backgroundColor: "rgba(123, 44, 191, 0.15)",
+      backgroundColor: PALETTE.accentSoft + "55",
       alignItems: "center",
       justifyContent: "center",
       borderWidth: 1.5,
-      borderColor: "rgba(123, 44, 191, 0.4)",
-      shadowColor: "#7B2CBF",
+      borderColor: PALETTE.borderAlt,
+      shadowColor: PALETTE.accent,
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.3,
       shadowRadius: 8,
@@ -840,16 +860,16 @@ const createStyles = (theme: any) =>
     headerTitle: {
       fontSize: 28,
       fontWeight: "800",
-      color: "#FFFFFF",
+      color: PALETTE.text,
       marginBottom: 4,
       letterSpacing: 0.5,
-      textShadowColor: "rgba(123, 44, 191, 0.3)",
+      textShadowColor: PALETTE.glow,
       textShadowOffset: { width: 0, height: 2 },
       textShadowRadius: 4,
     },
     headerSubtitle: {
       fontSize: 16,
-      color: "#B19CD9",
+      color: PALETTE.accentBright,
       fontWeight: "600",
       letterSpacing: 0.3,
     },
@@ -857,11 +877,18 @@ const createStyles = (theme: any) =>
       width: 44,
       height: 44,
       borderRadius: 22,
-      backgroundColor: "rgba(159, 122, 234, 0.1)",
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    headerIconGradient: {
+      flex: 1,
+      width: "100%",
+      height: "100%",
+      borderRadius: 22,
       alignItems: "center",
       justifyContent: "center",
       borderWidth: 1,
-      borderColor: "rgba(159, 122, 234, 0.2)",
+      borderColor: PALETTE.borderAlt,
     },
 
     // Layout Styles with Enhanced Spacing
@@ -886,14 +913,13 @@ const createStyles = (theme: any) =>
       padding: 28,
       marginBottom: 24,
       borderWidth: 1,
-      borderColor: "rgba(123, 44, 191, 0.25)",
-      shadowColor: "#7B2CBF",
+  borderColor: PALETTE.border,
+  shadowColor: PALETTE.accent,
       shadowOffset: { width: 0, height: 8 },
       shadowOpacity: 0.2,
       shadowRadius: 16,
       elevation: 12,
-      // Glassmorphism effect with single backgroundColor
-      backgroundColor: "rgba(26, 26, 26, 0.8)",
+  backgroundColor: PALETTE.surface + "E6",
     },
 
     // Card Header Styles
@@ -906,12 +932,12 @@ const createStyles = (theme: any) =>
       width: 48,
       height: 48,
       borderRadius: 24,
-      backgroundColor: "rgba(159, 122, 234, 0.15)",
+  backgroundColor: PALETTE.accentSoft + "33",
       alignItems: "center",
       justifyContent: "center",
       borderWidth: 1.5,
-      borderColor: "rgba(159, 122, 234, 0.3)",
-      shadowColor: "#9F7AEA",
+  borderColor: PALETTE.borderAlt,
+  shadowColor: PALETTE.accentBright,
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.3,
       shadowRadius: 4,
@@ -924,21 +950,21 @@ const createStyles = (theme: any) =>
     cardTitle: {
       fontSize: 22,
       fontWeight: "800",
-      color: "#FFFFFF",
+  color: PALETTE.text,
       marginBottom: 4,
       letterSpacing: 0.4,
     },
     cardSubtitle: {
       fontSize: 14,
-      color: "#9F7AEA",
+  color: PALETTE.accentBright,
       fontWeight: "500",
       letterSpacing: 0.2,
     },
     cardDivider: {
       height: 1,
-      backgroundColor: "rgba(123, 44, 191, 0.2)",
+  backgroundColor: PALETTE.border,
       marginBottom: 24,
-      shadowColor: "#7B2CBF",
+  shadowColor: PALETTE.accent,
       shadowOffset: { width: 0, height: 1 },
       shadowOpacity: 0.1,
       shadowRadius: 2,
@@ -951,32 +977,32 @@ const createStyles = (theme: any) =>
     modernLabel: {
       fontSize: 20,
       fontWeight: "700",
-      color: "#FFFFFF",
+  color: PALETTE.text,
       marginBottom: 16,
       letterSpacing: 0.4,
-      textShadowColor: "rgba(123, 44, 191, 0.2)",
+  textShadowColor: PALETTE.glow,
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 2,
     },
     scheduleInfo: {
       fontSize: 13,
-      color: "#9F7AEA",
+  color: PALETTE.accentBright,
       marginTop: 8,
       fontStyle: "italic",
       letterSpacing: 0.2,
     },
     invalidInput: {
-      borderColor: "#EF4444",
-      backgroundColor: "rgba(239, 68, 68, 0.1)",
-      shadowColor: "#EF4444",
+  borderColor: PALETTE.error,
+  backgroundColor: PALETTE.error + "18",
+  shadowColor: PALETTE.error,
       shadowOpacity: 0.2,
     },
     invalidText: {
-      color: "#EF4444",
+  color: PALETTE.error,
     },
     validationError: {
       fontSize: 13,
-      color: "#EF4444",
+  color: PALETTE.error,
       marginTop: 8,
       marginLeft: 6,
       fontWeight: "500",
@@ -984,13 +1010,13 @@ const createStyles = (theme: any) =>
     modernInput: {
       flexDirection: "row",
       alignItems: "center",
-      backgroundColor: "rgba(15, 15, 15, 0.8)",
+  backgroundColor: PALETTE.surfaceAlt + "CC",
       borderRadius: 16,
       padding: 20,
       borderWidth: 1.5,
-      borderColor: "rgba(123, 44, 191, 0.3)",
+  borderColor: PALETTE.borderAlt,
       minHeight: 56,
-      shadowColor: "#7B2CBF",
+  shadowColor: PALETTE.accent,
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.1,
       shadowRadius: 8,
@@ -1000,11 +1026,11 @@ const createStyles = (theme: any) =>
       width: 36,
       height: 36,
       borderRadius: 18,
-      backgroundColor: "rgba(123, 44, 191, 0.2)",
+  backgroundColor: PALETTE.accentSoft + "55",
       alignItems: "center",
       justifyContent: "center",
       marginRight: 16,
-      shadowColor: "#7B2CBF",
+  shadowColor: PALETTE.accent,
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.3,
       shadowRadius: 4,
@@ -1014,7 +1040,7 @@ const createStyles = (theme: any) =>
       flex: 1,
       fontSize: 17,
       fontWeight: "600",
-      color: "#FFFFFF",
+  color: PALETTE.text,
       letterSpacing: 0.2,
     },
 
@@ -1022,13 +1048,13 @@ const createStyles = (theme: any) =>
     guestSelector: {
       flexDirection: "row",
       alignItems: "center",
-      backgroundColor: "rgba(15, 15, 15, 0.8)",
+  backgroundColor: PALETTE.surfaceAlt + "CC",
       borderRadius: 16,
       padding: 8,
       borderWidth: 1.5,
-      borderColor: "rgba(123, 44, 191, 0.3)",
+  borderColor: PALETTE.borderAlt,
       minHeight: 56,
-      shadowColor: "#7B2CBF",
+  shadowColor: PALETTE.accent,
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.1,
       shadowRadius: 8,
@@ -1038,12 +1064,12 @@ const createStyles = (theme: any) =>
       width: 40,
       height: 40,
       borderRadius: 20,
-      backgroundColor: "rgba(123, 44, 191, 0.25)",
+  backgroundColor: PALETTE.accentSoft + "55",
       alignItems: "center",
       justifyContent: "center",
       borderWidth: 1.5,
-      borderColor: "rgba(123, 44, 191, 0.5)",
-      shadowColor: "#7B2CBF",
+  borderColor: PALETTE.borderAlt,
+  shadowColor: PALETTE.accent,
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.3,
       shadowRadius: 4,
@@ -1057,14 +1083,14 @@ const createStyles = (theme: any) =>
     guestCount: {
       fontSize: 24,
       fontWeight: "800",
-      color: "#FFFFFF",
-      textShadowColor: "rgba(123, 44, 191, 0.3)",
+  color: PALETTE.text,
+  textShadowColor: PALETTE.glow,
       textShadowOffset: { width: 0, height: 1 },
       textShadowRadius: 2,
     },
     guestLabel: {
       fontSize: 14,
-      color: "#B19CD9",
+  color: PALETTE.textSecondary,
       fontWeight: "600",
       marginTop: 4,
       letterSpacing: 0.3,
@@ -1072,12 +1098,12 @@ const createStyles = (theme: any) =>
 
     // Enhanced Text Area
     textAreaContainer: {
-      backgroundColor: "rgba(15, 15, 15, 0.8)",
+  backgroundColor: PALETTE.surfaceAlt + "CC",
       borderRadius: 16,
       borderWidth: 1.5,
-      borderColor: "rgba(123, 44, 191, 0.3)",
+  borderColor: PALETTE.borderAlt,
       minHeight: 100,
-      shadowColor: "#7B2CBF",
+  shadowColor: PALETTE.accent,
       shadowOffset: { width: 0, height: 4 },
       shadowOpacity: 0.1,
       shadowRadius: 8,
@@ -1086,7 +1112,7 @@ const createStyles = (theme: any) =>
     textArea: {
       padding: 20,
       fontSize: 16,
-      color: "#FFFFFF",
+  color: PALETTE.text,
       fontWeight: "500",
       lineHeight: 24,
       letterSpacing: 0.2,
@@ -1096,23 +1122,13 @@ const createStyles = (theme: any) =>
     submitButton: {
       borderRadius: 20,
       marginTop: 32,
-      shadowColor: "#7B2CBF",
+  shadowColor: PALETTE.accent,
       shadowOffset: { width: 0, height: 8 },
       shadowOpacity: 0.4,
       shadowRadius: 16,
       elevation: 12,
       overflow: "hidden",
       position: "relative",
-    },
-    submitButtonGlow: {
-      position: "absolute",
-      top: -2,
-      left: -2,
-      right: -2,
-      bottom: -2,
-      borderRadius: 22,
-      backgroundColor: "rgba(123, 44, 191, 0.3)",
-      opacity: 0.6,
     },
     submitGradient: {
       flexDirection: "row",
@@ -1122,15 +1138,13 @@ const createStyles = (theme: any) =>
       paddingHorizontal: 32,
       minHeight: 64,
       gap: 12,
-      backgroundColor: "#7B2CBF",
-      // Enhanced gradient simulation with multiple layers
-      borderWidth: 1,
-      borderColor: "rgba(159, 122, 234, 0.5)",
+  borderWidth: 1,
+  borderColor: PALETTE.borderAlt,
     },
     submitText: {
       fontSize: 18,
       fontWeight: "800",
-      color: "#FFFFFF",
+  color: PALETTE.text,
       letterSpacing: 0.5,
       textShadowColor: "rgba(0, 0, 0, 0.3)",
       textShadowOffset: { width: 0, height: 1 },
@@ -1144,18 +1158,17 @@ const createStyles = (theme: any) =>
     // Enhanced Modal Styles
     modalOverlay: {
       flex: 1,
-      backgroundColor: "rgba(0, 0, 0, 0.85)",
+  backgroundColor: PALETTE.black + "E6",
       justifyContent: "flex-end",
-      backdropFilter: "blur(10px)",
     },
     modalContent: {
-      backgroundColor: "rgba(26, 26, 26, 0.95)",
+  backgroundColor: PALETTE.surface + "F2",
       borderTopLeftRadius: 32,
       borderTopRightRadius: 32,
       paddingBottom: Platform.OS === "ios" ? 50 : 30,
-      borderTopWidth: 1.5,
-      borderTopColor: "rgba(123, 44, 191, 0.4)",
-      shadowColor: "#7B2CBF",
+  borderTopWidth: 1,
+  borderTopColor: PALETTE.border,
+  shadowColor: PALETTE.accent,
       shadowOffset: { width: 0, height: -4 },
       shadowOpacity: 0.3,
       shadowRadius: 16,
@@ -1165,17 +1178,17 @@ const createStyles = (theme: any) =>
       flexDirection: "row",
       justifyContent: "flex-end",
       padding: 24,
-      borderBottomWidth: 1,
-      borderBottomColor: "rgba(123, 44, 191, 0.2)",
+  borderBottomWidth: 1,
+  borderBottomColor: PALETTE.border,
     },
     modalButton: {
       paddingVertical: 16,
       paddingHorizontal: 28,
-      backgroundColor: "rgba(123, 44, 191, 0.25)",
+  backgroundColor: PALETTE.accentSoft + "55",
       borderRadius: 12,
       borderWidth: 1,
-      borderColor: "rgba(123, 44, 191, 0.4)",
-      shadowColor: "#7B2CBF",
+  borderColor: PALETTE.borderAlt,
+  shadowColor: PALETTE.accent,
       shadowOffset: { width: 0, height: 2 },
       shadowOpacity: 0.3,
       shadowRadius: 4,
@@ -1184,7 +1197,7 @@ const createStyles = (theme: any) =>
     modalButtonText: {
       fontSize: 17,
       fontWeight: "700",
-      color: "#9F7AEA",
+  color: PALETTE.accentBright,
       letterSpacing: 0.3,
     },
   });

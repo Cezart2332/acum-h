@@ -104,6 +104,17 @@ export default function AddLocationScreen() {
       return;
     }
 
+    // Validate numeric coordinates explicitly and normalize
+    const latNum = Number(formData.latitude);
+    const lngNum = Number(formData.longitude);
+    if (!Number.isFinite(latNum) || !Number.isFinite(lngNum)) {
+      Alert.alert(
+        "Eroare",
+        "Coordonatele adreselor nu sunt valide. Încearcă să reintroduci adresa."
+      );
+      return;
+    }
+
     setLoading(true);
     try {
       const userData = await AsyncStorage.getItem("user");
@@ -137,8 +148,8 @@ export default function AddLocationScreen() {
         address: formData.address,
         category: formData.category,
         phoneNumber: formData.phoneNumber,
-        latitude: parseFloat(formData.latitude),
-        longitude: parseFloat(formData.longitude),
+        latitude: Number(latNum.toFixed(6)),
+        longitude: Number(lngNum.toFixed(6)),
         tags: formData.tags,
         description: formData.description,
       };
@@ -150,13 +161,17 @@ export default function AddLocationScreen() {
       formDataToSend.append("phoneNumber", locationData.phoneNumber);
       formDataToSend.append("latitude", locationData.latitude.toString());
       formDataToSend.append("longitude", locationData.longitude.toString());
-      formDataToSend.append("tags", locationData.tags);
-      formDataToSend.append("description", locationData.description);
+      formDataToSend.append("tags", locationData.tags || "");
+      formDataToSend.append("description", locationData.description || "");
 
       const response = await fetch(
         `${BASE_URL}/companies/${companyId}/locations`,
         {
           method: "POST",
+          headers: {
+            Accept: "application/json",
+            // Do NOT set Content-Type for FormData; the browser will add the boundary automatically
+          },
           body: formDataToSend,
         }
       );
@@ -168,8 +183,19 @@ export default function AddLocationScreen() {
       } else {
         let errorMessage = "Adăugarea locației a eșuat";
         try {
-          const errorData = await response.json();
-          errorMessage = errorData.Error || errorData.message || errorMessage;
+          const contentType = response.headers.get("content-type") || "";
+          if (contentType.includes("application/json")) {
+            const errorData = await response.json();
+            // Support ProblemDetails (application/problem+json) and custom error shapes
+            errorMessage =
+              errorData.detail ||
+              errorData.Error ||
+              errorData.message ||
+              errorMessage;
+          } else {
+            const errorText = await response.text();
+            errorMessage = errorText || errorMessage;
+          }
         } catch {
           // If JSON parsing fails, try text
           try {
@@ -185,6 +211,13 @@ export default function AddLocationScreen() {
           Alert.alert("Nume Locație Duplicat", errorMessage, [{ text: "OK" }]);
         } else {
           Alert.alert("Eroare", errorMessage);
+          // Extra diagnostics for development
+          console.log("Add location failed:", {
+            status: response.status,
+            url: response.url,
+            headers: Object.fromEntries(response.headers as any),
+            errorMessage,
+          });
         }
       }
     } catch (error) {

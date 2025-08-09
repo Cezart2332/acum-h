@@ -142,7 +142,6 @@ namespace WebApplication1.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("Description")
-                        .IsRequired()
                         .HasColumnType("longtext");
 
                     b.Property<string>("Email")
@@ -271,6 +270,9 @@ namespace WebApplication1.Migrations
 
                     b.Property<string>("Category")
                         .IsRequired()
+                        .HasColumnType("longtext");
+
+                    b.Property<string>("Description")
                         .HasColumnType("longtext");
 
                     b.Property<int>("CompanyId")

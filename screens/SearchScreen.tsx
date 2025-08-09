@@ -8,7 +8,7 @@ import React, {
 import {
   View,
   StyleSheet,
-  SectionList,
+  FlatList,
   Text,
   TouchableOpacity,
   Image,
@@ -16,11 +16,16 @@ import {
   Animated,
   RefreshControl,
   Alert,
+  ScrollView,
+  Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useNavigation } from "@react-navigation/native";
-import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
+// Using require to avoid ESM/CommonJS interop issues in this configuration
+// eslint-disable-next-line @typescript-eslint/no-var-requires
+const { useNavigation } = require("@react-navigation/native");
+// Type import removed due to module system constraints; falling back to any.
+// import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type {
   RootStackParamList,
   EventData,
@@ -39,46 +44,78 @@ import {
   debounce,
 } from "../utils/responsive";
 
-type SearchScreenNavigationProp = NativeStackNavigationProp<
-  RootStackParamList,
-  "Home"
->;
+// Enhanced dark violet palette with more gradients
+const PALETTE = {
+  black: "#0A0A0F",
+  blackSoft: "#121218",
+  surface: "#1A1A24",
+  surfaceElevated: "#232330",
+  surfaceHover: "#2A2A3A",
+  border: "#3A3A4A",
+  borderLight: "#4A4A5A",
+  accent: "#7C5DFF",
+  accentBright: "#9575FF", 
+  accentLight: "#B39DFF",
+  accentSoft: "#4A3B7A",
+  accentGlow: "#7C5DFF40",
+  text: "#FFFFFF",
+  textPrimary: "#F8F9FA",
+  textSecondary: "#C8CDD8",
+  textTertiary: "#8B92A8",
+  textMuted: "#5A6270",
+  success: "#00E676",
+  warning: "#FFB74D",
+  danger: "#FF5252",
+  info: "#40C4FF",
+};
+
+const { width: SCREEN_WIDTH } = Dimensions.get('window');
+
+// Filter types
+type FilterType = "all" | "restaurants" | "coffee" | "pubs" | "clubs" | "events" | string;
+
+interface CategoryFilter {
+  id: string;
+  name: string;
+  icon: string;
+  count: number;
+}
+
+// Fallback type alias (suppressed) until ESM config fixed
+type SearchScreenNavigationProp = any;
 
 interface SearchItem {
   id: number;
   title: string;
   subtitle?: string;
   image: string;
-  type: "event" | "restaurant";
+  type: "event" | "restaurant" | "coffee" | "pub" | "club";
   address?: string;
   tags?: string[];
   rating?: number;
   likes?: number;
+  category?: string;
   originalData: EventData | LocationData;
 }
 
-interface SearchSection {
-  title: string;
-  data: SearchItem[];
-}
-
 const SearchScreen: React.FC = () => {
-  const navigation =
-    useNavigation<NativeStackNavigationProp<RootStackParamList>>();
+  const navigation = useNavigation();
   const { theme } = useTheme();
   const [searchQuery, setSearchQuery] = useState("");
   const [loading, setLoading] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [sections, setSections] = useState<SearchSection[]>([]);
+  const [allItems, setAllItems] = useState<SearchItem[]>([]);
+  const [filteredItems, setFilteredItems] = useState<SearchItem[]>([]);
   const [restaurants, setRestaurants] = useState<LocationData[]>([]);
   const [events, setEvents] = useState<EventData[]>([]);
-  const [selectedFilter, setSelectedFilter] = useState<
-    "all" | "restaurants" | "events"
-  >("all");
+  const [selectedFilter, setSelectedFilter] = useState<FilterType>("all");
+  const [categoryFilters, setCategoryFilters] = useState<CategoryFilter[]>([]);
+  const [showFilters, setShowFilters] = useState(false);
 
   // Animation refs
   const fadeAnim = useRef(new Animated.Value(0)).current;
   const slideAnim = useRef(new Animated.Value(30)).current;
+  const filterAnim = useRef(new Animated.Value(0)).current;
 
   useEffect(() => {
     // Start entrance animations
@@ -109,13 +146,146 @@ const SearchScreen: React.FC = () => {
 
       setRestaurants(restaurantsData);
       setEvents(eventsData);
-      updateSections(restaurantsData, eventsData, searchQuery, selectedFilter);
+      
+      // Transform data into unified search items
+      const allSearchItems = transformDataToSearchItems(restaurantsData, eventsData);
+      setAllItems(allSearchItems);
+      
+      // Build category filters
+      buildCategoryFilters(restaurantsData);
+      
+      // Apply initial filtering
+      applyFilters(allSearchItems, searchQuery, selectedFilter);
     } catch (error) {
       console.error("Error loading data:", error);
       Alert.alert("Error", "Could not load data. Please try again.");
     } finally {
       setLoading(false);
     }
+  };
+
+  const transformDataToSearchItems = (
+    restaurantsData: LocationData[],
+    eventsData: EventData[]
+  ): SearchItem[] => {
+    const coffeePredicate = (cat: string | undefined) =>
+      !!cat && /(coffee|cafe|cafenea|caf(e|é)|espresso|coffee shop)/i.test(cat);
+    
+    const pubPredicate = (cat: string | undefined) =>
+      !!cat && /(pub|bar|tavern|brasserie)/i.test(cat);
+    
+    const clubPredicate = (cat: string | undefined) =>
+      !!cat && /(club|nightclub|discotheque|disco)/i.test(cat);
+
+    const getLocationTypeFromCategory = (category: string | undefined): "restaurant" | "coffee" | "pub" | "club" => {
+      if (coffeePredicate(category)) return "coffee";
+      if (pubPredicate(category)) return "pub";
+      if (clubPredicate(category)) return "club";
+      return "restaurant";
+    };
+
+    const restaurantItems: SearchItem[] = restaurantsData.map((restaurant) => ({
+      id: restaurant.id || 0,
+      title: restaurant.name || "",
+      subtitle: restaurant.category,
+      image: restaurant.photo || "",
+      type: getLocationTypeFromCategory(restaurant.category),
+      address: restaurant.address,
+      tags: restaurant.tags,
+      category: restaurant.category,
+      originalData: restaurant,
+    }));
+
+    const eventItems: SearchItem[] = eventsData.map((event) => ({
+      id: event.id,
+      title: event.title,
+      subtitle: event.company,
+      image: event.photo,
+      type: "event" as const,
+      address: `${event.address}, ${event.city}`,
+      tags: event.tags,
+      likes: event.likes,
+      originalData: event,
+    }));
+
+    return [...restaurantItems, ...eventItems];
+  };
+
+  const buildCategoryFilters = (restaurantsData: LocationData[]) => {
+    const categoryMap = new Map<string, number>();
+    
+    // Count items by category
+    restaurantsData.forEach((restaurant) => {
+      const category = (restaurant.category || "").trim();
+      if (category) {
+        categoryMap.set(category, (categoryMap.get(category) || 0) + 1);
+      }
+    });
+
+    // Create filter objects
+    const filters: CategoryFilter[] = Array.from(categoryMap.entries())
+      .map(([name, count]) => ({
+        id: name.toLowerCase().replace(/\s+/g, '-'),
+        name,
+        icon: getCategoryIcon(name),
+        count,
+      }))
+      .sort((a, b) => b.count - a.count); // Sort by count descending
+
+    setCategoryFilters(filters);
+  };
+
+  const getCategoryIcon = (category: string): string => {
+    const cat = category.toLowerCase();
+    if (/(coffee|cafe|cafenea|espresso)/i.test(cat)) return "cafe-outline";
+    if (/(pizza|italian)/i.test(cat)) return "pizza-outline";
+    if (/(sushi|japonez)/i.test(cat)) return "fish-outline";
+    if (/(traditional|românesc)/i.test(cat)) return "home-outline";
+    if (/(fast|burger)/i.test(cat)) return "fast-food-outline";
+    if (/(pub|bar|tavern|brasserie)/i.test(cat)) return "wine-outline";
+    if (/(club|nightclub|discotheque|disco)/i.test(cat)) return "musical-notes-outline";
+    return "restaurant-outline";
+  };
+
+  const applyFilters = (
+    items: SearchItem[],
+    query: string,
+    filter: FilterType
+  ) => {
+    let filtered = [...items];
+    
+    // Apply search query
+    if (query.trim()) {
+      const searchLower = query.toLowerCase();
+      filtered = filtered.filter((item) =>
+        item.title.toLowerCase().includes(searchLower) ||
+        item.subtitle?.toLowerCase().includes(searchLower) ||
+        item.address?.toLowerCase().includes(searchLower) ||
+        item.tags?.some((tag) => tag.toLowerCase().includes(searchLower))
+      );
+    }
+
+    // Apply type/category filter
+    if (filter !== "all") {
+      if (filter === "restaurants") {
+        filtered = filtered.filter((item) => item.type === "restaurant");
+      } else if (filter === "coffee") {
+        filtered = filtered.filter((item) => item.type === "coffee");
+      } else if (filter === "pubs") {
+        filtered = filtered.filter((item) => item.type === "pub");
+      } else if (filter === "clubs") {
+        filtered = filtered.filter((item) => item.type === "club");
+      } else if (filter === "events") {
+        filtered = filtered.filter((item) => item.type === "event");
+      } else {
+        // Category filter
+        filtered = filtered.filter((item) => 
+          item.category?.toLowerCase() === filter.toLowerCase()
+        );
+      }
+    }
+
+    setFilteredItems(filtered);
   };
 
   const loadRestaurants = async (): Promise<LocationData[]> => {
@@ -153,7 +323,7 @@ const SearchScreen: React.FC = () => {
       longitude: 21.2272,
       tags: ["traditional", "românesc", "casnic"],
       photo: "",
-      category: "",
+      category: "restaurant",
       company: {
         id: 1,
       },
@@ -172,7 +342,7 @@ const SearchScreen: React.FC = () => {
       photo: "",
       menuName: "Meniu Italian",
       hasMenu: true,
-      category: "",
+      category: "restaurant",
       company: {
         id: 1,
       },
@@ -189,9 +359,60 @@ const SearchScreen: React.FC = () => {
       photo: "",
       menuName: "Meniu Japonez",
       hasMenu: true,
-      category: "",
+      category: "restaurant",
       company: {
         id: 1,
+      },
+      createdAt: "2024-01-01T00:00:00Z",
+      updatedAt: "2024-01-01T00:00:00Z",
+    },
+    {
+      id: 4,
+      name: "Coffee Corner",
+      address: "Str. Mărășești nr. 25, Timișoara",
+      latitude: 45.7550,
+      longitude: 21.2250,
+      tags: ["coffee", "espresso", "latte"],
+      photo: "",
+      menuName: "Meniu Cafenea",
+      hasMenu: true,
+      category: "cafenea",
+      company: {
+        id: 2,
+      },
+      createdAt: "2024-01-01T00:00:00Z",
+      updatedAt: "2024-01-01T00:00:00Z",
+    },
+    {
+      id: 5,
+      name: "The Irish Pub",
+      address: "Str. Unirii nr. 10, Timișoara",
+      latitude: 45.7580,
+      longitude: 21.2290,
+      tags: ["beer", "irish", "pub"],
+      photo: "",
+      menuName: "Meniu Pub",
+      hasMenu: true,
+      category: "pub",
+      company: {
+        id: 3,
+      },
+      createdAt: "2024-01-01T00:00:00Z",
+      updatedAt: "2024-01-01T00:00:00Z",
+    },
+    {
+      id: 6,
+      name: "Club Euphoria",
+      address: "Str. Victoriei nr. 55, Timișoara",
+      latitude: 45.7600,
+      longitude: 21.2310,
+      tags: ["club", "dancing", "nightlife"],
+      photo: "",
+      menuName: "Meniu Bar",
+      hasMenu: false,
+      category: "club",
+      company: {
+        id: 4,
       },
       createdAt: "2024-01-01T00:00:00Z",
       updatedAt: "2024-01-01T00:00:00Z",
@@ -241,77 +462,16 @@ const SearchScreen: React.FC = () => {
     query: string,
     filter: string
   ) => {
-    const searchLower = query.toLowerCase();
-
-    let filteredRestaurants = restaurantData;
-    let filteredEvents = eventData;
-
-    if (query) {
-      filteredRestaurants = restaurantData.filter(
-        (restaurant) =>
-          restaurant.name?.toLowerCase().includes(searchLower) ||
-          restaurant.category?.toLowerCase().includes(searchLower) ||
-          restaurant.tags?.some((tag) =>
-            tag.toLowerCase().includes(searchLower)
-          )
-      );
-
-      filteredEvents = eventData.filter(
-        (event) =>
-          event.title.toLowerCase().includes(searchLower) ||
-          event.description?.toLowerCase().includes(searchLower) ||
-          event.company?.toLowerCase().includes(searchLower) ||
-          event.tags?.some((tag) => tag.toLowerCase().includes(searchLower))
-      );
-    }
-
-    const newSections: SearchSection[] = [];
-
-    if (filter === "all" || filter === "restaurants") {
-      if (filteredRestaurants.length > 0) {
-        newSections.push({
-          title: `🍽️ Restaurante (${filteredRestaurants.length})`,
-          data: filteredRestaurants.map((restaurant) => ({
-            id: restaurant.id || 0,
-            title: restaurant.name || "",
-            subtitle: restaurant.category,
-            image: restaurant.photo || "",
-            type: "restaurant" as const,
-            address: restaurant.address,
-            tags: restaurant.tags,
-            originalData: restaurant,
-          })),
-        });
-      }
-    }
-
-    if (filter === "all" || filter === "events") {
-      if (filteredEvents.length > 0) {
-        newSections.push({
-          title: `🎉 Evenimente (${filteredEvents.length})`,
-          data: filteredEvents.map((event) => ({
-            id: event.id,
-            title: event.title,
-            subtitle: event.company,
-            image: event.photo,
-            type: "event" as const,
-            likes: event.likes,
-            tags: event.tags,
-            originalData: event,
-          })),
-        });
-      }
-    }
-
-    setSections(newSections);
+    // This function is replaced by applyFilters - keeping for compatibility
+    console.warn("updateSections is deprecated, use applyFilters instead");
   };
 
   const debouncedSearch = useMemo(
     () =>
       debounce((query: string) => {
-        updateSections(restaurants, events, query, selectedFilter);
+        applyFilters(allItems, query, selectedFilter);
       }, 300),
-    [restaurants, events, selectedFilter]
+    [allItems, selectedFilter]
   );
 
   const handleSearchChange = (text: string) => {
@@ -319,10 +479,19 @@ const SearchScreen: React.FC = () => {
     debouncedSearch(text);
   };
 
-  const handleFilterChange = (filter: "all" | "restaurants" | "events") => {
+  const handleFilterChange = (filter: FilterType) => {
     hapticFeedback("light");
     setSelectedFilter(filter);
-    updateSections(restaurants, events, searchQuery, filter);
+    applyFilters(allItems, searchQuery, filter);
+  };
+
+  const toggleFilters = () => {
+    setShowFilters(!showFilters);
+    Animated.timing(filterAnim, {
+      toValue: showFilters ? 0 : 1,
+      duration: 300,
+      useNativeDriver: true,
+    }).start();
   };
 
   const onRefresh = async () => {
@@ -336,11 +505,9 @@ const SearchScreen: React.FC = () => {
 
     try {
       if (item.type === "event") {
-        // Navigate to EventScreen with event data
         const eventData = item.originalData as EventData;
         navigation.navigate("EventScreen", { event: eventData });
-      } else if (item.type === "restaurant") {
-        // Navigate to Info (restaurant details) with company data
+      } else {
         const locationData = item.originalData as LocationData;
         navigation.navigate("Info", { location: locationData });
       }
@@ -350,15 +517,84 @@ const SearchScreen: React.FC = () => {
     }
   };
 
-  const renderSectionHeader = ({ section }: { section: SearchSection }) => (
-    <View
-      style={[styles.sectionHeader, { backgroundColor: theme.colors.surface }]}
-    >
-      <Text style={[styles.sectionHeaderText, { color: theme.colors.text }]}>
-        {section.title}
-      </Text>
-    </View>
-  );
+  const renderQuickFilter = (
+    filter: FilterType,
+    title: string,
+    icon: string,
+    count?: number
+  ) => {
+    const isSelected = selectedFilter === filter;
+    return (
+      <TouchableOpacity
+        style={[
+          styles.quickFilter,
+          isSelected && styles.quickFilterActive,
+        ]}
+        onPress={() => handleFilterChange(filter)}
+        activeOpacity={0.8}
+      >
+        <LinearGradient
+          colors={
+            isSelected
+              ? [PALETTE.accent, PALETTE.accentBright]
+              : [PALETTE.surface, PALETTE.surfaceElevated]
+          }
+          style={styles.quickFilterGradient}
+        >
+          <Ionicons
+            name={icon as any}
+            size={20}
+            color={isSelected ? PALETTE.text : PALETTE.textSecondary}
+          />
+          <Text
+            style={[
+              styles.quickFilterText,
+              { color: isSelected ? PALETTE.text : PALETTE.textSecondary },
+            ]}
+          >
+            {title}
+          </Text>
+          {count !== undefined && (
+            <View style={styles.countBadge}>
+              <Text style={styles.countText}>{count}</Text>
+            </View>
+          )}
+        </LinearGradient>
+      </TouchableOpacity>
+    );
+  };
+
+  const renderCategoryFilter = (category: CategoryFilter) => {
+    const isSelected = selectedFilter === category.name;
+    return (
+      <TouchableOpacity
+        key={category.id}
+        style={[
+          styles.categoryFilter,
+          isSelected && styles.categoryFilterActive,
+        ]}
+        onPress={() => handleFilterChange(category.name)}
+        activeOpacity={0.8}
+      >
+        <Ionicons
+          name={category.icon as any}
+          size={18}
+          color={isSelected ? PALETTE.text : PALETTE.textTertiary}
+        />
+        <Text
+          style={[
+            styles.categoryFilterText,
+            { color: isSelected ? PALETTE.text : PALETTE.textSecondary },
+          ]}
+        >
+          {category.name}
+        </Text>
+        <View style={styles.categoryCount}>
+          <Text style={styles.categoryCountText}>{category.count}</Text>
+        </View>
+      </TouchableOpacity>
+    );
+  };
 
   const renderItem = ({ item }: { item: SearchItem }) => (
     <TouchableOpacity
@@ -366,8 +602,9 @@ const SearchScreen: React.FC = () => {
       onPress={() => handleItemPress(item)}
       activeOpacity={0.9}
     >
-      <View
-        style={[styles.itemCard, { backgroundColor: theme.colors.surface }]}
+      <LinearGradient
+        colors={[PALETTE.surface, PALETTE.surfaceElevated]}
+        style={styles.itemCard}
       >
         {item.image ? (
           <Image
@@ -375,27 +612,31 @@ const SearchScreen: React.FC = () => {
             style={styles.itemImage}
           />
         ) : (
-          <View
-            style={[
-              styles.itemImagePlaceholder,
-              { backgroundColor: theme.colors.border },
-            ]}
+          <LinearGradient
+            colors={[PALETTE.borderLight, PALETTE.border]}
+            style={styles.itemImagePlaceholder}
           >
             <Ionicons
               name={
                 item.type === "restaurant"
                   ? "restaurant-outline"
+                  : item.type === "coffee"
+                  ? "cafe-outline"
+                  : item.type === "pub"
+                  ? "wine-outline"
+                  : item.type === "club"
+                  ? "musical-notes-outline"
                   : "calendar-outline"
               }
               size={24}
-              color={theme.colors.textTertiary}
+              color={PALETTE.textTertiary}
             />
-          </View>
+          </LinearGradient>
         )}
 
         <View style={styles.itemContent}>
           <Text
-            style={[styles.itemTitle, { color: theme.colors.text }]}
+            style={[styles.itemTitle, { color: PALETTE.textPrimary }]}
             numberOfLines={2}
           >
             {item.title}
@@ -405,7 +646,7 @@ const SearchScreen: React.FC = () => {
             <Text
               style={[
                 styles.itemSubtitle,
-                { color: theme.colors.textSecondary },
+                { color: PALETTE.textSecondary },
               ]}
               numberOfLines={1}
             >
@@ -415,7 +656,7 @@ const SearchScreen: React.FC = () => {
 
           {item.address && (
             <Text
-              style={[styles.itemAddress, { color: theme.colors.textTertiary }]}
+              style={[styles.itemAddress, { color: PALETTE.textTertiary }]}
               numberOfLines={1}
             >
               📍 {item.address}
@@ -423,7 +664,7 @@ const SearchScreen: React.FC = () => {
           )}
 
           {item.likes && (
-            <Text style={[styles.itemLikes, { color: theme.colors.accent }]}>
+            <Text style={[styles.itemLikes, { color: PALETTE.accent }]}> 
               👍 {item.likes} likes
             </Text>
           )}
@@ -431,19 +672,15 @@ const SearchScreen: React.FC = () => {
           {item.tags && item.tags.length > 0 && (
             <View style={styles.tagsContainer}>
               {item.tags.slice(0, 3).map((tag, index) => (
-                <View
+                <LinearGradient
                   key={index}
-                  style={[
-                    styles.tag,
-                    { backgroundColor: theme.colors.accentLight + "30" },
-                  ]}
+                  colors={[PALETTE.accentSoft, PALETTE.accentGlow]}
+                  style={styles.tag}
                 >
-                  <Text
-                    style={[styles.tagText, { color: theme.colors.accent }]}
-                  >
+                  <Text style={[styles.tagText, { color: PALETTE.accentLight }]}>
                     {tag}
                   </Text>
-                </View>
+                </LinearGradient>
               ))}
             </View>
           )}
@@ -452,46 +689,44 @@ const SearchScreen: React.FC = () => {
         <Ionicons
           name="chevron-forward"
           size={20}
-          color={theme.colors.textTertiary}
+          color={PALETTE.textTertiary}
         />
-      </View>
+      </LinearGradient>
     </TouchableOpacity>
   );
 
   const renderFilterButton = (
-    filter: "all" | "restaurants" | "events",
+    filter: FilterType,
     title: string,
-    icon: string
+    icon?: string
   ) => (
     <TouchableOpacity
       style={[
         styles.filterButton,
+        { borderColor: PALETTE.border },
         selectedFilter === filter && [
           styles.activeFilterButton,
-          { backgroundColor: theme.colors.accent },
+          { backgroundColor: PALETTE.accent },
         ],
-        { borderColor: theme.colors.border },
       ]}
       onPress={() => handleFilterChange(filter)}
-      activeOpacity={0.8}
+      activeOpacity={0.85}
     >
-      <Ionicons
-        name={icon as any}
-        size={18}
-        color={
-          selectedFilter === filter
-            ? theme.colors.text
-            : theme.colors.textSecondary
-        }
-      />
+      {icon && (
+        <Ionicons
+          name={icon as any}
+          size={18}
+          color={
+            selectedFilter === filter ? PALETTE.text : PALETTE.textSecondary
+          }
+        />
+      )}
       <Text
         style={[
           styles.filterButtonText,
           {
             color:
-              selectedFilter === filter
-                ? theme.colors.text
-                : theme.colors.textSecondary,
+              selectedFilter === filter ? PALETTE.text : PALETTE.textSecondary,
           },
         ]}
       >
@@ -502,23 +737,39 @@ const SearchScreen: React.FC = () => {
 
   const renderEmptyState = () => (
     <View style={styles.emptyState}>
-      <Ionicons
-        name="search-outline"
-        size={64}
-        color={theme.colors.textTertiary}
-      />
-      <Text style={[styles.emptyStateTitle, { color: theme.colors.text }]}>
-        {searchQuery ? "Nu am găsit rezultate" : "Începe să cauți"}
-      </Text>
-      <Text
-        style={[styles.emptyStateText, { color: theme.colors.textSecondary }]}
+      <LinearGradient
+        colors={[PALETTE.surface, PALETTE.surfaceElevated]}
+        style={styles.emptyStateCard}
       >
-        {searchQuery
-          ? "Încearcă să modifici termenul de căutare"
-          : "Caută restaurante și evenimente în Constanta"}
-      </Text>
+        <Ionicons
+          name="search-outline"
+          size={64}
+          color={PALETTE.textTertiary}
+        />
+        <Text style={[styles.emptyStateTitle, { color: PALETTE.textPrimary }]}>
+          {searchQuery ? "Nu am găsit rezultate" : "Începe să cauți"}
+        </Text>
+        <Text
+          style={[styles.emptyStateText, { color: PALETTE.textSecondary }]}
+        >
+          {searchQuery
+            ? "Încearcă să modifici termenul de căutare"
+            : "Caută restaurante și evenimente în Constanta"}
+        </Text>
+      </LinearGradient>
     </View>
   );
+
+  const getFilterCounts = () => {
+    const restaurants = allItems.filter((item) => item.type === "restaurant").length;
+    const coffee = allItems.filter((item) => item.type === "coffee").length;
+    const pubs = allItems.filter((item) => item.type === "pub").length;
+    const clubs = allItems.filter((item) => item.type === "club").length;
+    const events = allItems.filter((item) => item.type === "event").length;
+    return { restaurants, coffee, pubs, clubs, events, all: allItems.length };
+  };
+
+  const counts = getFilterCounts();
 
   return (
     <UniversalScreen safeAreaEdges={["top", "bottom"]}>
@@ -532,11 +783,27 @@ const SearchScreen: React.FC = () => {
         ]}
       >
         {/* Header */}
-        <View style={styles.header}>
-          <Text style={[styles.headerTitle, { color: theme.colors.text }]}>
+        <LinearGradient
+          colors={[PALETTE.black, PALETTE.surface]}
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.header}
+        >
+          <Text style={[styles.headerTitle, { color: PALETTE.textPrimary }]}>
             Căutare
           </Text>
-        </View>
+          <TouchableOpacity
+            style={styles.filterToggle}
+            onPress={toggleFilters}
+            activeOpacity={0.8}
+          >
+            <Ionicons
+              name={showFilters ? "filter" : "filter-outline"}
+              size={24}
+              color={PALETTE.accent}
+            />
+          </TouchableOpacity>
+        </LinearGradient>
 
         {/* Search Input */}
         <View style={styles.searchContainer}>
@@ -549,47 +816,77 @@ const SearchScreen: React.FC = () => {
           />
         </View>
 
-        {/* Filter Buttons */}
-        <View style={styles.filterContainer}>
-          {renderFilterButton("all", "Toate", "apps-outline")}
-          {renderFilterButton(
-            "restaurants",
-            "Restaurante",
-            "restaurant-outline"
+        {/* Quick Filters */}
+        <ScrollView
+          horizontal
+          showsHorizontalScrollIndicator={false}
+          contentContainerStyle={styles.quickFiltersContainer}
+        >
+          {renderQuickFilter("all", "Toate", "apps-outline", counts.all)}
+          {renderQuickFilter("restaurants", "Restaurante", "restaurant-outline", counts.restaurants)}
+          {renderQuickFilter("coffee", "Cafenele", "cafe-outline", counts.coffee)}
+          {renderQuickFilter("pubs", "Pub-uri", "wine-outline", counts.pubs)}
+          {renderQuickFilter("clubs", "Club-uri", "musical-notes-outline", counts.clubs)}
+          {renderQuickFilter("events", "Evenimente", "calendar-outline", counts.events)}
+        </ScrollView>
+
+        {/* Category Filters */}
+        <Animated.View
+          style={[
+            styles.categoryFiltersContainer,
+            {
+              opacity: filterAnim,
+              transform: [
+                {
+                  translateY: filterAnim.interpolate({
+                    inputRange: [0, 1],
+                    outputRange: [-20, 0],
+                  }),
+                },
+              ],
+            },
+          ]}
+        >
+          {showFilters && (
+            <ScrollView
+              horizontal
+              showsHorizontalScrollIndicator={false}
+              contentContainerStyle={styles.categoryFilters}
+            >
+              {categoryFilters.map(renderCategoryFilter)}
+            </ScrollView>
           )}
-          {renderFilterButton("events", "Evenimente", "calendar-outline")}
-        </View>
+        </Animated.View>
 
         {/* Results */}
         {loading ? (
           <View style={styles.loadingContainer}>
-            <ActivityIndicator size="large" color={theme.colors.accent} />
+            <ActivityIndicator size="large" color={PALETTE.accent} />
             <Text
               style={[
                 styles.loadingText,
-                { color: theme.colors.textSecondary },
+                { color: PALETTE.textSecondary },
               ]}
             >
               Se încarcă...
             </Text>
           </View>
-        ) : sections.length === 0 ? (
+        ) : filteredItems.length === 0 ? (
           renderEmptyState()
         ) : (
-          <SectionList
-            sections={sections}
-            keyExtractor={(item) => item.id.toString()}
+          <FlatList
+            data={filteredItems}
+            keyExtractor={(item) => `${item.type}-${item.id}`}
             renderItem={renderItem}
-            renderSectionHeader={renderSectionHeader}
             contentContainerStyle={styles.listContent}
             showsVerticalScrollIndicator={false}
             refreshControl={
               <RefreshControl
                 refreshing={refreshing}
                 onRefresh={onRefresh}
-                colors={[theme.colors.accent]}
-                tintColor={theme.colors.accent}
-                progressBackgroundColor={theme.colors.surface}
+                colors={[PALETTE.accent]}
+                tintColor={PALETTE.accent}
+                progressBackgroundColor={PALETTE.surface}
               />
             }
           />
@@ -603,15 +900,27 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
     paddingHorizontal: getResponsiveSpacing("lg"),
+    backgroundColor: PALETTE.black,
   },
   header: {
     paddingVertical: getResponsiveSpacing("lg"),
+    paddingHorizontal: getResponsiveSpacing("md"),
+    flexDirection: "row",
     alignItems: "center",
+    justifyContent: "space-between",
+    borderRadius: 28,
+    overflow: "hidden",
+    marginBottom: getResponsiveSpacing("md"),
   },
   headerTitle: {
     fontSize: TYPOGRAPHY.h2,
     fontWeight: "800",
     letterSpacing: -0.5,
+  },
+  filterToggle: {
+    padding: getResponsiveSpacing("sm"),
+    borderRadius: 12,
+    backgroundColor: PALETTE.surfaceElevated,
   },
   searchContainer: {
     marginBottom: getResponsiveSpacing("lg"),
@@ -619,26 +928,85 @@ const styles = StyleSheet.create({
   searchInput: {
     marginBottom: 0,
   },
-  filterContainer: {
-    flexDirection: "row",
+  quickFiltersContainer: {
+    paddingHorizontal: getResponsiveSpacing("sm"),
     gap: getResponsiveSpacing("sm"),
+    marginBottom: getResponsiveSpacing("md"),
+  },
+  quickFilter: {
+    minWidth: 120,
+    borderRadius: 16,
+    overflow: "hidden",
+    marginRight: getResponsiveSpacing("sm"),
+  },
+  quickFilterActive: {
+    ...getShadow(4),
+    shadowColor: PALETTE.accent,
+  },
+  quickFilterGradient: {
+    paddingVertical: getResponsiveSpacing("md"),
+    paddingHorizontal: getResponsiveSpacing("sm"),
+    alignItems: "center",
+    gap: getResponsiveSpacing("xs"),
+  },
+  quickFilterText: {
+    fontSize: TYPOGRAPHY.caption,
+    fontWeight: "700",
+    textAlign: "center",
+  },
+  countBadge: {
+    backgroundColor: PALETTE.accentGlow,
+    paddingHorizontal: getResponsiveSpacing("xs"),
+    paddingVertical: 2,
+    borderRadius: 10,
+    minWidth: 20,
+    alignItems: "center",
+  },
+  countText: {
+    fontSize: TYPOGRAPHY.tiny,
+    fontWeight: "700",
+    color: PALETTE.text,
+  },
+  categoryFiltersContainer: {
     marginBottom: getResponsiveSpacing("lg"),
   },
-  filterButton: {
+  categoryFilters: {
+    paddingHorizontal: getResponsiveSpacing("sm"),
+    gap: getResponsiveSpacing("sm"),
+  },
+  categoryFilter: {
     flexDirection: "row",
     alignItems: "center",
     paddingHorizontal: getResponsiveSpacing("md"),
     paddingVertical: getResponsiveSpacing("sm"),
     borderRadius: 20,
-    borderWidth: 1,
+    borderWidth: 1.5,
+    borderColor: PALETTE.border,
+    backgroundColor: PALETTE.surface,
     gap: getResponsiveSpacing("xs"),
   },
-  activeFilterButton: {
+  categoryFilterActive: {
+    backgroundColor: PALETTE.accent,
+    borderColor: PALETTE.accentBright,
     ...getShadow(2),
+    shadowColor: PALETTE.accent,
   },
-  filterButtonText: {
+  categoryFilterText: {
     fontSize: TYPOGRAPHY.bodySmall,
     fontWeight: "600",
+  },
+  categoryCount: {
+    backgroundColor: PALETTE.borderLight,
+    paddingHorizontal: getResponsiveSpacing("xs"),
+    paddingVertical: 2,
+    borderRadius: 8,
+    minWidth: 18,
+    alignItems: "center",
+  },
+  categoryCountText: {
+    fontSize: TYPOGRAPHY.tiny,
+    fontWeight: "700",
+    color: PALETTE.textMuted,
   },
   loadingContainer: {
     flex: 1,
@@ -655,28 +1023,23 @@ const styles = StyleSheet.create({
     alignItems: "center",
     paddingHorizontal: getResponsiveSpacing("xl"),
   },
+  emptyStateCard: {
+    padding: getResponsiveSpacing("xl"),
+    borderRadius: 24,
+    alignItems: "center",
+    gap: getResponsiveSpacing("md"),
+    borderWidth: 1,
+    borderColor: PALETTE.border,
+  },
   emptyStateTitle: {
     fontSize: TYPOGRAPHY.h4,
     fontWeight: "700",
-    marginTop: getResponsiveSpacing("lg"),
-    marginBottom: getResponsiveSpacing("sm"),
     textAlign: "center",
   },
   emptyStateText: {
     fontSize: TYPOGRAPHY.body,
     textAlign: "center",
     lineHeight: TYPOGRAPHY.body * 1.4,
-  },
-  sectionHeader: {
-    paddingVertical: getResponsiveSpacing("md"),
-    paddingHorizontal: getResponsiveSpacing("md"),
-    borderRadius: 12,
-    marginBottom: getResponsiveSpacing("sm"),
-    marginTop: getResponsiveSpacing("lg"),
-  },
-  sectionHeaderText: {
-    fontSize: TYPOGRAPHY.h6,
-    fontWeight: "700",
   },
   listContent: {
     paddingBottom: getResponsiveSpacing("xxl"),
@@ -688,19 +1051,19 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     padding: getResponsiveSpacing("md"),
-    borderRadius: 16,
+    borderRadius: 20,
     borderWidth: 1,
-    borderColor: "rgba(255,255,255,0.1)",
+    borderColor: PALETTE.borderLight,
   },
   itemImage: {
-    width: 60,
-    height: 60,
-    borderRadius: 12,
+    width: 64,
+    height: 64,
+    borderRadius: 16,
   },
   itemImagePlaceholder: {
-    width: 60,
-    height: 60,
-    borderRadius: 12,
+    width: 64,
+    height: 64,
+    borderRadius: 16,
     justifyContent: "center",
     alignItems: "center",
   },
@@ -733,12 +1096,36 @@ const styles = StyleSheet.create({
   },
   tag: {
     paddingHorizontal: getResponsiveSpacing("sm"),
-    paddingVertical: 2,
+    paddingVertical: 4,
     borderRadius: 12,
+    overflow: "hidden",
   },
   tagText: {
     fontSize: TYPOGRAPHY.tiny,
-    fontWeight: "500",
+    fontWeight: "600",
+  },
+  filterContainer: {
+    flexDirection: "row",
+    gap: getResponsiveSpacing("sm"),
+    marginBottom: getResponsiveSpacing("lg"),
+  },
+  filterButton: {
+    flexDirection: "row",
+    alignItems: "center",
+    paddingHorizontal: getResponsiveSpacing("md"),
+    paddingVertical: getResponsiveSpacing("sm"),
+    borderRadius: 20,
+    borderWidth: 1,
+    gap: getResponsiveSpacing("xs"),
+    backgroundColor: PALETTE.surface,
+  },
+  activeFilterButton: {
+    ...getShadow(2),
+    shadowColor: PALETTE.accent,
+  },
+  filterButtonText: {
+    fontSize: TYPOGRAPHY.bodySmall,
+    fontWeight: "600",
   },
 });
 

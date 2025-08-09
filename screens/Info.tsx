@@ -111,33 +111,7 @@ const Info: React.FC<Props> = ({ navigation, route }) => {
   }, []);
 
   // Fetch events
-  useEffect(() => {
-    (async () => {
-      setLoadingEvents(true);
-      try {
-        console.log("Fetching events for location", location.id);
-        // For now, we'll get events by company since events are still company-based
-        const res = await fetch(`${BASE_URL}/companyevents`, {
-          method: "POST",
-          body: (() => {
-            const form = new FormData();
-            form.append("id", location.company.id.toString());
-            return form;
-          })(),
-        });
-        console.log("Events fetch status", res.status);
-        if (res.ok) {
-          const data: EventData[] = await res.json();
-          setEvents(data);
-        }
-      } catch (e) {
-        console.error("Event fetch error", e);
-      } finally {
-        setLoadingEvents(false);
-      }
-    })();
-  }, [location.id]);
-
+  
   // Check if menu exists via GET (inspect 200 vs 404)
   useEffect(() => {
     (async () => {

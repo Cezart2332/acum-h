@@ -48,10 +48,23 @@ interface ReservationData {
   notes?: string;
 }
 
-const ReservationsHistory: React.FC<{ navigation?: any }> = ({
-  navigation,
-}) => {
+const ReservationsHistory: React.FC<{ navigation?: any }> = ({ navigation }) => {
   const { theme } = useTheme();
+  const PALETTE = {
+    black: "#050507",
+    backdrop: "#0A0A0F",
+    surface: "#12101A",
+    surfaceAlt: "#191628",
+    border: "#2E2150",
+    borderAlt: "#3C2E63",
+    accent: "#7B2CBF",
+    accentBright: "#9F7AEA",
+    accentSoft: "#52307A",
+    error: "#EF4444",
+    text: "#FFFFFF",
+    textSecondary: "#B8A9D9",
+    glow: "#7B2CBF40",
+  } as const;
   const { user } = useUser();
   const [reservations, setReservations] = useState<ReservationData[]>([]);
   const [loading, setLoading] = useState(true);
@@ -67,7 +80,7 @@ const ReservationsHistory: React.FC<{ navigation?: any }> = ({
   const headerOpacity = useRef(new Animated.Value(0)).current;
   const cardsOpacity = useRef(new Animated.Value(0)).current;
 
-  const styles = createStyles(theme);
+  const styles = createStyles(theme, PALETTE);
 
   useEffect(() => {
     loadReservations();
@@ -286,7 +299,7 @@ const ReservationsHistory: React.FC<{ navigation?: any }> = ({
       >
         {isActive && (
           <LinearGradient
-            colors={[theme.colors.primary, theme.colors.accent]}
+            colors={[PALETTE.accent, PALETTE.accentBright]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 0 }}
             style={styles.filterGradient}
@@ -341,7 +354,7 @@ const ReservationsHistory: React.FC<{ navigation?: any }> = ({
               <Ionicons
                 name="restaurant-outline"
                 size={20}
-                color={theme.colors.primary}
+                color={PALETTE.accentBright}
               />
             </View>
             <View style={styles.restaurantDetails}>
@@ -351,7 +364,7 @@ const ReservationsHistory: React.FC<{ navigation?: any }> = ({
                   <Ionicons
                     name="calendar-outline"
                     size={14}
-                    color={theme.colors.primary}
+                    color={PALETTE.accentBright}
                   />
                   <Text style={styles.dateChipText}>
                     {formatDate(item.reservationDate)}
@@ -361,7 +374,7 @@ const ReservationsHistory: React.FC<{ navigation?: any }> = ({
                   <Ionicons
                     name="time-outline"
                     size={14}
-                    color={theme.colors.accent}
+                    color={PALETTE.accent}
                   />
                   <Text style={styles.timeChipText}>
                     {formatTime(item.reservationTime)}
@@ -399,7 +412,7 @@ const ReservationsHistory: React.FC<{ navigation?: any }> = ({
               <Ionicons
                 name="people-outline"
                 size={16}
-                color={theme.colors.primary}
+                color={PALETTE.accentBright}
               />
             </View>
             <Text style={styles.detailText}>
@@ -414,7 +427,7 @@ const ReservationsHistory: React.FC<{ navigation?: any }> = ({
                 <Ionicons
                   name="chatbubble-outline"
                   size={16}
-                  color={theme.colors.accent}
+                  color={PALETTE.accent}
                 />
               </View>
               <Text style={styles.detailText} numberOfLines={2}>
@@ -459,13 +472,11 @@ const ReservationsHistory: React.FC<{ navigation?: any }> = ({
   if (loading) {
     return (
       <View style={styles.container}>
-        <StatusBar barStyle="light-content" backgroundColor="#6366F1" />
+  <StatusBar barStyle="light-content" backgroundColor={PALETTE.black} />
 
-        <Animated.View
-          style={[styles.headerGradient, { opacity: headerOpacity }]}
-        >
+        <Animated.View style={[styles.headerWrapper, { opacity: headerOpacity }]}>          
           <LinearGradient
-            colors={[theme.colors.primary, theme.colors.accent]}
+            colors={[PALETTE.surfaceAlt, PALETTE.surface, PALETTE.black]}
             start={{ x: 0, y: 0 }}
             end={{ x: 1, y: 1 }}
             style={styles.gradient}
@@ -479,7 +490,7 @@ const ReservationsHistory: React.FC<{ navigation?: any }> = ({
                 style={styles.backButtonModern}
                 activeOpacity={0.8}
               >
-                <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+                <Ionicons name="arrow-back" size={24} color={PALETTE.text} />
               </TouchableOpacity>
 
               <View style={styles.headerTextContainer}>
@@ -494,7 +505,7 @@ const ReservationsHistory: React.FC<{ navigation?: any }> = ({
 
         <View style={styles.loadingContainer}>
           <View style={styles.loadingCard}>
-            <ActivityIndicator size="large" color={theme.colors.primary} />
+            <ActivityIndicator size="large" color={PALETTE.accentBright} />
             <Text style={styles.loadingText}>Loading your reservations...</Text>
           </View>
         </View>
@@ -504,14 +515,12 @@ const ReservationsHistory: React.FC<{ navigation?: any }> = ({
 
   return (
     <View style={styles.container}>
-      <StatusBar barStyle="light-content" backgroundColor="#6366F1" />
+  <StatusBar barStyle="light-content" backgroundColor={PALETTE.black} />
 
       {/* Modern Header with Gradient */}
-      <Animated.View
-        style={[styles.headerGradient, { opacity: headerOpacity }]}
-      >
+      <Animated.View style={[styles.headerWrapper, { opacity: headerOpacity }]}>        
         <LinearGradient
-          colors={[theme.colors.primary, theme.colors.accent]}
+          colors={[PALETTE.surfaceAlt, PALETTE.surface, PALETTE.black]}
           start={{ x: 0, y: 0 }}
           end={{ x: 1, y: 1 }}
           style={styles.gradient}
@@ -525,7 +534,7 @@ const ReservationsHistory: React.FC<{ navigation?: any }> = ({
               style={styles.backButtonModern}
               activeOpacity={0.8}
             >
-              <Ionicons name="arrow-back" size={24} color="#FFFFFF" />
+              <Ionicons name="arrow-back" size={24} color={PALETTE.text} />
             </TouchableOpacity>
 
             <View style={styles.headerTextContainer}>
@@ -595,8 +604,8 @@ const ReservationsHistory: React.FC<{ navigation?: any }> = ({
               <RefreshControl
                 refreshing={refreshing}
                 onRefresh={onRefresh}
-                colors={[theme.colors.primary]}
-                tintColor={theme.colors.primary}
+                colors={[PALETTE.accent]}
+                tintColor={PALETTE.accent}
                 progressBackgroundColor={theme.colors.surface}
               />
             }
@@ -607,14 +616,15 @@ const ReservationsHistory: React.FC<{ navigation?: any }> = ({
   );
 };
 
-const createStyles = (theme: any) =>
+const createStyles = (theme: any, PALETTE?: any) =>
   StyleSheet.create({
     container: {
       flex: 1,
-      backgroundColor: theme.colors.background,
+  backgroundColor: PALETTE ? PALETTE.black : theme.colors.background,
     },
 
     // Modern Header Styles
+    headerWrapper: { height: 120, paddingTop: Platform.OS === "ios" ? 50 : 20 },
     headerGradient: {
       height: 120,
       paddingTop: Platform.OS === "ios" ? 50 : 20,
@@ -633,9 +643,11 @@ const createStyles = (theme: any) =>
       width: 36,
       height: 36,
       borderRadius: 18,
-      backgroundColor: "rgba(255,255,255,0.2)",
+      backgroundColor: PALETTE ? PALETTE.accentSoft + '55' : "rgba(255,255,255,0.2)",
       alignItems: "center",
       justifyContent: "center",
+      borderWidth: 1,
+      borderColor: PALETTE ? PALETTE.borderAlt : 'transparent'
     },
     headerTextContainer: {
       flex: 1,
@@ -643,14 +655,18 @@ const createStyles = (theme: any) =>
     },
     headerTitle: {
       fontSize: TYPOGRAPHY.h2,
-      fontWeight: "700",
-      color: "#FFFFFF",
+      fontWeight: "800",
+      color: PALETTE ? PALETTE.text : "#FFFFFF",
       marginBottom: 2,
+      letterSpacing: 0.5,
+      textShadowColor: PALETTE ? PALETTE.glow : 'transparent',
+      textShadowOffset: { width: 0, height: 2 },
+      textShadowRadius: 4,
     },
     headerSubtitle: {
       fontSize: TYPOGRAPHY.body,
-      color: "rgba(255,255,255,0.8)",
-      fontWeight: "500",
+      color: PALETTE ? PALETTE.textSecondary : "rgba(255,255,255,0.8)",
+      fontWeight: "600",
     },
     headerSpacer: {
       width: 40,
@@ -755,7 +771,7 @@ const createStyles = (theme: any) =>
       width: 36,
       height: 36,
       borderRadius: 18,
-      backgroundColor: theme.colors.primary + "20",
+  backgroundColor: PALETTE.accentSoft + '55',
       alignItems: "center",
       justifyContent: "center",
       marginRight: getResponsiveSpacing("xs"),
@@ -777,7 +793,7 @@ const createStyles = (theme: any) =>
     dateChip: {
       flexDirection: "row",
       alignItems: "center",
-      backgroundColor: theme.colors.primary + "15",
+  backgroundColor: PALETTE.accent + '26',
       paddingHorizontal: getResponsiveSpacing("sm"),
       paddingVertical: getResponsiveSpacing("xs"),
       borderRadius: 8,
@@ -786,12 +802,12 @@ const createStyles = (theme: any) =>
     dateChipText: {
       fontSize: TYPOGRAPHY.caption,
       fontWeight: "600",
-      color: theme.colors.primary,
+  color: PALETTE.accentBright,
     },
     timeChip: {
       flexDirection: "row",
       alignItems: "center",
-      backgroundColor: theme.colors.accent + "15",
+  backgroundColor: PALETTE.accent + '18',
       paddingHorizontal: getResponsiveSpacing("sm"),
       paddingVertical: getResponsiveSpacing("xs"),
       borderRadius: 8,
@@ -800,7 +816,7 @@ const createStyles = (theme: any) =>
     timeChipText: {
       fontSize: TYPOGRAPHY.caption,
       fontWeight: "600",
-      color: theme.colors.accent,
+  color: PALETTE.accent,
     },
 
     // Status Badge
