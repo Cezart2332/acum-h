@@ -77,6 +77,7 @@ export default function HomeScreen({ navigation }: { navigation: HomeNav }) {
   const [selectedCategory, setSelectedCategory] = useState<string>("toate"); // New category filter
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   const [restaurants, setRestaurants] = useState<LocationData[]>([]);
   const [events, setEvents] = useState<EventData[]>([]);
   const [isUsingMockData, setIsUsingMockData] = useState(false); // Track if using fallback data
@@ -100,56 +101,45 @@ export default function HomeScreen({ navigation }: { navigation: HomeNav }) {
   );
 
   const loadData = async () => {
+    setLoading(true);
+    setError(null);
+    
     try {
       const [restaurantsResponse, eventsResponse] = await Promise.all([
-        fetch(`${BASE_URL}/locations`).then((res) => res.json()).catch(error => {
-          return { error: "Failed to fetch locations" };
+        fetch(`${BASE_URL}/locations`).then((res) => {
+          if (!res.ok) {
+            throw new Error(`Locations API failed: ${res.status} ${res.statusText}`);
+          }
+          return res.json();
         }),
-        fetch(`${BASE_URL}/events`).then((res) => res.json()).catch(error => {
-          return { error: "Failed to fetch events" };
+        fetch(`${BASE_URL}/events`).then((res) => {
+          if (!res.ok) {
+            throw new Error(`Events API failed: ${res.status} ${res.statusText}`);
+          }
+          return res.json();
         }),
       ]);
 
-      // Handle both old and new API response formats, plus error responses
-      let restaurantsData = [];
-      let eventsData = [];
-      let usingMockData = false;
-
-      // Check if locations request succeeded
-      if (restaurantsResponse && !restaurantsResponse.error) {
-        restaurantsData = Array.isArray(restaurantsResponse) 
-          ? restaurantsResponse 
-          : (restaurantsResponse?.data || []);
-      } else {
-        restaurantsData = getMockRestaurants();
-        usingMockData = true;
-      }
-
-      // Check if events request succeeded  
-      if (eventsResponse && !eventsResponse.error) {
-        eventsData = Array.isArray(eventsResponse) 
-          ? eventsResponse 
-          : (eventsResponse?.data || []);
-      } else {
-        eventsData = getMockEvents();
-        usingMockData = true;
-      }
+      // Handle API response formats
+      const restaurantsData = Array.isArray(restaurantsResponse) 
+        ? restaurantsResponse 
+        : (restaurantsResponse?.data || []);
+        
+      const eventsData = Array.isArray(eventsResponse) 
+        ? eventsResponse 
+        : (eventsResponse?.data || []);
 
       setRestaurants(restaurantsData);
       setEvents(eventsData);
-      setIsUsingMockData(usingMockData);
+      setIsUsingMockData(false);
       
-      if (usingMockData) {
-        console.log("📱 Using offline mode - showing demo locations and events");
-      } else {
-        console.log(`✅ Loaded ${restaurantsData.length} restaurants and ${eventsData.length} events from server`);
-      }
+      console.log(`✅ Loaded ${restaurantsData.length} restaurants and ${eventsData.length} events from server`);
     } catch (error) {
-      console.log("📱 Network unavailable - switching to offline mode");
-      // Fallback to mock data in case of complete failure
-      setRestaurants(getMockRestaurants());
-      setEvents(getMockEvents());
-      setIsUsingMockData(true);
+      console.error("❌ Failed to load data from API:", error);
+      setError(error instanceof Error ? error.message : "Failed to load data");
+      setRestaurants([]);
+      setEvents([]);
+      setIsUsingMockData(false);
     } finally {
       setLoading(false);
     }
@@ -577,6 +567,18 @@ export default function HomeScreen({ navigation }: { navigation: HomeNav }) {
 
         {/* Content Section */}
         <View style={styles.contentSection}>
+          {error && (
+            <View style={[styles.errorContainer, { backgroundColor: theme.colors.error }]}>
+              <Text style={[styles.errorText, { color: theme.colors.surface }]}>
+                ❌ {error}
+              </Text>
+              <TouchableOpacity onPress={loadData} style={styles.retryButton}>
+                <Text style={[styles.retryButtonText, { color: theme.colors.surface }]}>
+                  🔄 Retry
+                </Text>
+              </TouchableOpacity>
+            </View>
+          )}
           <FlatList
             data={currentData}
             renderItem={renderCard}
@@ -780,5 +782,27 @@ const createStyles = (theme: any) =>
       fontSize: TYPOGRAPHY.caption,
       fontWeight: "600",
       textTransform: "capitalize",
+    },
+    errorContainer: {
+      margin: getResponsiveSpacing("lg"),
+      padding: getResponsiveSpacing("lg"),
+      borderRadius: 12,
+      alignItems: "center",
+      gap: getResponsiveSpacing("md"),
+    },
+    errorText: {
+      fontSize: TYPOGRAPHY.body,
+      fontWeight: "500",
+      textAlign: "center",
+    },
+    retryButton: {
+      paddingVertical: getResponsiveSpacing("sm"),
+      paddingHorizontal: getResponsiveSpacing("lg"),
+      borderRadius: 8,
+      backgroundColor: "rgba(255, 255, 255, 0.2)",
+    },
+    retryButtonText: {
+      fontSize: TYPOGRAPHY.caption,
+      fontWeight: "600",
     },
   });

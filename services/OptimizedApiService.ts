@@ -225,63 +225,12 @@ class OptimizedApiService {
             },
           };
         } catch (fallbackError) {
-          // Use mock data as final fallback (silent)
-          console.log("📅 Using offline events data");
-          const mockEvents: EventData[] = [
-            {
-              id: 1,
-              title: "Summer Music Festival",
-              description: "A celebration of music and culture in the heart of the city",
-              eventDate: "2024-07-15",
-              startTime: "19:00",
-              endTime: "23:00",
-              address: "Central Park Avenue 123",
-              city: "Downtown",
-              photo: "https://picsum.photos/400/300?random=1",
-              isActive: true,
-              latitude: 44.4268,
-              longitude: 26.1025,
-              createdAt: "2024-01-01T00:00:00Z",
-              companyId: 1,
-              tags: ["music", "festival", "outdoor"],
-              company: "Event Organizers Inc",
-              likes: 128
-            },
-            {
-              id: 2,
-              title: "Food & Wine Tasting",
-              description: "Experience the finest local cuisine and wines",
-              eventDate: "2024-07-22",
-              startTime: "18:30",
-              endTime: "22:00",
-              address: "Grand Hotel, Main Street 456",
-              city: "City Center",
-              photo: "https://picsum.photos/400/300?random=2",
-              isActive: true,
-              latitude: 44.4378,
-              longitude: 26.0975,
-              createdAt: "2024-01-02T00:00:00Z",
-              companyId: 2,
-              tags: ["food", "wine", "indoor"],
-              company: "Culinary Masters",
-              likes: 95
-            }
-          ];
-          
-          const filteredData = this.filterEventsClientSide(mockEvents, search, active);
-          const paginatedData = this.paginateArray(filteredData, page, limit);
-          
-          return {
-            data: paginatedData,
-            pagination: {
-              page,
-              limit,
-              total: filteredData.length,
-              totalPages: Math.ceil(filteredData.length / limit),
-              hasNext: page * limit < filteredData.length,
-              hasPrev: page > 1,
-            },
-          };
+          // Log the actual error for debugging
+          console.error("Both event endpoints failed:", {
+            originalError: error.message,
+            fallbackError: fallbackError.message
+          });
+          throw new Error(`Failed to fetch events: ${error.message}`);
         }
       }
     });

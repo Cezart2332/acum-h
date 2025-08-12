@@ -310,9 +310,16 @@ app.MapGet("/health/db", async (AppDbContext context) =>
     {
         await context.Database.CanConnectAsync();
         var migrations = await context.Database.GetAppliedMigrationsAsync();
+        
+        // Test simple count queries
+        var locationCount = await context.Locations.CountAsync();
+        var eventCount = await context.Events.CountAsync();
+        
         return Results.Ok(new { 
             status = "database connected", 
             migrationsApplied = migrations.Count(),
+            locationCount,
+            eventCount,
             timestamp = DateTime.UtcNow 
         });
     }
@@ -322,6 +329,78 @@ app.MapGet("/health/db", async (AppDbContext context) =>
     }
 });
 
+// Test endpoint to debug location query issues
+app.MapGet("/test/simple-locations", async (AppDbContext db) =>
+{
+    try
+    {
+        // Test very simple projection first
+        var locations = await db.Locations
+            .Where(l => l.IsActive)
+            .Select(l => new { l.Id, l.Name, l.Address })
+            .Take(5)
+            .ToListAsync();
+        
+        return Results.Ok(new { count = locations.Count, data = locations });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Simple location query failed: {ex.Message}");
+    }
+}).WithTags("Test");
+
+// Test endpoint to debug which field causes the issue
+app.MapGet("/test/location-fields", async (AppDbContext db) =>
+{
+    try
+    {
+        // Query only EF-translatable members first
+        var raw = await db.Locations
+            .Where(l => l.IsActive)
+            .Select(l => new {
+                l.Id,
+                l.Name,
+                l.Address,
+                l.Category,
+                l.PhoneNumber,
+                l.Latitude,
+                l.Longitude,
+                Description = l.Description ?? string.Empty,
+                RawTags = l.Tags,
+                l.MenuName,
+                HasMenu = l.MenuData != null && l.MenuData.Length > 0,
+                l.CreatedAt,
+                l.UpdatedAt,
+                l.CompanyId
+            })
+            .Take(5)
+            .ToListAsync();
+
+        // Post-process tags client-side
+        var shaped = raw.Select(l => new {
+            l.Id,
+            l.Name,
+            l.Address,
+            l.Category,
+            l.PhoneNumber,
+            l.Latitude,
+            l.Longitude,
+            l.Description,
+            Tags = string.IsNullOrEmpty(l.RawTags) ? Array.Empty<string>() : l.RawTags.Split(',', StringSplitOptions.RemoveEmptyEntries),
+            l.MenuName,
+            l.HasMenu,
+            l.CreatedAt,
+            l.UpdatedAt,
+            l.CompanyId
+        });
+
+        return Results.Ok(new { count = shaped.Count(), data = shaped });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Location fields query failed: {ex.Message}");
+    }
+}).WithTags("Test");
 // Helper function to get client IP
 string GetClientIpAddress(HttpContext context)
 {
@@ -728,6 +807,8 @@ app.MapGet("/companies", async (AppDbContext db) =>
 // GET /events - Public events endpoint with pagination and optimization
 app.MapGet("/events", async (int? page, int? limit, string? search, bool? active, AppDbContext db) =>
 {
+    try
+    {
     // Default pagination values
     var pageNum = page ?? 1;
     var limitNum = Math.Min(limit ?? 50, 100); // Max 100 items per request
@@ -735,7 +816,6 @@ app.MapGet("/events", async (int? page, int? limit, string? search, bool? active
 
     // Build query with filters
     var query = db.Events
-        .Include(e => e.Company)
         .Where(e => active != false ? e.IsActive : true); // Default to active events only
 
     // Apply search filter
@@ -755,32 +835,49 @@ app.MapGet("/events", async (int? page, int? limit, string? search, bool? active
     var totalCount = await query.CountAsync();
 
     // Get paginated results with optimized projection
-    var events = await query
+    var rawEvents = await query
         .OrderBy(e => e.EventDate)
-        .ThenBy(e => e.StartTime) // Order by date and time
+        .ThenBy(e => e.StartTime)
         .Skip(skip)
         .Take(limitNum)
-        .Select(e => new EventResponse
-        {
-            Id = e.Id,
-            Title = e.Title,
-            Description = e.Description,
-            Tags = string.IsNullOrEmpty(e.Tags) ? new List<string>() : e.Tags.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(t => t.Trim()).ToList(),
-            Likes = db.Likes.Count(l => l.EventId == e.Id),
-            // Optimize photo loading - only send if small
-            Photo = e.Photo != null && e.Photo.Length <= 50000 ? Convert.ToBase64String(e.Photo) : string.Empty,
-            Company = e.Company != null ? e.Company.Name : "Unknown",
-            EventDate = e.EventDate,
-            StartTime = e.StartTime.ToString(@"hh\:mm"),
-            EndTime = e.EndTime.ToString(@"hh\:mm"),
-            Address = e.Address,
-            City = e.City,
-            Latitude = e.Latitude,
-            Longitude = e.Longitude,
-            IsActive = e.IsActive,
-            CreatedAt = e.CreatedAt
+        .Select(e => new {
+            e.Id,
+            e.Title,
+            e.Description,
+            e.Tags,
+            e.Photo,
+            e.CompanyId,
+            e.EventDate,
+            e.StartTime,
+            e.EndTime,
+            e.Address,
+            e.City,
+            e.Latitude,
+            e.Longitude,
+            e.IsActive,
+            e.CreatedAt
         })
         .ToListAsync();
+
+    var events = rawEvents.Select(e => new EventResponse {
+        Id = e.Id,
+        Title = e.Title,
+        Description = e.Description,
+        Tags = string.IsNullOrEmpty(e.Tags) ? new List<string>() : e.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList(),
+        Likes = 0,
+        Photo = e.Photo != null && e.Photo.Length > 0 && e.Photo.Length <= 50000 ? Convert.ToBase64String(e.Photo) : string.Empty,
+        Company = string.Empty,
+        CompanyId = e.CompanyId,
+        EventDate = e.EventDate,
+        StartTime = e.StartTime.ToString(@"hh\:mm"),
+        EndTime = e.EndTime.ToString(@"hh\:mm"),
+        Address = e.Address,
+        City = e.City,
+        Latitude = e.Latitude,
+        Longitude = e.Longitude,
+        IsActive = e.IsActive,
+        CreatedAt = e.CreatedAt
+    }).ToList();
 
     var totalPages = (int)Math.Ceiling((double)totalCount / limitNum);
 
@@ -797,6 +894,16 @@ app.MapGet("/events", async (int? page, int? limit, string? search, bool? active
             hasPrev = pageNum > 1
         }
     });
+    }
+    catch (Exception ex)
+    {
+        Log.Error(ex, "Error in /events endpoint");
+        return Results.Problem(
+            detail: "An error occurred while fetching events",
+            statusCode: 500,
+            title: "Internal Server Error"
+        );
+    }
 }).WithTags("Events")
   .RequireRateLimiting("GeneralPolicy")
   .WithOpenApi();
@@ -804,6 +911,8 @@ app.MapGet("/events", async (int? page, int? limit, string? search, bool? active
 // GET /locations - Public locations endpoint with pagination and optimization
 app.MapGet("/locations", async (int? page, int? limit, string? category, string? search, AppDbContext db) =>
 {
+    try
+    {
     // Default pagination values
     var pageNum = page ?? 1;
     var limitNum = Math.Min(limit ?? 50, 100); // Max 100 items per request
@@ -811,7 +920,6 @@ app.MapGet("/locations", async (int? page, int? limit, string? category, string?
 
     // Build query with filters
     var query = db.Locations
-        .Include(l => l.Company)
         .Where(l => l.IsActive);
 
     // Apply category filter
@@ -828,20 +936,20 @@ app.MapGet("/locations", async (int? page, int? limit, string? category, string?
             l.Name.ToLower().Contains(searchLower) ||
             l.Address.ToLower().Contains(searchLower) ||
             l.Tags.ToLower().Contains(searchLower) ||
-            l.Category.ToLower().Contains(searchLower)
+            l.Category.ToLower().Contains(searchLower) ||
+            (l.Description != null && l.Description.ToLower().Contains(searchLower))
         );
     }
 
     // Get total count for pagination
     var totalCount = await query.CountAsync();
 
-    // Get paginated results with optimized projection
-    var locations = await query
-        .OrderBy(l => l.Name) // Consistent ordering for pagination
+    // First fetch raw data (only EF-translatable operations here)
+    var rawLocations = await query
+        .OrderBy(l => l.Name)
         .Skip(skip)
         .Take(limitNum)
-        .Select(l => new
-        {
+        .Select(l => new {
             l.Id,
             l.Name,
             l.Address,
@@ -850,16 +958,34 @@ app.MapGet("/locations", async (int? page, int? limit, string? category, string?
             l.Latitude,
             l.Longitude,
             l.Description,
-            Tags = string.IsNullOrEmpty(l.Tags) ? new string[0] : l.Tags.Split(new char[] { ',' }, StringSplitOptions.RemoveEmptyEntries).Select(t => t.Trim()).ToArray(),
-            // Optimize photo loading - only send if small or provide thumbnail
-            Photo = l.Photo == null || l.Photo.Length > 50000 ? "" : Convert.ToBase64String(l.Photo), // Skip large photos for list view
-            MenuName = l.MenuName,
-            HasMenu = l.MenuData != null && l.MenuData.Length > 0,
+            l.Tags,
+            l.Photo,
+            l.MenuName,
+            l.MenuData,
             l.CreatedAt,
             l.UpdatedAt,
-            CompanyName = l.Company.Name // Include company name directly
+            l.CompanyId
         })
         .ToListAsync();
+
+    // Shape result client-side (safe string operations & base64)
+    var locations = rawLocations.Select(l => new {
+        l.Id,
+        l.Name,
+        l.Address,
+        l.Category,
+        l.PhoneNumber,
+        l.Latitude,
+        l.Longitude,
+        Description = l.Description ?? string.Empty,
+        Tags = string.IsNullOrEmpty(l.Tags) ? Array.Empty<string>() : l.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries),
+        Photo = l.Photo != null && l.Photo.Length > 0 && l.Photo.Length <= 50000 ? Convert.ToBase64String(l.Photo) : string.Empty,
+        l.MenuName,
+        HasMenu = l.MenuData != null && l.MenuData.Length > 0,
+        l.CreatedAt,
+        l.UpdatedAt,
+        CompanyId = l.CompanyId
+    }).ToList();
 
     var totalPages = (int)Math.Ceiling((double)totalCount / limitNum);
         
@@ -876,6 +1002,16 @@ app.MapGet("/locations", async (int? page, int? limit, string? category, string?
             hasPrev = pageNum > 1
         }
     });
+    }
+    catch (Exception ex)
+    {
+        Log.Error(ex, "Error in /locations endpoint");
+        return Results.Problem(
+            detail: "An error occurred while fetching locations",
+            statusCode: 500,
+            title: "Internal Server Error"
+        );
+    }
 }).WithTags("Locations")
   .RequireRateLimiting("GeneralPolicy")
   .WithOpenApi();
@@ -1161,9 +1297,9 @@ app.MapPost("companyevents", async (HttpRequest req, AppDbContext db) =>
         Title = e.Title,
         Description = e.Description,
         Tags = string.IsNullOrEmpty(e.Tags) ? new List<string>() : e.Tags.Split(",").Select(t => t.Trim()).ToList(),
-        Likes = db.Likes.Count(l => l.EventId == e.Id),
+        Likes = 0, // Temporarily disabled to avoid N+1 query issues
         Photo = e.Photo != null ? Convert.ToBase64String(e.Photo) : string.Empty,
-        Company = e.Company?.Name ?? "Unknown",
+        Company = string.Empty, // Company name removed to avoid join issues
         EventDate = e.EventDate,
         StartTime = e.StartTime.ToString(@"hh\:mm"),
         EndTime = e.EndTime.ToString(@"hh\:mm"),
