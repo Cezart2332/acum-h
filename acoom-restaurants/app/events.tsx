@@ -11,6 +11,7 @@ import {
 import { Stack, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
+import LazyImage from "../components/LazyImage";
 import BASE_URL from "../config";
 
 interface Event {
@@ -23,6 +24,8 @@ interface Event {
   address: string;
   city: string;
   photo: string;
+  photoUrl?: string;
+  hasPhoto?: boolean;
   isActive: boolean;
   latitude?: number;
   longitude?: number;
@@ -43,17 +46,20 @@ export default function EventsScreen() {
     try {
       const response = await fetch(`${BASE_URL}/events`);
       if (response.ok) {
-        const eventsData = await response.json();
-        console.log("Events data received:", eventsData.length, "events");
-        eventsData.forEach((event: any, index: number) => {
+        const payload = await response.json();
+        const eventsData = Array.isArray(payload) ? payload : (Array.isArray(payload?.data) ? payload.data : []);
+        console.log("Events data received:", (eventsData && eventsData.length) || 0, "events");
+        if (Array.isArray(eventsData)) {
+          eventsData.forEach((event: any, index: number) => {
           console.log(`Event ${index + 1}:`, {
             id: event.id,
             title: event.title,
-            hasPhoto: !!event.photo,
-            photoLength: event.photo ? event.photo.length : 0,
+            hasPhoto: !!event.photo || !!event.photoUrl,
+            photoLength: event.photo ? event.photo.length : (event.photoUrl ? event.photoUrl.length : 0),
           });
-        });
-        setEvents(eventsData);
+          });
+        }
+        setEvents(Array.isArray(eventsData) ? eventsData : []);
       } else {
         console.log("Failed to fetch events, status:", response.status);
       }
@@ -287,14 +293,14 @@ export default function EventsScreen() {
                 }}
                 onPress={() => router.push(`./event-detail?id=${event.id}`)}
               >
-                {event.photo && (
-                  <Image
-                    source={{ uri: `data:image/jpeg;base64,${event.photo}` }}
+                {(event.photoUrl || event.photo) && (
+                  <LazyImage
+                    photoUrl={event.photoUrl}
+                    photo={event.photo}
                     style={{
                       width: "100%",
                       height: 150,
                     }}
-                    resizeMode="cover"
                   />
                 )}
                 <View style={{ padding: 16 }}>

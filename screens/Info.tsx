@@ -94,6 +94,27 @@ const Info: React.FC<Props> = ({ navigation, route }) => {
 
   const styles = createStyles(theme);
 
+  // Resolve image source: prefer photoUrl (normalize relative paths), then base64 photo, then local placeholder
+  const getImageSource = () => {
+    const rawUrl = (location as any).photoUrl;
+    if (rawUrl && rawUrl.toString().trim() !== "") {
+      const s = rawUrl.toString();
+      const normalized = s.startsWith("http")
+        ? s
+        : `${BASE_URL.replace(/\/$/, "")}${s.startsWith("/") ? "" : "/"}${s}`;
+      return { uri: normalized };
+    }
+
+    if (location.photo && location.photo.toString().trim() !== "") {
+      // assume it's a base64 payload
+      return { uri: `data:image/jpg;base64,${location.photo}` };
+    }
+
+    // Fallback to bundled default image
+    // assets/default.jpg exists in the repo
+    return require("../assets/default.jpg");
+  };
+
   useEffect(() => {
     // Start entrance animations
     Animated.parallel([
@@ -117,7 +138,13 @@ const Info: React.FC<Props> = ({ navigation, route }) => {
     (async () => {
       setCheckingMenu(true);
       try {
-        const url = `${BASE_URL}/locations/${location.id}/menu`;
+        // Prefer backend-provided menuUrl when available, otherwise fallback to legacy endpoint
+        const rawMenuUrl = (location as any).menuUrl;
+        const url = rawMenuUrl && rawMenuUrl.toString().trim() !== ""
+          ? (rawMenuUrl.toString().startsWith("http")
+              ? rawMenuUrl.toString()
+              : `${BASE_URL.replace(/\/$/, "")}${rawMenuUrl.toString().startsWith("/") ? "" : "/"}${rawMenuUrl.toString()}`)
+          : `${BASE_URL}/locations/${location.id}/menu`;
         console.log("Checking menu at", url);
         const res = await fetch(url, { method: "GET" });
         console.log("Menu check status", res.status);
@@ -133,7 +160,13 @@ const Info: React.FC<Props> = ({ navigation, route }) => {
 
   const openMenu = async () => {
     try {
-      const url = `${BASE_URL}/locations/${location.id}/menu`;
+      const rawMenuUrl = (location as any).menuUrl;
+      const url = rawMenuUrl && rawMenuUrl.toString().trim() !== ""
+        ? (rawMenuUrl.toString().startsWith("http")
+            ? rawMenuUrl.toString()
+            : `${BASE_URL.replace(/\/$/, "")}${rawMenuUrl.toString().startsWith("/") ? "" : "/"}${rawMenuUrl.toString()}`)
+        : `${BASE_URL}/locations/${location.id}/menu`;
+
       await Linking.openURL(url);
     } catch (error) {
       Alert.alert("Eroare", "Nu s-a putut deschide meniul");
@@ -194,10 +227,7 @@ const Info: React.FC<Props> = ({ navigation, route }) => {
           contentContainerStyle={styles.scroll}
           showsVerticalScrollIndicator={false}
         >
-          <Image
-            source={{ uri: `data:image/jpg;base64,${location.photo}` }}
-            style={styles.heroImage}
-          />
+          <Image source={getImageSource()} style={styles.heroImage} />
           <View style={styles.infoCard}>
             <Text style={styles.companyName}>{location.name}</Text>
 

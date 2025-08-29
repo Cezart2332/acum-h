@@ -48,7 +48,10 @@ interface EventData {
   endTime: string;
   address: string;
   city: string;
-  photo: string;
+  photo: string; // Legacy base64 field
+  photoUrl: string; // New URL field
+  photoPath?: string; // File path for new system
+  hasPhoto: boolean; // New field
   isActive: boolean;
   latitude?: number;
   longitude?: number;
@@ -242,9 +245,17 @@ const EventScreen: React.FC<Props> = ({ route, navigation }) => {
           {/* Hero Image */}
           <View style={styles.heroContainer}>
             <ImageBackground
-              source={{ uri: `data:image/jpg;base64,${event.photo}` }}
+              source={{ 
+                uri: event.photoUrl && event.photoUrl.trim() !== '' 
+                  ? event.photoUrl 
+                  : `data:image/jpg;base64,${event.photo}`,
+                cache: 'force-cache'
+              }}
               style={styles.imageBackground}
               imageStyle={styles.imageStyle}
+              onError={(error) => {
+                console.log('Event image load error for', event.title, ':', error.nativeEvent.error);
+              }}
             >
               <LinearGradient
                 colors={["rgba(0,0,0,0.3)", "rgba(0,0,0,0.8)"]}

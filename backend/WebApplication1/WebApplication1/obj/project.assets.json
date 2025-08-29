@@ -1895,25 +1895,24 @@
     ]
   },
   "packageFolders": {
-    "/home/cezar/.nuget/packages/": {}
+    "C:\\Users\\Cezar\\.nuget\\packages\\": {}
   },
   "project": {
     "version": "1.0.0",
     "restore": {
-      "projectUniqueName": "/home/cezar/Desktop/backend-ach/WebApplication1.csproj",
+      "projectUniqueName": "C:\\Users\\Cezar\\Desktop\\backend-ach\\WebApplication1.csproj",
       "projectName": "WebApplication1",
-      "projectPath": "/home/cezar/Desktop/backend-ach/WebApplication1.csproj",
-      "packagesPath": "/home/cezar/.nuget/packages/",
-      "outputPath": "/home/cezar/Desktop/backend-ach/obj/",
+      "projectPath": "C:\\Users\\Cezar\\Desktop\\backend-ach\\WebApplication1.csproj",
+      "packagesPath": "C:\\Users\\Cezar\\.nuget\\packages\\",
+      "outputPath": "C:\\Users\\Cezar\\Desktop\\backend-ach\\obj\\",
       "projectStyle": "PackageReference",
       "configFilePaths": [
-        "/home/cezar/.nuget/NuGet/NuGet.Config"
+        "C:\\Users\\Cezar\\AppData\\Roaming\\NuGet\\NuGet.Config"
       ],
       "originalTargetFrameworks": [
         "net9.0"
       ],
       "sources": {
-        "/usr/lib/dotnet/library-packs": {},
         "https://api.nuget.org/v3/index.json": {}
       },
       "frameworks": {
@@ -1932,7 +1931,7 @@
         "auditLevel": "low",
         "auditMode": "direct"
       },
-      "SdkAnalysisLevel": "9.0.100"
+      "SdkAnalysisLevel": "9.0.300"
     },
     "frameworks": {
       "net9.0": {
@@ -1998,7 +1997,7 @@
             "privateAssets": "all"
           }
         },
-        "runtimeIdentifierGraphPath": "/usr/lib/dotnet/sdk/9.0.109/PortableRuntimeIdentifierGraph.json"
+        "runtimeIdentifierGraphPath": "C:\\Program Files\\dotnet\\sdk\\9.0.304/PortableRuntimeIdentifierGraph.json"
       }
     }
   }

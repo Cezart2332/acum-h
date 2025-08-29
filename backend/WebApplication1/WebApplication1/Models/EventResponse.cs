@@ -3,7 +3,10 @@
 public class EventResponse
 {
     public int Id { get; set; }
-    public string Photo { get; set; } = string.Empty;
+    public string Photo { get; set; } = string.Empty; // Legacy field for backward compatibility
+    public string? PhotoPath { get; set; } // File path for new system
+    public string PhotoUrl { get; set; } = string.Empty; // Direct URL to photo file
+    public bool HasPhoto { get; set; } = false;
     public string Title { get; set; } = string.Empty;
     public string Description { get; set; } = string.Empty;
     public List<string> Tags { get; set; } = new();

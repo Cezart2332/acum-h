@@ -18,11 +18,22 @@ export default function DashboardScreen() {
   const [company, setCompany] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [dashboardStats, setDashboardStats] = useState({
+    locationsCount: 0,
+    eventsCount: 0,
+    loading: true,
+  });
 
   useEffect(() => {
     console.log("🏠 DASHBOARD COMPONENT MOUNTED");
     loadCompanyData();
   }, []);
+
+  useEffect(() => {
+    if (company?.id) {
+      fetchDashboardStats();
+    }
+  }, [company?.id]);
 
   const loadCompanyData = async () => {
     try {
@@ -69,6 +80,35 @@ export default function DashboardScreen() {
       console.error("Error loading company data:", error);
       setError("Eroare la încărcarea datelor");
       setLoading(false);
+    }
+  };
+
+  const fetchDashboardStats = async () => {
+    try {
+      if (!company?.id) return;
+      
+      setDashboardStats(prev => ({ ...prev, loading: true }));
+      
+      // Fetch locations count
+      const locationsResponse = await SecureApiService.get(`/companies/${company.id}/locations`);
+      const locationsData = locationsResponse?.success ? locationsResponse.data : [];
+      const locationsCount = Array.isArray(locationsData) ? locationsData.length : 0;
+      
+      // Fetch events count  
+      const formData = new FormData();
+      formData.append('id', company.id.toString());
+      const eventsResponse = await SecureApiService.post('/companyevents', formData);
+      const eventsData = eventsResponse?.success ? eventsResponse.data : [];
+      const eventsCount = Array.isArray(eventsData) ? eventsData.length : 0;
+      
+      setDashboardStats({
+        locationsCount,
+        eventsCount,
+        loading: false
+      });
+    } catch (error) {
+      console.error('Error fetching dashboard stats:', error);
+      setDashboardStats(prev => ({ ...prev, loading: false }));
     }
   };
 
@@ -613,7 +653,7 @@ export default function DashboardScreen() {
                         marginTop: 8,
                       }}
                     >
-                      3
+                      {dashboardStats.loading ? "..." : dashboardStats.locationsCount}
                     </Text>
                     <Text
                       style={{
@@ -645,7 +685,7 @@ export default function DashboardScreen() {
                         marginTop: 8,
                       }}
                     >
-                      5
+                      {dashboardStats.loading ? "..." : dashboardStats.eventsCount}
                     </Text>
                     <Text
                       style={{

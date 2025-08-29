@@ -27,6 +27,8 @@ interface Event {
   address: string;
   city: string;
   photo: string;
+  photoUrl?: string;
+  hasPhoto?: boolean;
   isActive: boolean;
   latitude?: number;
   longitude?: number;
@@ -84,7 +86,16 @@ export default function EditEventScreen() {
 
         setAddress(event.address || "");
         setCity(event.city || "Constanta");
-        setImage(event.photo || null);
+        
+        // Handle both photoUrl and base64 photo formats
+        if (event.photoUrl) {
+          setImage(event.photoUrl);
+        } else if (event.photo && event.photo !== "use_photo_url") {
+          setImage(event.photo);
+        } else {
+          setImage(null);
+        }
+        
         setIsActive(event.isActive);
       } else {
         console.log(
@@ -156,7 +167,24 @@ export default function EditEventScreen() {
       formData.append("isActive", isActive.toString());
 
       if (image) {
-        formData.append("photo", image);
+        // If image is a URL, don't re-upload; backend will keep existing photoPath
+        if (image.startsWith("http") || image.startsWith("https")) {
+          console.log("Image is a URL, not appending file for update");
+        } else {
+          // Assume base64 and try to append as file for multipart upload
+          try {
+            const base64Data = image.replace(/^data:image\/[a-z]+;base64,/, "");
+            formData.append("file", {
+              uri: `data:image/jpeg;base64,${base64Data}`,
+              name: "event.jpg",
+              type: "image/jpeg",
+            } as any);
+            console.log("Appended image as file for event update, base64 length:", base64Data.length);
+          } catch (err) {
+            console.warn("Failed to append file for update, falling back to base64 field:", err);
+            formData.append("photo", image);
+          }
+        }
       }
 
       const response = await fetch(`${BASE_URL}/events/${eventId}`, {
@@ -459,6 +487,68 @@ export default function EditEventScreen() {
                 City: {city} (Fixed)
               </Text>
             </View>
+          </View>
+
+          {/* Image */}
+          <View style={{ marginBottom: 20 }}>
+            <Text
+              style={{
+                color: "#FFFFFF",
+                fontSize: 16,
+                fontWeight: "600",
+                marginBottom: 8,
+              }}
+            >
+              Event Photo
+            </Text>
+            <TouchableOpacity
+              onPress={pickImage}
+              style={{
+                backgroundColor: "#1F2937",
+                borderRadius: 12,
+                borderWidth: 1,
+                borderColor: "#374151",
+                borderStyle: "dashed",
+                padding: 20,
+                alignItems: "center",
+                justifyContent: "center",
+                minHeight: 120,
+              }}
+            >
+              {image ? (
+                <View style={{ width: "100%", alignItems: "center" }}>
+                  <Image
+                    source={{
+                      uri: image.startsWith('data:') ? image : `data:image/jpeg;base64,${image}`
+                    }}
+                    style={{
+                      width: "100%",
+                      height: 200,
+                      borderRadius: 8,
+                      marginBottom: 12,
+                    }}
+                    resizeMode="cover"
+                  />
+                  <Text style={{ color: "#10B981", fontSize: 14 }}>
+                    Tap to change photo
+                  </Text>
+                </View>
+              ) : (
+                <View style={{ alignItems: "center" }}>
+                  <Ionicons name="camera-outline" size={40} color="#6B7280" />
+                  <Text
+                    style={{
+                      color: "#6B7280",
+                      fontSize: 16,
+                      marginTop: 8,
+                      textAlign: "center",
+                    }}
+                  >
+                    Tap to add photo
+                  </Text>
+                </View>
+              )}
+            </TouchableOpacity>
           </View>
 
           {/* Date */}

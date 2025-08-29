@@ -1,4 +1,5 @@
 import { SecureStorageService } from "./SecureStorageService";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 // Production API configuration
 const API_CONFIG = {
@@ -84,6 +85,42 @@ export class SecureApiService {
       const tokens = await SecureStorageService.getTokens();
       this.accessToken = tokens.accessToken;
       this.refreshToken = tokens.refreshToken;
+
+      const mask = (t?: string | null) => {
+        try {
+          if (!t) return null;
+          return `${t.substring(0, 6)}...(${t.length})`;
+        } catch {
+          return "(masked)";
+        }
+      };
+
+      console.log("SecureApiService.initialize - tokens from SecureStore:", {
+        accessToken: mask(this.accessToken),
+        refreshToken: mask(this.refreshToken),
+      });
+
+      // Compatibility: if secure store had no tokens, try legacy AsyncStorage 'user' object
+      if ((!this.accessToken || !this.refreshToken)) {
+        try {
+          const legacy = await AsyncStorage.getItem("user");
+          if (legacy) {
+            const parsed = JSON.parse(legacy);
+            if (parsed && parsed.accessToken && parsed.refreshToken) {
+              console.log("SecureApiService: found legacy tokens in AsyncStorage, syncing into SecureStore");
+              await SecureStorageService.storeTokens(parsed.accessToken, parsed.refreshToken);
+              this.accessToken = parsed.accessToken;
+              this.refreshToken = parsed.refreshToken;
+              console.log("SecureApiService.initialize - tokens after legacy sync:", {
+                accessToken: mask(this.accessToken),
+                refreshToken: mask(this.refreshToken),
+              });
+            }
+          }
+        } catch (e) {
+          console.warn("SecureApiService: failed to read legacy AsyncStorage tokens:", e);
+        }
+      }
 
       // Validate data integrity
       const isDataValid = await SecureStorageService.validateDataIntegrity();
@@ -190,7 +227,52 @@ export class SecureApiService {
           })(),
         });
 
-        const responseData = await response.json();
+        // Handle empty or non-JSON responses
+        let responseData: any = null;
+        const contentType = response.headers.get("content-type");
+        const contentLength = response.headers.get("content-length");
+        
+        console.log(`API Response for ${endpoint}:`, {
+          status: response.status,
+          statusText: response.statusText,
+          contentType,
+          contentLength,
+        });
+
+        try {
+          const responseText = await response.text();
+          console.log(`Raw response text for ${endpoint} (length: ${responseText.length}):`, responseText);
+          
+          if (responseText.trim()) {
+            try {
+              responseData = JSON.parse(responseText);
+            } catch (parseError) {
+              console.error(`JSON parse error for ${endpoint}:`, parseError);
+              console.error(`Problematic text:`, JSON.stringify(responseText));
+              
+              // If it's a successful response but bad JSON, treat as empty
+              if (response.status >= 200 && response.status < 300) {
+                responseData = {};
+              } else {
+                return {
+                  error: `Invalid JSON response: ${parseError.message}`,
+                  status: response.status,
+                  success: false,
+                };
+              }
+            }
+          } else {
+            console.warn(`Empty response body for ${endpoint}`);
+            responseData = response.status >= 200 && response.status < 300 ? {} : { error: "Empty response" };
+          }
+        } catch (textError) {
+          console.error(`Failed to read response text for ${endpoint}:`, textError);
+          return {
+            error: `Failed to read response: ${textError.message}`,
+            status: response.status,
+            success: false,
+          };
+        }
 
         return {
           data: responseData,
@@ -391,6 +473,51 @@ export class SecureApiService {
   }
 
   /**
+   * Test API connectivity and configuration
+   */
+  static async testConnectivity(): Promise<{
+    success: boolean;
+    baseUrl: string;
+    error?: string;
+  }> {
+    try {
+      console.log("Testing API connectivity...");
+      const testUrl = `${API_CONFIG.BASE_URL}/health`;
+      
+      const response = await fetch(testUrl, {
+        method: "GET",
+        headers: {
+          "User-Agent": "AcoomH-Mobile/1.0",
+        },
+        signal: (() => {
+          const controller = new AbortController();
+          setTimeout(() => controller.abort(), 5000); // 5 second timeout
+          return controller.signal;
+        })(),
+      });
+
+      console.log("API test response:", {
+        status: response.status,
+        statusText: response.statusText,
+        url: testUrl,
+      });
+
+      return {
+        success: response.status < 400,
+        baseUrl: API_CONFIG.BASE_URL,
+        error: response.status >= 400 ? `HTTP ${response.status}` : undefined,
+      };
+    } catch (error) {
+      console.error("API connectivity test failed:", error);
+      return {
+        success: false,
+        baseUrl: API_CONFIG.BASE_URL,
+        error: error instanceof Error ? error.message : "Network error",
+      };
+    }
+  }
+
+  /**
    * Get current user profile
    */
   static async getCurrentUser(): Promise<ApiResponse<any>> {
@@ -412,6 +539,46 @@ export class SecureApiService {
       method: "POST",
       body: JSON.stringify(data),
     });
+  }
+
+  /**
+   * POST multipart/form-data (FormData) without JSON stringification.
+   * This is required for file uploads where the request must not have a
+   * Content-Type forced to application/json so the browser/React Native can
+   * set the multipart boundary header automatically.
+   */
+  static async postForm<T>(endpoint: string, formData: FormData): Promise<ApiResponse<T>> {
+    try {
+      // Ensure tokens are loaded
+      if (!this.accessToken) {
+        const tokens = await SecureStorageService.getTokens();
+        this.accessToken = tokens.accessToken;
+        this.refreshToken = tokens.refreshToken;
+      }
+
+      if (!this.accessToken) {
+        return {
+          error: "No authentication token available",
+          status: 401,
+          success: false,
+        };
+      }
+
+      // Call makeSecureRequest directly and pass Authorization header but DO NOT set Content-Type
+      return await this.makeSecureRequest<T>(endpoint, {
+        method: "POST",
+        body: formData as any,
+        headers: {
+          Authorization: `Bearer ${this.accessToken}`,
+        },
+      });
+    } catch (error) {
+      return {
+        error: error instanceof Error ? error.message : "Request failed",
+        status: 0,
+        success: false,
+      };
+    }
   }
 
   /**
@@ -440,5 +607,5 @@ export class SecureApiService {
   }
 }
 
-// Initialize the service
-SecureApiService.initialize();
+// Note: initialization is triggered explicitly by the app (App.tsx) to ensure deterministic
+// startup ordering and to avoid races with UserContext. Do not auto-initialize here.

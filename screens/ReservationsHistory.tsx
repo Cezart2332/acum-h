@@ -282,14 +282,23 @@ const ReservationsHistory: React.FC<{ navigation?: any }> = ({ navigation }) => 
     return timeString.substring(0, 5); // HH:MM format
   };
 
+  const getFilterCount = (filterType: typeof filter) => {
+    if (filterType === "all") return reservations.length;
+    return reservations.filter((reservation) => {
+      if (!reservation.status) return false;
+      return reservation.status.toLowerCase() === filterType.toLowerCase();
+    }).length;
+  };
+
   const renderFilterButton = (filterValue: typeof filter, label: string) => {
     const isActive = filter === filterValue;
+    const count = getFilterCount(filterValue);
+    
     return (
       <TouchableOpacity
         style={[
           styles.filterChip,
           isActive && styles.filterChipActive,
-          !isActive && { backgroundColor: theme.colors.card },
         ]}
         onPress={() => {
           hapticFeedback("light");
@@ -297,25 +306,43 @@ const ReservationsHistory: React.FC<{ navigation?: any }> = ({ navigation }) => 
         }}
         activeOpacity={0.8}
       >
-        {isActive && (
-          <LinearGradient
-            colors={[PALETTE.accent, PALETTE.accentBright]}
-            start={{ x: 0, y: 0 }}
-            end={{ x: 1, y: 0 }}
-            style={styles.filterGradient}
-          />
-        )}
-        <Text
-          style={[
-            styles.filterChipText,
-            {
-              color: isActive ? "#FFFFFF" : theme.colors.textSecondary,
-              fontWeight: isActive ? "700" : "600",
-            },
-          ]}
+        <LinearGradient
+          colors={
+            isActive
+              ? [PALETTE.accent, PALETTE.accentBright]
+              : [PALETTE.surface, PALETTE.surfaceAlt]
+          }
+          start={{ x: 0, y: 0 }}
+          end={{ x: 1, y: 1 }}
+          style={styles.filterGradient}
         >
-          {label}
-        </Text>
+          <View style={styles.filterChipContent}>
+            <Text
+              style={[
+                styles.filterChipText,
+                {
+                  color: isActive ? "#FFFFFF" : PALETTE.textSecondary,
+                  fontWeight: isActive ? "700" : "600",
+                },
+              ]}
+            >
+              {label}
+            </Text>
+            {count > 0 && (
+              <View style={[
+                styles.countBadge,
+                { backgroundColor: isActive ? "rgba(255,255,255,0.2)" : PALETTE.accentSoft + "40" }
+              ]}>
+                <Text style={[
+                  styles.countText,
+                  { color: isActive ? "#FFFFFF" : PALETTE.accent }
+                ]}>
+                  {count}
+                </Text>
+              </View>
+            )}
+          </View>
+        </LinearGradient>
       </TouchableOpacity>
     );
   };
@@ -702,39 +729,50 @@ const createStyles = (theme: any, PALETTE?: any) =>
 
     // Filter Styles
     filterContainer: {
-      paddingHorizontal: getResponsiveSpacing("xs"),
+      paddingHorizontal: getResponsiveSpacing("sm"),
       paddingVertical: getResponsiveSpacing("xs"),
-      maxHeight: 200,
-      gap: getResponsiveSpacing("xs"),
+      gap: getResponsiveSpacing("sm"),
     },
     filterChip: {
-      paddingHorizontal: getResponsiveSpacing("lg"),
-      borderRadius: 16,
-      alignItems: "center",
-      justifyContent: "center",
-      minHeight: 0,
-      ...getShadow(1),
-      elevation: 1,
-      borderWidth: 1,
-      borderColor: theme.colors.border + "30",
+      minWidth: 100,
+      borderRadius: 20,
+      overflow: "hidden",
+      marginRight: getResponsiveSpacing("sm"),
+      ...getShadow(2),
+      elevation: 2,
     },
     filterChipActive: {
-      borderRadius: 16,
       ...getShadow(4),
       elevation: 4,
+      shadowColor: PALETTE.accent,
     },
     filterGradient: {
-      position: "absolute",
-      top: 0,
-      left: 0,
-      right: 0,
-      bottom: 0,
+      paddingVertical: getResponsiveSpacing("md"),
+      paddingHorizontal: getResponsiveSpacing("lg"),
+      alignItems: "center",
+      justifyContent: "center",
+    },
+    filterChipContent: {
+      flexDirection: "row",
+      alignItems: "center",
+      gap: getResponsiveSpacing("xs"),
     },
     filterChipText: {
       fontSize: TYPOGRAPHY.caption,
+      fontWeight: "600",
       textAlign: "center",
       letterSpacing: 0.3,
-      fontWeight: "600",
+    },
+    countBadge: {
+      paddingHorizontal: getResponsiveSpacing("xs"),
+      paddingVertical: 2,
+      borderRadius: 10,
+      minWidth: 18,
+      alignItems: "center",
+    },
+    countText: {
+      fontSize: TYPOGRAPHY.tiny,
+      fontWeight: "700",
     },
 
     // List Styles

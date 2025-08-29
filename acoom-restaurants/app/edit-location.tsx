@@ -88,11 +88,10 @@ export default function EditLocationScreen() {
       allowsEditing: true,
       aspect: [16, 9],
       quality: 0.8,
-      base64: true,
     });
 
-    if (!result.canceled && result.assets[0].base64) {
-      setNewPhoto(result.assets[0].base64);
+    if (!result.canceled) {
+      setNewPhoto(result.assets[0].uri);
     }
   };
 
@@ -201,7 +200,16 @@ export default function EditLocationScreen() {
       formDataToSend.append("description", formData.description);
 
       if (newPhoto) {
-        formDataToSend.append("photo", `data:image/jpeg;base64,${newPhoto}`);
+        const filename = newPhoto.split('/').pop() || 'location_photo.jpg';
+        const match = /\.(\w+)$/.exec(filename);
+        const type = match ? `image/${match[1]}` : 'image/jpeg';
+        
+        formDataToSend.append("photo", {
+          uri: newPhoto,
+          type: type,
+          name: filename,
+        } as any);
+        console.log("Photo attached to FormData with URI:", newPhoto);
       }
 
       if (menu) {
@@ -212,8 +220,20 @@ export default function EditLocationScreen() {
         } as any);
       }
 
+      console.log("Sending PUT request to:", `${BASE_URL}/locations/${locationId}`);
+      console.log("FormData contents:", {
+        name: formData.name,
+        address: formData.address,
+        hasPhoto: !!newPhoto,
+        hasMenu: !!menu
+      });
+
       const response = await fetch(`${BASE_URL}/locations/${locationId}`, {
         method: "PUT",
+        headers: {
+          Accept: "application/json",
+          // Do NOT set Content-Type for FormData; the browser will add the boundary automatically
+        },
         body: formDataToSend,
       });
 
@@ -510,7 +530,7 @@ export default function EditLocationScreen() {
                     <Image
                       source={{
                         uri: newPhoto
-                          ? `data:image/jpeg;base64,${newPhoto}`
+                          ? newPhoto
                           : `data:image/jpeg;base64,${photo}`,
                       }}
                       className="w-full h-40 rounded-lg mb-3"

@@ -15,13 +15,21 @@ const LazyImage: React.FC<LazyImageProps> = ({
   style,
   defaultPhoto,
 }) => {
-  const [imageUri, setImageUri] = useState<string>(defaultPhoto || "");
-  const [loading, setLoading] = useState<boolean>(!!locationId && !defaultPhoto);
+  // Start with defaultPhoto if it's a base64 string, otherwise empty
+  const initialPhoto = defaultPhoto?.startsWith('data:image') ? defaultPhoto : "";
+  const [imageUri, setImageUri] = useState<string>(initialPhoto);
+  const [loading, setLoading] = useState<boolean>(false);
   const [error, setError] = useState<boolean>(false);
 
   useEffect(() => {
-    if (locationId && !defaultPhoto) {
-      loadImage();
+    // Always use API call for locations when locationId is provided,
+    // unless defaultPhoto is a base64 string
+    if (locationId) {
+      if (!defaultPhoto || (!defaultPhoto.startsWith('data:image') && defaultPhoto.startsWith('http'))) {
+        setLoading(true);
+        setImageUri("");
+        loadImage();
+      }
     }
   }, [locationId, defaultPhoto]);
 
@@ -30,14 +38,15 @@ const LazyImage: React.FC<LazyImageProps> = ({
 
     try {
       setLoading(true);
-      const photo = await OptimizedApiService.getLocationPhoto(locationId);
-      if (photo) {
-        setImageUri(`data:image/jpeg;base64,${photo}`);
+      const photoResult = await OptimizedApiService.getLocationPhoto(locationId);
+      if (photoResult) {
+        // PhotoResult is now either a URL or base64 data string
+        setImageUri(photoResult);
       } else {
         setError(true);
       }
     } catch (err) {
-      console.warn(`Failed to load image for location ${locationId}:`, err);
+      // Silent error handling - failed to load image
       setError(true);
     } finally {
       setLoading(false);

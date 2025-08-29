@@ -22,6 +22,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import SecureStorage from "../utils/SecureStorage";
 // Using loose types to avoid ESM/CJS interop issues in this environment
 type NativeStackNavigationProp<T, R extends keyof T> = any;
 type RouteProp<T, R extends keyof T> = any;
@@ -198,11 +199,27 @@ const Reservation: React.FC<Props> = ({ navigation, route }) => {
 
   const loadUser = async () => {
     try {
-      const userData = await AsyncStorage.getItem("user");
-      console.log(userData);
-      if (userData) {
-        setUser(JSON.parse(userData));
+      // First try secure storage (newer flow)
+      try {
+        const secureUser = await SecureStorage.getUserData();
+        if (secureUser) {
+          console.log("Loaded user from SecureStorage");
+          setUser(secureUser as any);
+          return;
+        }
+      } catch (e) {
+        console.warn("SecureStorage.getUserData failed:", e);
       }
+
+      // Fallback to legacy AsyncStorage key
+      const userData = await AsyncStorage.getItem("user");
+      if (userData) {
+        console.log("Loaded user from AsyncStorage");
+        setUser(JSON.parse(userData));
+        return;
+      }
+
+      console.log("No user found in secure or async storage");
     } catch (error) {
       console.error("Error loading user:", error);
     }

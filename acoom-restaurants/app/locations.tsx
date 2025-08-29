@@ -22,9 +22,12 @@ interface Location {
   latitude: number;
   longitude: number;
   tags: string[];
-  photo: string;
+  photo: string; // Legacy field
+  photoUrl: string; // New URL field
   menuName: string;
+  menuUrl: string; // New URL field
   hasMenu: boolean;
+  hasPhoto: boolean; // New field
   createdAt: string;
   updatedAt: string;
 }
@@ -291,10 +294,14 @@ export default function LocationsScreen() {
         }}
       >
         {/* Photo Section */}
-        {location.photo && (
+        {(location.photoUrl || location.photo) && (
           <View style={{ marginBottom: 16, alignItems: "center" }}>
             <Image
-              source={{ uri: `data:image/jpeg;base64,${location.photo}` }}
+              source={{ 
+                uri: location.photoUrl 
+                  ? location.photoUrl 
+                  : `data:image/jpeg;base64,${location.photo}` 
+              }}
               style={{
                 width: "100%",
                 height: 120,

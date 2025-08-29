@@ -7,7 +7,10 @@ export interface EventData {
   endTime: string;
   address: string;
   city: string;
-  photo: string;
+  photo: string; // Legacy base64 field
+  photoUrl: string; // New URL field
+  photoPath?: string; // File path for new system
+  hasPhoto: boolean; // New field
   isActive: boolean;
   latitude?: number;
   longitude?: number;
@@ -26,9 +29,12 @@ export interface LocationData {
   latitude: number;
   longitude: number;
   tags: string[];
-  photo: string;
+  photo: string; // Legacy base64 field
+  photoUrl: string; // New URL field
   menuName: string;
+  menuUrl: string; // New URL field
   hasMenu: boolean;
+  hasPhoto: boolean; // New field
   category: string;
   description?: string;
   company: {

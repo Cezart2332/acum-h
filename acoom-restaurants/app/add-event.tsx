@@ -49,6 +49,7 @@ export default function AddEventScreen() {
 
   // UI states
   const [imageBase64, setImageBase64] = useState("");
+  const [imageUri, setImageUri] = useState<string | null>(null);
   const [isCreating, setIsCreating] = useState(false);
   const [showDateModal, setShowDateModal] = useState(false);
   const [showStartTimeModal, setShowStartTimeModal] = useState(false);
@@ -80,6 +81,10 @@ export default function AddEventScreen() {
 
       if (!result.canceled && result.assets[0]?.base64) {
         setImageBase64(result.assets[0].base64);
+        // keep the file URI (required for React Native FormData uploads)
+        if (result.assets[0].uri) {
+          setImageUri(result.assets[0].uri);
+        }
       }
     } catch (error) {
       console.error("Image picker error:", error);
@@ -94,7 +99,8 @@ export default function AddEventScreen() {
     try {
       const response = await fetch(`${BASE_URL}/locations`);
       if (response.ok) {
-        const data = await response.json();
+        const payload = await response.json();
+        const data = Array.isArray(payload) ? payload : payload?.data ?? [];
         setLocationOptions(data || []);
         hasLoadedLocations.current = true;
       }
@@ -278,29 +284,11 @@ export default function AddEventScreen() {
         email: activeData.email,
       });
 
-      // Check if we have authentication tokens
-      const accessToken = await AsyncStorage.getItem("access_token");
-      const refreshToken = await AsyncStorage.getItem("refresh_token");
-
-      console.log("Access token:", accessToken ? "Found" : "Not found");
-      console.log("Refresh token:", refreshToken ? "Found" : "Not found");
-
-      if (!accessToken && !refreshToken) {
-        console.log("No authentication tokens found");
-        Alert.alert(
-          "Authentication Error",
-          "No valid session found. Please log in again.",
-          [
-            {
-              text: "OK",
-              onPress: () => {
-                router.replace("/login");
-              },
-            },
-          ]
-        );
-        setIsCreating(false);
-        return;
+      // Ensure SecureApiService is initialized so it loads tokens from storage
+      try {
+        await SecureApiService.initialize();
+      } catch (e) {
+        console.warn("Failed to initialize SecureApiService before creating event:", e);
       }
 
       // Create FormData for multipart/form-data request
@@ -333,9 +321,37 @@ export default function AddEventScreen() {
       }
 
       // Only add image if we have valid base64 data
-      if (imageBase64 && imageBase64.length > 0) {
-        formData.append("photo", imageBase64); // Changed from "image" to "photo"
-        console.log("Added photo, length:", imageBase64.length);
+      if (imageUri) {
+        // Normalize URI for Android/iOS
+        let uploadUri = imageUri;
+        try {
+          if (Platform.OS === "android") {
+            // Android may return a content:// uri or a file path; ensure it has a proper scheme
+            if (!uploadUri.startsWith("file://") && !uploadUri.startsWith("content://")) {
+              uploadUri = `file://${uploadUri}`;
+            }
+          } else {
+            // iOS should be fine, but ensure file:// prefix
+            if (!uploadUri.startsWith("file://") && !uploadUri.startsWith("ph://")) {
+              uploadUri = `file://${uploadUri}`;
+            }
+          }
+        } catch (e) {
+          console.warn("Failed to normalize upload URI, using original:", e);
+          uploadUri = imageUri;
+        }
+
+        // Preferred: attach the file using the local file URI returned by the picker
+        formData.append("file", {
+          uri: uploadUri,
+          name: "event.jpg",
+          type: "image/jpeg",
+        } as any);
+        console.log("Added image as file (uri) for multipart upload:", uploadUri);
+      } else if (imageBase64 && imageBase64.length > 0) {
+        // Fallback: legacy base64 field
+        formData.append("photo", imageBase64);
+        console.log("Added photo (base64) length:", imageBase64.length);
       } else {
         console.log("No photo provided");
       }
@@ -348,17 +364,73 @@ export default function AddEventScreen() {
         endTime: selectedEndTime.toTimeString().split(" ")[0],
         address: address.trim(),
         city,
-        coordinates: coordinates
-          ? `${coordinates.latitude},${coordinates.longitude}`
-          : "none",
+        latitude: coordinates?.latitude,
+        longitude: coordinates?.longitude,
         photoSize: imageBase64 ? imageBase64.length : 0,
       });
 
-      const response = await SecureApiService.post("/events", formData);
+      let response = await SecureApiService.postForm("/events", formData as any);
 
       console.log("Response status:", response.status);
       console.log("Response data:", response.data);
       console.log("Response error:", response.error);
+
+      // If network-level failure (status 0) or other failure, try fallback using JSON + base64
+      if (!response.success && (response.status === 0 || (response.error || "").toLowerCase().includes("network request failed"))) {
+        console.warn("Multipart upload failed, attempting JSON fallback with base64 photo...");
+
+        // Build fallback JSON payload
+        const payload: any = {
+          title: title.trim(),
+          description: description.trim(),
+          eventDate: selectedDate.toISOString(),
+          startTime: selectedStartTime.toTimeString().split(" ")[0],
+          endTime: selectedEndTime.toTimeString().split(" ")[0],
+          address: address.trim(),
+          city,
+          tags: "",
+          isActive: "true",
+        };
+
+        if (coordinates && coordinates.latitude && coordinates.longitude) {
+          payload.latitude = coordinates.latitude;
+          payload.longitude = coordinates.longitude;
+        }
+
+        if (imageBase64 && imageBase64.length > 0) {
+          payload.photo = imageBase64;
+        }
+
+        try {
+          const fallback = await SecureApiService.post("/events", payload);
+          console.log("Fallback response:", fallback);
+          if (fallback.success) {
+            Alert.alert("Success", "Event created (fallback) successfully!", [
+              { text: "OK", onPress: handleBack },
+            ]);
+            setIsCreating(false);
+            return;
+          } else {
+            console.error("Fallback failed:", fallback);
+            Alert.alert("Error", `Failed to create event: ${fallback.error || "Unknown error"}`);
+            setIsCreating(false);
+            return;
+          }
+        } catch (fallbackErr) {
+          console.error("Fallback POST failed:", fallbackErr);
+          Alert.alert("Error", "Failed to create event (network). Please try again later.");
+          setIsCreating(false);
+          return;
+        }
+      }
+
+      if (response.status === 401) {
+        Alert.alert("Authentication Error", "Session expired. Please log in again.", [
+          { text: "OK", onPress: () => router.replace("/login") },
+        ]);
+        setIsCreating(false);
+        return;
+      }
 
       if (response.success) {
         Alert.alert("Success", "Event created successfully!", [
@@ -795,7 +867,7 @@ export default function AddEventScreen() {
                   None (Enter manually)
                 </Text>
               </TouchableOpacity>
-              {locationOptions.map((location) => (
+              {Array.isArray(locationOptions) && locationOptions.map((location) => (
                 <TouchableOpacity
                   key={location.id}
                   style={{

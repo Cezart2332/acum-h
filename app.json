@@ -14,8 +14,10 @@
     },
     "ios": {
       "supportsTablet": true,
-      "config": {
-        "googleMapsApiKey": "AIzaSyCJ50t81koTREgiais4695uc6UJVZedJ4I"
+      "bundleIdentifier": "com.anonymous.acumh",
+      "config": {},
+      "infoPlist": {
+        "ITSAppUsesNonExemptEncryption": false
       }
     },
     "android": {
@@ -23,11 +25,7 @@
         "foregroundImage": "./acoomh.png",
         "backgroundColor": "#ffffff"
       },
-      "config": {
-        "googleMaps": {
-          "apiKey": "AIzaSyCJ50t81koTREgiais4695uc6UJVZedJ4I"
-        }
-      },
+      "config": {},
       "edgeToEdgeEnabled": true,
       "package": "com.anonymous.acumh",
       "permissions": [
@@ -45,7 +43,7 @@
           "locationAlwaysAndWhenInUsePermission": "Allow $(PRODUCT_NAME) to use your location"
         }
       ],
-      "expo-maps"
+      "expo-secure-store"
     ],
     "extra": {
       "eas": {

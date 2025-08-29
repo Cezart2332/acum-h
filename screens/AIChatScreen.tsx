@@ -31,7 +31,7 @@ import { useDebounce, useInputValidation } from "../hooks/useInputHelpers";
 const { width, height } = Dimensions.get("window");
 
 // Tab bar height constant (adjust based on your tab bar design)
-const TAB_BAR_HEIGHT = Platform.OS === "ios" ? 90 : 70;
+const TAB_BAR_HEIGHT = Platform.OS === "ios" ? 100 : 80;
 
 interface Message {
   id: string;

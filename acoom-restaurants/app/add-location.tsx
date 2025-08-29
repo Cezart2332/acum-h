@@ -6,11 +6,13 @@ import {
   TouchableOpacity,
   TextInput,
   Alert,
+  Image,
 } from "react-native";
 import { Stack, router } from "expo-router";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
+import * as ImagePicker from "expo-image-picker";
 import BASE_URL from "../config";
 
 export default function AddLocationScreen() {
@@ -27,6 +29,7 @@ export default function AddLocationScreen() {
   const [loading, setLoading] = useState(false);
   const [geocoding, setGeocoding] = useState(false);
   const [nameError, setNameError] = useState("");
+  const [selectedPhoto, setSelectedPhoto] = useState<string | null>(null);
 
   const checkLocationNameExists = async (companyId: string, name: string) => {
     try {
@@ -86,6 +89,57 @@ export default function AddLocationScreen() {
     } finally {
       setGeocoding(false);
     }
+  };
+
+  const pickImage = async () => {
+    const permissionResult = await ImagePicker.requestMediaLibraryPermissionsAsync();
+    
+    if (permissionResult.granted === false) {
+      Alert.alert("Permisiune necesară", "Aplicația are nevoie de acces la galerie pentru a selecta fotografii.");
+      return;
+    }
+
+    const result = await ImagePicker.launchImageLibraryAsync({
+      mediaTypes: ImagePicker.MediaTypeOptions.Images,
+      allowsEditing: true,
+      aspect: [16, 9],
+      quality: 0.8,
+    });
+
+    if (!result.canceled) {
+      setSelectedPhoto(result.assets[0].uri);
+    }
+  };
+
+  const takePhoto = async () => {
+    const permissionResult = await ImagePicker.requestCameraPermissionsAsync();
+    
+    if (permissionResult.granted === false) {
+      Alert.alert("Permisiune necesară", "Aplicația are nevoie de acces la cameră pentru a face fotografii.");
+      return;
+    }
+
+    const result = await ImagePicker.launchCameraAsync({
+      allowsEditing: true,
+      aspect: [16, 9],
+      quality: 0.8,
+    });
+
+    if (!result.canceled) {
+      setSelectedPhoto(result.assets[0].uri);
+    }
+  };
+
+  const showImagePicker = () => {
+    Alert.alert(
+      "Selectează o fotografie",
+      "Alege de unde vrei să încărci fotografia",
+      [
+        { text: "Anulează", style: "cancel" },
+        { text: "Galerie", onPress: pickImage },
+        { text: "Cameră", onPress: takePhoto },
+      ]
+    );
   };
 
   const handleSubmit = async () => {
@@ -163,6 +217,19 @@ export default function AddLocationScreen() {
       formDataToSend.append("longitude", locationData.longitude.toString());
       formDataToSend.append("tags", locationData.tags || "");
       formDataToSend.append("description", locationData.description || "");
+
+      // Add photo if selected
+      if (selectedPhoto) {
+        const filename = selectedPhoto.split('/').pop() || 'location_photo.jpg';
+        const match = /\.(\w+)$/.exec(filename);
+        const type = match ? `image/${match[1]}` : 'image/jpeg';
+        
+        formDataToSend.append("photo", {
+          uri: selectedPhoto,
+          type: type,
+          name: filename,
+        } as any);
+      }
 
       const response = await fetch(
         `${BASE_URL}/companies/${companyId}/locations`,
@@ -662,6 +729,115 @@ export default function AddLocationScreen() {
                 fontWeight: "600",
               }}
             />
+          </View>
+
+          {/* Photo Upload */}
+          <View style={{ marginBottom: 32 }}>
+            <View
+              style={{
+                flexDirection: "row",
+                alignItems: "center",
+                marginBottom: 16,
+              }}
+            >
+              <View
+                style={{
+                  width: 32,
+                  height: 32,
+                  borderRadius: 8,
+                  backgroundColor: "rgba(139, 92, 246, 0.15)",
+                  justifyContent: "center",
+                  alignItems: "center",
+                  marginRight: 12,
+                }}
+              >
+                <Ionicons name="camera" size={18} color="#a855f7" />
+              </View>
+              <Text
+                style={{
+                  color: "#f1f5f9",
+                  fontSize: 18,
+                  fontWeight: "700",
+                }}
+              >
+                Fotografie Locație
+              </Text>
+              <Text
+                style={{
+                  color: "#64748b",
+                  fontSize: 14,
+                  fontWeight: "500",
+                  marginLeft: 10,
+                }}
+              >
+                (optional)
+              </Text>
+            </View>
+
+            {selectedPhoto ? (
+              <View style={{ alignItems: "center", marginBottom: 16 }}>
+                <Image
+                  source={{ uri: selectedPhoto }}
+                  style={{
+                    width: "100%",
+                    height: 200,
+                    borderRadius: 16,
+                    marginBottom: 12,
+                  }}
+                  resizeMode="cover"
+                />
+                <TouchableOpacity
+                  onPress={() => setSelectedPhoto(null)}
+                  style={{
+                    backgroundColor: "rgba(239, 68, 68, 0.2)",
+                    borderWidth: 1,
+                    borderColor: "#ef4444",
+                    borderRadius: 12,
+                    paddingHorizontal: 16,
+                    paddingVertical: 8,
+                  }}
+                >
+                  <Text style={{ color: "#ef4444", fontWeight: "600" }}>
+                    Elimină fotografia
+                  </Text>
+                </TouchableOpacity>
+              </View>
+            ) : (
+              <TouchableOpacity
+                onPress={showImagePicker}
+                style={{
+                  backgroundColor: "rgba(15, 23, 42, 0.9)",
+                  borderWidth: 2,
+                  borderColor: "rgba(139, 92, 246, 0.3)",
+                  borderStyle: "dashed",
+                  borderRadius: 18,
+                  paddingVertical: 40,
+                  alignItems: "center",
+                  justifyContent: "center",
+                }}
+              >
+                <Ionicons name="camera" size={32} color="#a855f7" />
+                <Text
+                  style={{
+                    color: "#a855f7",
+                    fontSize: 16,
+                    fontWeight: "600",
+                    marginTop: 8,
+                  }}
+                >
+                  Adaugă o fotografie
+                </Text>
+                <Text
+                  style={{
+                    color: "#64748b",
+                    fontSize: 14,
+                    marginTop: 4,
+                  }}
+                >
+                  Atinge pentru a selecta din galerie sau camera
+                </Text>
+              </TouchableOpacity>
+            )}
           </View>
 
           {/* Description */}

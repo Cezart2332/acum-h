@@ -18,6 +18,7 @@ import { Ionicons } from "@expo/vector-icons";
 import type { NativeStackNavigationProp } from "@react-navigation/native-stack";
 import type { RootStackParamList } from "./RootStackParamList";
 import { BASE_URL } from "../config";
+import OptimizedApiService from "../services/OptimizedApiService";
 import { useTheme } from "../context/ThemeContext";
 import { useUser } from "../context/UserContext";
 import UniversalScreen from "../components/UniversalScreen";
@@ -103,47 +104,39 @@ export default function HomeScreen({ navigation }: { navigation: HomeNav }) {
   const loadData = async () => {
     setLoading(true);
     setError(null);
-    
     try {
-      const [restaurantsResponse, eventsResponse] = await Promise.all([
+      const [restaurantsResponse, eventsResult] = await Promise.all([
         fetch(`${BASE_URL}/locations`).then((res) => {
           if (!res.ok) {
             throw new Error(`Locations API failed: ${res.status} ${res.statusText}`);
           }
           return res.json();
         }),
-        fetch(`${BASE_URL}/events`).then((res) => {
-          if (!res.ok) {
-            throw new Error(`Events API failed: ${res.status} ${res.statusText}`);
-          }
-          return res.json();
-        }),
+        OptimizedApiService.getEvents({ active: true, limit: 50 })
       ]);
 
       // Handle API response formats
-      const restaurantsData = Array.isArray(restaurantsResponse) 
-        ? restaurantsResponse 
+      const restaurantsData = Array.isArray(restaurantsResponse)
+        ? restaurantsResponse
         : (restaurantsResponse?.data || []);
-        
-      const eventsData = Array.isArray(eventsResponse) 
-        ? eventsResponse 
-        : (eventsResponse?.data || []);
+
+      const eventsData = Array.isArray(eventsResult.data)
+        ? eventsResult.data
+        : [];
 
       setRestaurants(restaurantsData);
       setEvents(eventsData);
       setIsUsingMockData(false);
-      
-      console.log(`✅ Loaded ${restaurantsData.length} restaurants and ${eventsData.length} events from server`);
     } catch (error) {
       console.error("❌ Failed to load data from API:", error);
       setError(error instanceof Error ? error.message : "Failed to load data");
       setRestaurants([]);
       setEvents([]);
       setIsUsingMockData(false);
-    } finally {
-      setLoading(false);
     }
+    setLoading(false);
   };
+  
 
   // Mock data functions for fallback
   const getMockRestaurants = (): LocationData[] => [
@@ -307,6 +300,14 @@ export default function HomeScreen({ navigation }: { navigation: HomeNav }) {
     const eventItem = item as EventData;
     const locationItem = item as LocationData;
 
+    // Debug logging for location items
+    if (!isEvent) {
+      const photoUrl = (locationItem as any).photoUrl;
+      const hasPhoto = (locationItem as any).hasPhoto;
+      const photo = locationItem.photo;
+    
+    }
+
     return (
       <TouchableOpacity
         style={styles.card}
@@ -317,12 +318,25 @@ export default function HomeScreen({ navigation }: { navigation: HomeNav }) {
       >
         <ImageBackground
           source={{
-            uri: `data:image/jpg;base64,${
-              isEvent ? eventItem.photo : locationItem.photo
-            }`,
+            uri: isEvent 
+              ? ((eventItem as any).photoUrl && (eventItem as any).photoUrl.trim() !== ''
+                  ? (eventItem as any).photoUrl
+                  : `data:image/jpg;base64,${eventItem.photo}`)
+              : ((locationItem as any).photoUrl 
+                  ? (locationItem as any).photoUrl
+                  : (locationItem.photo && locationItem.photo !== "use_photo_url" 
+                      ? `data:image/jpg;base64,${locationItem.photo}`
+                      : "https://via.placeholder.com/400x200/1a1a2e/ffffff?text=No+Image")),
+            cache: 'force-cache'
           }}
           style={styles.cardImage}
           imageStyle={styles.cardImageStyle}
+          onLoad={() => {
+            // Image loaded successfully - no console logging needed
+          }}
+          onError={(error) => {
+            // Handle image loading error silently or with user-friendly feedback
+          }}
         >
           <LinearGradient
             colors={["transparent", "rgba(0,0,0,0.4)", "rgba(16, 16, 16, 0.9)"]}

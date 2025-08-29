@@ -26,6 +26,9 @@ import BugReportScreen from "./screens/BugReportScreen";
 import { RootStackParamList } from "./screens/RootStackParamList";
 import { useMenuPreloader } from "./hooks/useMenuPreloader";
 import { View, Text, ActivityIndicator, StyleSheet } from "react-native";
+import { SecureApiService } from "./services/SecureApiService";
+import { ApiTester } from "./utils/ApiTester";
+import { AuthenticationDebugger } from "./utils/AuthenticationDebugger";
 
 const Stack = createNativeStackNavigator<RootStackParamList>();
 
@@ -92,7 +95,7 @@ function AppNavigator() {
 export default function App() {
   const [isAppReady, setIsAppReady] = useState<boolean>(false);
 
-  // Initialize menu preloader
+  // Initialize SecureApiService and menu preloader
   const { status } = useMenuPreloader({
     refreshIntervalMinutes: 60,
     enableBackgroundRefresh: true,
@@ -100,10 +103,38 @@ export default function App() {
   });
 
   useEffect(() => {
-    // Wait for initial menu preload to complete before showing main app
-    if (!status.isPreloading && status.locationsTotal > 0) {
-      setIsAppReady(true);
-    }
+    const initializeApp = async () => {
+      try {
+        // Run API tests to debug the JSON parse issues
+        if (__DEV__) {
+          await ApiTester.runBasicTests();
+        }
+        
+        // Test API connectivity first
+        const connectivityTest = await SecureApiService.testConnectivity();
+        console.log("API Connectivity Test:", connectivityTest);
+        
+        // Initialize SecureApiService early
+        await SecureApiService.initialize();
+        console.log("SecureApiService initialized");
+
+        // Log authentication state at startup for debugging
+        try {
+          await AuthenticationDebugger.logAuthState("App initializeApp");
+        } catch (e) {
+          console.warn("Failed to run AuthenticationDebugger at startup:", e);
+        }
+      } catch (error) {
+        console.error("Failed to initialize SecureApiService:", error);
+      }
+      
+      // Wait for initial menu preload to complete before showing main app
+      if (!status.isPreloading && status.locationsTotal > 0) {
+        setIsAppReady(true);
+      }
+    };
+
+    initializeApp();
   }, [status.isPreloading, status.locationsTotal]);
 
   // Show loading screen during initial menu preload
@@ -140,7 +171,7 @@ export default function App() {
             <ActivityIndicator size="large" color="#6C3AFF" />
             <Text style={styles.loadingTitle}>ACUM-H</Text>
             <Text style={styles.loadingSubtitle}>
-              Încărcarea locațiilor... {status.locationsProcessed}/
+              Inițializare aplicație... {status.locationsProcessed}/
               {status.locationsTotal}
             </Text>
             {status.errors.length > 0 && (

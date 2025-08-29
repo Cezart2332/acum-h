@@ -12,7 +12,6 @@ import {
 } from "@react-navigation/bottom-tabs";
 import { Ionicons } from "@expo/vector-icons";
 import {
-  useSafeAreaInsets,
   SafeAreaView,
 } from "react-native-safe-area-context";
 import { useTheme } from "../context/ThemeContext";
@@ -41,14 +40,13 @@ const CustomTabBar: React.FC<BottomTabBarProps> = ({
   descriptors,
   navigation,
 }) => {
-  const insets = useSafeAreaInsets();
   const { theme } = useTheme();
 
   return (
     <View
       style={[
         styles.container,
-        { paddingBottom: insets.bottom, backgroundColor: theme.colors.surface },
+        { backgroundColor: theme.colors.surface },
       ]}
     >
       {state.routes.map((route, index) => {
@@ -108,13 +106,21 @@ export default function HomeTabs() {
   const { theme } = useTheme();
 
   return (
-    <SafeAreaView
-      style={[styles.safeArea, { backgroundColor: theme.colors.surface }]}
-      edges={["bottom"]}
-    >
+    <View style={[styles.safeArea, { backgroundColor: theme.colors.primary }]}>
       <Tab.Navigator
         id={undefined}
-        screenOptions={{ headerShown: false }}
+        screenOptions={{ 
+          headerShown: false,
+          tabBarStyle: {
+            position: "absolute",
+            bottom: 0,
+            left: 0,
+            right: 0,
+            backgroundColor: "transparent",
+            borderTopWidth: 0,
+            elevation: 0,
+          }
+        }}
         tabBar={(props) => <CustomTabBar {...props} />}
       >
         <Tab.Screen name="Main" component={HomeScreen} />
@@ -123,7 +129,7 @@ export default function HomeTabs() {
         <Tab.Screen name="Settings" component={SettingsScreen} />
         <Tab.Screen name="Map" component={MapsScreen} />
       </Tab.Navigator>
-    </SafeAreaView>
+    </View>
   );
 }
 
@@ -137,16 +143,17 @@ const styles = StyleSheet.create({
     alignItems: "center",
     borderTopLeftRadius: 20,
     borderTopRightRadius: 20,
-    height: 60,
+    height: 80,
     position: "absolute",
+    bottom: 0,
     left: 0,
     right: 0,
-    bottom: -10,
     shadowColor: "#000",
     shadowOffset: { width: 0, height: -3 },
     shadowOpacity: 0.3,
     shadowRadius: 5,
-    elevation: 0,
+    elevation: 8,
+    paddingBottom: 20,
   },
   tabItem: {
     flex: 1,

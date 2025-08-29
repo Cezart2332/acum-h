@@ -142,6 +142,7 @@ namespace WebApplication1.Migrations
                         .HasColumnType("int");
 
                     b.Property<string>("Description")
+                        .IsRequired()
                         .HasColumnType("longtext");
 
                     b.Property<string>("Email")
@@ -210,6 +211,9 @@ namespace WebApplication1.Migrations
                         .IsRequired()
                         .HasColumnType("longblob");
 
+                    b.Property<string>("PhotoPath")
+                        .HasColumnType("longtext");
+
                     b.Property<TimeSpan>("StartTime")
                         .HasColumnType("time(6)");
 
@@ -272,14 +276,14 @@ namespace WebApplication1.Migrations
                         .IsRequired()
                         .HasColumnType("longtext");
 
-                    b.Property<string>("Description")
-                        .HasColumnType("longtext");
-
                     b.Property<int>("CompanyId")
                         .HasColumnType("int");
 
                     b.Property<DateTime>("CreatedAt")
                         .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Description")
+                        .HasColumnType("longtext");
 
                     b.Property<bool>("HasMenu")
                         .HasColumnType("tinyint(1)");
@@ -301,6 +305,9 @@ namespace WebApplication1.Migrations
                         .IsRequired()
                         .HasColumnType("longtext");
 
+                    b.Property<string>("MenuPath")
+                        .HasColumnType("longtext");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("varchar(255)");
@@ -312,6 +319,9 @@ namespace WebApplication1.Migrations
                     b.Property<byte[]>("Photo")
                         .IsRequired()
                         .HasColumnType("longblob");
+
+                    b.Property<string>("PhotoPath")
+                        .HasColumnType("longtext");
 
                     b.Property<string>("Tags")
                         .IsRequired()

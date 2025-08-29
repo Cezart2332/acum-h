@@ -1,4 +1,4 @@
-import { BASE_URL } from "../config";
+import { getBaseUrl, BASE_URL } from "../config";
 import type { LocationData, EventData } from "../screens/RootStackParamList";
 
 interface PaginationParams {
@@ -246,17 +246,30 @@ class OptimizedApiService {
     }
 
     try {
-      const response = await fetch(`${BASE_URL}/locations/${locationId}/photo`);
+      const baseUrl = await getBaseUrl();
+      const url = `${baseUrl}/locations/${locationId}/photo`;
+      const response = await fetch(url);
       if (!response.ok) {
         return "";
       }
       
-      const data: LocationPhoto = await response.json();
+      const data = await response.json();
       
-      // Cache the photo
-      this.photoCache.set(locationId, data.photo);
+      // Handle new photoUrl format
+      if (data.photoUrl) {
+        // Cache the photo URL
+        this.photoCache.set(locationId, data.photoUrl);
+        return data.photoUrl;
+      }
       
-      return data.photo;
+      // Handle legacy base64 format
+      if (data.photo) {
+        const base64Photo = `data:image/jpeg;base64,${data.photo}`;
+        this.photoCache.set(locationId, base64Photo);
+        return base64Photo;
+      }
+      
+      return "";
     } catch (error) {
       console.warn(`Failed to load photo for location ${locationId}:`, error);
       return "";

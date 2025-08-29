@@ -8,6 +8,8 @@ using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.IdentityModel.Tokens;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.RateLimiting;
+using Microsoft.Extensions.Caching.Memory;
+using Microsoft.Extensions.FileProviders;
 using System.Text;
 using System.Threading.RateLimiting;
 using Serilog;
@@ -206,11 +208,24 @@ else
 
 // Register DbContext - Use manual MySQL version to avoid AutoDetect connection issues
 builder.Services.AddDbContext<AppDbContext>(options =>
-    options.UseMySql(connectionString, new MySqlServerVersion(new Version(8, 0, 21))));
+    options.UseMySql(connectionString, new MySqlServerVersion(new Version(8, 0, 21)), 
+        mysqlOptions =>
+        {
+            mysqlOptions.EnableRetryOnFailure(3, TimeSpan.FromSeconds(5), null);
+            mysqlOptions.CommandTimeout(30);
+        })
+    .EnableSensitiveDataLogging(false)
+    .EnableServiceProviderCaching()
+    .EnableDetailedErrors(false));
 
 // Register Services
 builder.Services.AddScoped<IJwtService, JwtService>();
 builder.Services.AddScoped<IAuthService, AuthService>();
+builder.Services.AddScoped<IFileStorageService, FileStorageService>();
+
+// Add Memory Caching for performance optimization
+builder.Services.AddMemoryCache();
+builder.Services.AddResponseCaching();
 
 // Configure HTTPS and HSTS
 builder.Services.AddHsts(options =>
@@ -262,6 +277,9 @@ Console.WriteLine("=== MIGRATION PROCESS COMPLETED ===");
 app.UseMiddleware<RequestLoggingMiddleware>();
 app.UseMiddleware<ExceptionHandlingMiddleware>();
 
+// Add response caching for better performance
+app.UseResponseCaching();
+
 // Security headers only in production or when explicitly configured
 if (!builder.Environment.IsDevelopment() || builder.Configuration.GetValue<bool>("Security:EnableSecurityHeaders"))
 {
@@ -293,6 +311,33 @@ if (!builder.Environment.IsDevelopment() || builder.Configuration.GetValue<bool>
 }
 
 app.UseCors();
+
+// Configure static file serving for uploaded files
+var fileStorageBasePath = builder.Configuration["FileStorage:BasePath"] ?? "/var/www/uploads";
+var fileStorageUrlPath = "/files";
+
+// Ensure the upload directory exists
+if (!Directory.Exists(fileStorageBasePath))
+{
+    try
+    {
+        Directory.CreateDirectory(fileStorageBasePath);
+        Console.WriteLine($"📁 Created upload directory: {fileStorageBasePath}");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"⚠️ Could not create upload directory {fileStorageBasePath}: {ex.Message}");
+    }
+}
+
+app.UseStaticFiles(new StaticFileOptions
+{
+    FileProvider = new Microsoft.Extensions.FileProviders.PhysicalFileProvider(fileStorageBasePath),
+    RequestPath = fileStorageUrlPath
+});
+
+Console.WriteLine($"📁 Static files configured: {fileStorageUrlPath} -> {fileStorageBasePath}");
+
 app.UseAuthentication();
 app.UseAuthorization();
 app.MapControllers(); // Add controllers mapping for compatibility
@@ -329,6 +374,169 @@ app.MapGet("/health/db", async (AppDbContext context) =>
     }
 });
 
+// Test endpoint to check file existence
+app.MapGet("/test/file-exists/{locationId}/{fileType}/{fileName}", (int locationId, string fileType, string fileName, IFileStorageService fileStorage) =>
+{
+    try
+    {
+        var filePath = $"locations/{locationId}/{fileType}/{fileName}";
+        var fileStorageBasePath = builder.Configuration["FileStorage:BasePath"] ?? "/var/www/uploads";
+        var fullPath = Path.Combine(fileStorageBasePath, filePath.Replace('/', Path.DirectorySeparatorChar));
+        
+        var exists = File.Exists(fullPath);
+        var url = fileStorage.GetFileUrl(filePath);
+        
+        return Results.Ok(new { 
+            filePath, 
+            fullPath, 
+            exists, 
+            url,
+            baseStoragePath = fileStorageBasePath
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"File check failed: {ex.Message}");
+    }
+}).WithTags("Test");
+
+// Test endpoint to list files in a location directory
+app.MapGet("/test/list-files/{locationId}", (int locationId) =>
+{
+    try
+    {
+        var fileStorageBasePath = builder.Configuration["FileStorage:BasePath"] ?? "/var/www/uploads";
+        var locationPath = Path.Combine(fileStorageBasePath, "locations", locationId.ToString());
+        
+        var result = new
+        {
+            locationPath,
+            exists = Directory.Exists(locationPath),
+            files = Directory.Exists(locationPath) 
+                ? Directory.GetFiles(locationPath, "*", SearchOption.AllDirectories)
+                    .Select(f => new 
+                    {
+                        fullPath = f,
+                        relativePath = Path.GetRelativePath(fileStorageBasePath, f).Replace('\\', '/'),
+                        size = new FileInfo(f).Length,
+                        lastModified = new FileInfo(f).LastWriteTime
+                    }).ToArray()
+                : Array.Empty<object>()
+        };
+        
+        return Results.Ok(result);
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Directory listing failed: {ex.Message}");
+    }
+}).WithTags("Test");
+
+// Test endpoint to diagnose file storage issues
+app.MapGet("/test/file-storage-diagnostic", async (IFileStorageService fileStorage) =>
+{
+    try
+    {
+        var fileStorageBasePath = builder.Configuration["FileStorage:BasePath"] ?? "/var/www/uploads";
+        var diagnostics = new List<object>();
+        
+        // Test 1: Check base directory
+        try
+        {
+            var baseExists = Directory.Exists(fileStorageBasePath);
+            diagnostics.Add(new { 
+                test = "Base Directory Check",
+                path = fileStorageBasePath,
+                exists = baseExists
+            });
+        }
+        catch (Exception ex)
+        {
+            diagnostics.Add(new { 
+                test = "Base Directory Check",
+                error = ex.Message
+            });
+        }
+        
+        // Test 2: Try to create a test directory
+        try
+        {
+            var testPath = Path.Combine(fileStorageBasePath, "diagnostic_test");
+            Directory.CreateDirectory(testPath);
+            var created = Directory.Exists(testPath);
+            
+            if (created)
+            {
+                Directory.Delete(testPath);
+            }
+            
+            diagnostics.Add(new {
+                test = "Directory Creation",
+                success = created
+            });
+        }
+        catch (Exception ex)
+        {
+            diagnostics.Add(new {
+                test = "Directory Creation", 
+                error = ex.Message
+            });
+        }
+        
+        // Test 3: Try to create a test file
+        try
+        {
+            var testFilePath = Path.Combine(fileStorageBasePath, "diagnostic_test.txt");
+            await File.WriteAllTextAsync(testFilePath, "test");
+            var created = File.Exists(testFilePath);
+            
+            if (created)
+            {
+                File.Delete(testFilePath);
+            }
+            
+            diagnostics.Add(new {
+                test = "File Creation",
+                success = created
+            });
+        }
+        catch (Exception ex)
+        {
+            diagnostics.Add(new {
+                test = "File Creation",
+                error = ex.Message
+            });
+        }
+        
+        return Results.Ok(new { 
+            baseStoragePath = fileStorageBasePath,
+            diagnostics = diagnostics
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"File storage diagnostic failed: {ex.Message}");
+    }
+}).WithTags("Test");
+
+// Test endpoint to check if FileStorageService is working
+app.MapGet("/test/file-service-test", (IFileStorageService fileStorage) =>
+{
+    try
+    {
+        var testUrl = fileStorage.GetFileUrl("test/path/file.jpg");
+        return Results.Ok(new { 
+            serviceWorking = true,
+            testUrl = testUrl,
+            serviceType = fileStorage.GetType().Name
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"FileStorageService error: {ex.Message}");
+    }
+}).WithTags("Test");
+
 // Test endpoint to debug location query issues
 app.MapGet("/test/simple-locations", async (AppDbContext db) =>
 {
@@ -346,6 +554,44 @@ app.MapGet("/test/simple-locations", async (AppDbContext db) =>
     catch (Exception ex)
     {
         return Results.Problem($"Simple location query failed: {ex.Message}");
+    }
+}).WithTags("Test");
+
+// Test endpoint for event file storage diagnostics
+app.MapGet("/test/event-file-storage-diagnostic/{eventId}", async (int eventId, IFileStorageService fileStorage) =>
+{
+    try
+    {
+        var fileStorageBasePath = builder.Configuration["FileStorage:BasePath"] ?? "/var/www/uploads";
+        var eventPath = Path.Combine(fileStorageBasePath, "events", eventId.ToString());
+        var photosPath = Path.Combine(eventPath, "photos");
+
+        return Results.Ok(new
+        {
+            eventId = eventId,
+            baseStoragePath = fileStorageBasePath,
+            eventDirectoryPath = eventPath,
+            photosDirectoryPath = photosPath,
+            tests = new
+            {
+                eventDirectoryExists = Directory.Exists(eventPath),
+                photosDirectoryExists = Directory.Exists(photosPath),
+                canCreateEventDirectory = await fileStorage.EnsureEventDirectoryAsync(eventId),
+                files = Directory.Exists(photosPath) ? 
+                    Directory.GetFiles(photosPath).Select(f => new
+                    {
+                        fileName = Path.GetFileName(f),
+                        fullPath = f,
+                        size = new FileInfo(f).Length,
+                        relativePath = Path.GetRelativePath(fileStorageBasePath, f).Replace('\\', '/'),
+                        url = $"/files/{Path.GetRelativePath(fileStorageBasePath, f).Replace('\\', '/')}"
+                    }).ToArray() : Array.Empty<object>()
+            }
+        });
+    }
+    catch (Exception ex)
+    {
+        return Results.Problem($"Event file storage diagnostic failed: {ex.Message}");
     }
 }).WithTags("Test");
 
@@ -367,8 +613,8 @@ app.MapGet("/test/location-fields", async (AppDbContext db) =>
                 l.Longitude,
                 Description = l.Description ?? string.Empty,
                 RawTags = l.Tags,
-                l.MenuName,
-                HasMenu = l.MenuData != null && l.MenuData.Length > 0,
+                MenuPath = l.MenuPath ?? string.Empty,
+                HasMenu = !string.IsNullOrEmpty(l.MenuPath),
                 l.CreatedAt,
                 l.UpdatedAt,
                 l.CompanyId
@@ -387,7 +633,7 @@ app.MapGet("/test/location-fields", async (AppDbContext db) =>
             l.Longitude,
             l.Description,
             Tags = string.IsNullOrEmpty(l.RawTags) ? Array.Empty<string>() : l.RawTags.Split(',', StringSplitOptions.RemoveEmptyEntries),
-            l.MenuName,
+            l.MenuPath,
             l.HasMenu,
             l.CreatedAt,
             l.UpdatedAt,
@@ -467,13 +713,55 @@ app.MapPost("/auth/refresh", async (RefreshTokenRequestDto request, IAuthService
     try
     {
         var ipAddress = GetClientIpAddress(context);
-        var result = await authService.RefreshTokenAsync(request.RefreshToken, ipAddress);
-        
-        if (result == null)
+
+        // Try to obtain the refresh token from multiple locations for robustness
+        string? token = request?.RefreshToken;
+
+        // Header override (common when clients send it in a header)
+        if (string.IsNullOrEmpty(token))
         {
+            if (context.Request.Headers.TryGetValue("X-Refresh-Token", out var headerVal) && !string.IsNullOrEmpty(headerVal))
+            {
+                token = headerVal.ToString();
+            }
+        }
+
+        // Authorization: Bearer <token> (some clients use this)
+        if (string.IsNullOrEmpty(token) && context.Request.Headers.TryGetValue("Authorization", out var authHeader))
+        {
+            var auth = authHeader.ToString();
+            if (auth.StartsWith("Bearer ", StringComparison.OrdinalIgnoreCase))
+            {
+                token = auth.Substring("Bearer ".Length).Trim();
+            }
+        }
+
+        // Cookie fallback
+        if (string.IsNullOrEmpty(token) && context.Request.Cookies.TryGetValue("refreshToken", out var cookieVal))
+        {
+            token = cookieVal;
+        }
+
+        try
+        {
+            Console.WriteLine($"[DEBUG] /auth/refresh called. tokenPrefix={ (token != null ? token.Substring(0, Math.Min(8, token.Length)) + "..." : "<null>") } ip={ipAddress}");
+        }
+        catch { }
+
+        if (string.IsNullOrEmpty(token))
+        {
+            Log.Warning("Refresh token not provided in body/header/cookie");
             return Results.Unauthorized();
         }
-        
+
+        var result = await authService.RefreshTokenAsync(token, ipAddress);
+
+        if (result == null)
+        {
+            Console.WriteLine($"[DEBUG] /auth/refresh: RefreshTokenAsync returned null for tokenPrefix={ (token != null ? token.Substring(0, Math.Min(8, token.Length)) + "..." : "<null>") } ip={ipAddress}");
+            return Results.Unauthorized();
+        }
+
         return Results.Ok(result);
     }
     catch (Exception ex)
@@ -804,8 +1092,8 @@ app.MapGet("/companies", async (AppDbContext db) =>
   .RequireRateLimiting("GeneralPolicy")
   .WithOpenApi();
 
-// GET /events - Public events endpoint with pagination and optimization
-app.MapGet("/events", async (int? page, int? limit, string? search, bool? active, AppDbContext db) =>
+// GET /events - Optimized public events endpoint with URL-based photo storage
+app.MapGet("/events", async (int? page, int? limit, string? search, bool? active, bool? includePhotos, AppDbContext db, IFileStorageService fileStorage) =>
 {
     try
     {
@@ -813,10 +1101,12 @@ app.MapGet("/events", async (int? page, int? limit, string? search, bool? active
     var pageNum = page ?? 1;
     var limitNum = Math.Min(limit ?? 50, 100); // Max 100 items per request
     var skip = (pageNum - 1) * limitNum;
+    var loadPhotos = includePhotos ?? true; // Photos enabled by default
 
-    // Build query with filters
+    // Build optimized query with filters
     var query = db.Events
-        .Where(e => active != false ? e.IsActive : true); // Default to active events only
+        .Where(e => active != false ? e.IsActive : true) // Default to active events only
+        .AsNoTracking(); // Disable change tracking for better performance
 
     // Apply search filter
     if (!string.IsNullOrEmpty(search))
@@ -831,9 +1121,6 @@ app.MapGet("/events", async (int? page, int? limit, string? search, bool? active
         );
     }
 
-    // Get total count for pagination
-    var totalCount = await query.CountAsync();
-
     // Get paginated results with optimized projection
     var rawEvents = await query
         .OrderBy(e => e.EventDate)
@@ -845,7 +1132,8 @@ app.MapGet("/events", async (int? page, int? limit, string? search, bool? active
             e.Title,
             e.Description,
             e.Tags,
-            e.Photo,
+            Photo = loadPhotos ? e.Photo : null, // Legacy field for backward compatibility
+            PhotoPath = e.PhotoPath, // New file path field
             e.CompanyId,
             e.EventDate,
             e.StartTime,
@@ -859,14 +1147,26 @@ app.MapGet("/events", async (int? page, int? limit, string? search, bool? active
         })
         .ToListAsync();
 
+    // Get total count efficiently
+    var totalCount = await query.CountAsync();
+
     var events = rawEvents.Select(e => new EventResponse {
         Id = e.Id,
         Title = e.Title,
         Description = e.Description,
         Tags = string.IsNullOrEmpty(e.Tags) ? new List<string>() : e.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries).ToList(),
-        Likes = 0,
-        Photo = e.Photo != null && e.Photo.Length > 0 && e.Photo.Length <= 50000 ? Convert.ToBase64String(e.Photo) : string.Empty,
-        Company = string.Empty,
+        Likes = db.Likes.Count(l => l.EventId == e.Id), // Add likes count
+        
+        // New URL-based photo storage approach
+        PhotoUrl = !string.IsNullOrEmpty(e.PhotoPath) 
+            ? fileStorage.GetFileUrl(e.PhotoPath) ?? string.Empty 
+            : string.Empty,
+        PhotoPath = e.PhotoPath,
+        HasPhoto = !string.IsNullOrEmpty(e.PhotoPath),
+        
+        // Legacy field for backward compatibility
+        Photo = loadPhotos && !string.IsNullOrEmpty(e.PhotoPath) ? "use_photo_url" : string.Empty,
+        
         CompanyId = e.CompanyId,
         EventDate = e.EventDate,
         StartTime = e.StartTime.ToString(@"hh\:mm"),
@@ -892,6 +1192,12 @@ app.MapGet("/events", async (int? page, int? limit, string? search, bool? active
             totalPages = totalPages,
             hasNext = pageNum < totalPages,
             hasPrev = pageNum > 1
+        },
+        performance = new
+        {
+            photosAsUrls = true,
+            batchSize = limitNum,
+            tip = "Event photos are now served as URLs for better performance"
         }
     });
     }
@@ -908,106 +1214,191 @@ app.MapGet("/events", async (int? page, int? limit, string? search, bool? active
   .RequireRateLimiting("GeneralPolicy")
   .WithOpenApi();
 
-// GET /locations - Public locations endpoint with pagination and optimization
-app.MapGet("/locations", async (int? page, int? limit, string? category, string? search, AppDbContext db) =>
+// GET /events/{id}/photo - DEPRECATED: Use PhotoUrl from main endpoints instead
+app.MapGet("/events/{id}/photo", async (int id, AppDbContext db, IFileStorageService fileStorage) =>
 {
     try
     {
-    // Default pagination values
-    var pageNum = page ?? 1;
-    var limitNum = Math.Min(limit ?? 50, 100); // Max 100 items per request
-    var skip = (pageNum - 1) * limitNum;
-
-    // Build query with filters
-    var query = db.Locations
-        .Where(l => l.IsActive);
-
-    // Apply category filter
-    if (!string.IsNullOrEmpty(category))
-    {
-        query = query.Where(l => l.Category.ToLower() == category.ToLower());
-    }
-
-    // Apply search filter
-    if (!string.IsNullOrEmpty(search))
-    {
-        var searchLower = search.ToLower();
-        query = query.Where(l => 
-            l.Name.ToLower().Contains(searchLower) ||
-            l.Address.ToLower().Contains(searchLower) ||
-            l.Tags.ToLower().Contains(searchLower) ||
-            l.Category.ToLower().Contains(searchLower) ||
-            (l.Description != null && l.Description.ToLower().Contains(searchLower))
-        );
-    }
-
-    // Get total count for pagination
-    var totalCount = await query.CountAsync();
-
-    // First fetch raw data (only EF-translatable operations here)
-    var rawLocations = await query
-        .OrderBy(l => l.Name)
-        .Skip(skip)
-        .Take(limitNum)
-        .Select(l => new {
-            l.Id,
-            l.Name,
-            l.Address,
-            l.Category,
-            l.PhoneNumber,
-            l.Latitude,
-            l.Longitude,
-            l.Description,
-            l.Tags,
-            l.Photo,
-            l.MenuName,
-            l.MenuData,
-            l.CreatedAt,
-            l.UpdatedAt,
-            l.CompanyId
-        })
-        .ToListAsync();
-
-    // Shape result client-side (safe string operations & base64)
-    var locations = rawLocations.Select(l => new {
-        l.Id,
-        l.Name,
-        l.Address,
-        l.Category,
-        l.PhoneNumber,
-        l.Latitude,
-        l.Longitude,
-        Description = l.Description ?? string.Empty,
-        Tags = string.IsNullOrEmpty(l.Tags) ? Array.Empty<string>() : l.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries),
-        Photo = l.Photo != null && l.Photo.Length > 0 && l.Photo.Length <= 50000 ? Convert.ToBase64String(l.Photo) : string.Empty,
-        l.MenuName,
-        HasMenu = l.MenuData != null && l.MenuData.Length > 0,
-        l.CreatedAt,
-        l.UpdatedAt,
-        CompanyId = l.CompanyId
-    }).ToList();
-
-    var totalPages = (int)Math.Ceiling((double)totalCount / limitNum);
+        var eventEntity = await db.Events
+            .Where(e => e.Id == id && e.IsActive)
+            .Select(e => new { e.Photo, e.PhotoPath })
+            .FirstOrDefaultAsync();
         
-    return Results.Ok(new
-    {
-        data = locations,
-        pagination = new
+        if (eventEntity == null)
         {
-            page = pageNum,
-            limit = limitNum,
-            total = totalCount,
-            totalPages = totalPages,
-            hasNext = pageNum < totalPages,
-            hasPrev = pageNum > 1
+            return Results.NotFound(new { error = "Event not found" });
         }
-    });
+
+        // Prioritize new file storage system
+        if (!string.IsNullOrEmpty(eventEntity.PhotoPath))
+        {
+            var photoUrl = fileStorage.GetFileUrl(eventEntity.PhotoPath);
+            return Results.Ok(new { 
+                photoUrl = photoUrl,
+                deprecated = true,
+                message = "This endpoint is deprecated. Use PhotoUrl field from /events endpoint instead."
+            });
+        }
+
+        // Fallback to legacy binary data
+        if (eventEntity.Photo != null && eventEntity.Photo.Length > 0)
+        {
+            var base64Photo = Convert.ToBase64String(eventEntity.Photo);
+            return Results.Ok(new { 
+                photo = base64Photo,
+                deprecated = true,
+                message = "This endpoint is deprecated. Use PhotoUrl field from /events endpoint instead."
+            });
+        }
+
+        return Results.NotFound(new { error = "Photo not found" });
     }
     catch (Exception ex)
     {
-        Log.Error(ex, "Error in /locations endpoint");
+        Log.Error(ex, "Error fetching photo for event {EventId}", id);
+        return Results.Problem("An error occurred while fetching photo");
+    }
+}).WithTags("Events")
+  .RequireRateLimiting("GeneralPolicy")
+  .WithOpenApi();
+
+// GET /locations - Performance optimized endpoint with file storage
+app.MapGet("/locations", async (int? page, int? limit, string? category, string? search, bool? includePhotos, AppDbContext db, IMemoryCache cache, IFileStorageService fileStorage) =>
+{
+    try
+    {
+        // Performance-optimized pagination
+        var pageNum = page ?? 1;
+        var loadPhotos = includePhotos ?? true;
+        var limitNum = Math.Min(limit ?? 50, 100); // Increased limit since we're not loading binary data
+        var skip = (pageNum - 1) * limitNum;
+
+        // Cache key - sanitize to avoid special characters
+        var categoryKey = category?.Replace(" ", "_") ?? "all";
+        var searchKey = search?.Replace(" ", "_").Replace(",", "").Replace("'", "").Replace("\"", "") ?? "none";
+        var cacheKey = $"locations_v2_p{pageNum}_l{limitNum}_c{categoryKey}_s{searchKey}_ph{loadPhotos}";
+        
+        // Check cache for non-photo requests
+        if (!loadPhotos && cache.TryGetValue(cacheKey, out var cachedResult))
+        {
+            return Results.Ok(cachedResult);
+        }
+
+        // Build base query
+        var query = db.Locations
+            .Where(l => l.IsActive)
+            .AsNoTracking();
+
+        // Apply filters with null safety
+        if (!string.IsNullOrEmpty(category))
+        {
+            query = query.Where(l => l.Category != null && l.Category.ToLower() == category.ToLower());
+        }
+
+        if (!string.IsNullOrEmpty(search))
+        {
+            var searchLower = search.ToLower();
+            query = query.Where(l => 
+                (l.Name != null && l.Name.ToLower().Contains(searchLower)) ||
+                (l.Address != null && l.Address.ToLower().Contains(searchLower)) ||
+                (l.Tags != null && l.Tags.ToLower().Contains(searchLower))
+            );
+        }
+
+        // Get count and data sequentially to avoid DbContext threading issues
+        var totalCount = await query.CountAsync();
+        var rawLocations = await query
+            .OrderBy(l => l.Name)
+            .Skip(skip)
+            .Take(limitNum)
+            .ToListAsync();
+
+        // Process results efficiently with new file storage - with null safety
+        var locations = rawLocations.Select(l => {
+            try 
+            {
+                return new {
+                    l.Id,
+                    Name = l.Name ?? string.Empty,
+                    Address = l.Address ?? string.Empty,
+                    Category = l.Category ?? string.Empty,
+                    PhoneNumber = l.PhoneNumber ?? string.Empty,
+                    l.Latitude,
+                    l.Longitude,
+                    Description = l.Description ?? string.Empty,
+                    Tags = string.IsNullOrEmpty(l.Tags) ? new string[0] : l.Tags.Split(',', StringSplitOptions.RemoveEmptyEntries),
+                    
+                    // New file storage approach with null safety
+                    PhotoUrl = !string.IsNullOrEmpty(l.PhotoPath) 
+                        ? fileStorage.GetFileUrl(l.PhotoPath) ?? string.Empty 
+                        : string.Empty,
+                    MenuUrl = !string.IsNullOrEmpty(l.MenuPath) 
+                        ? fileStorage.GetFileUrl(l.MenuPath) ?? string.Empty 
+                        : string.Empty,
+                    HasPhoto = !string.IsNullOrEmpty(l.PhotoPath),
+                    HasMenu = !string.IsNullOrEmpty(l.MenuPath),
+                    
+                    // Legacy fields for backward compatibility
+                    Photo = loadPhotos && !string.IsNullOrEmpty(l.PhotoPath) ? "use_photo_url" : string.Empty,
+                    MenuPath = l.MenuPath ?? string.Empty,
+                    
+                    l.CreatedAt,
+                    l.UpdatedAt,
+                    CompanyId = l.CompanyId
+                };
+            }
+            catch (Exception ex)
+            {
+                Log.Warning(ex, "Error processing location {LocationId}, skipping", l.Id);
+                return null;
+            }
+        }).Where(l => l != null).ToList();
+
+        var totalPages = (int)Math.Ceiling((double)totalCount / limitNum);
+        
+        var result = new
+        {
+            data = locations,
+            pagination = new
+            {
+                page = pageNum,
+                limit = limitNum,
+                total = totalCount,
+                totalPages = totalPages,
+                hasNext = pageNum < totalPages,
+                hasPrev = pageNum > 1
+            },
+            performance = new
+            {
+                photosAsUrls = true,
+                batchSize = limitNum,
+                tip = "Photos and menus are now served as URLs for better performance"
+            }
+        };
+        
+        // Cache responses with error handling
+        try
+        {
+            var cacheOptions = new MemoryCacheEntryOptions
+            {
+                AbsoluteExpirationRelativeToNow = TimeSpan.FromMinutes(5),
+                Priority = CacheItemPriority.Normal
+            };
+            cache.Set(cacheKey, result, cacheOptions);
+        }
+        catch (Exception cacheEx)
+        {
+            Log.Warning(cacheEx, "Failed to cache locations result");
+            // Continue without caching
+        }
+            
+        return Results.Ok(result);
+    }
+    catch (Exception ex)
+    {
+        Log.Error(ex, "Error fetching locations");
         return Results.Problem(
-            detail: "An error occurred while fetching locations",
+            detail: $"Error fetching locations: {ex.Message}",
             statusCode: 500,
             title: "Internal Server Error"
         );
@@ -1016,22 +1407,38 @@ app.MapGet("/locations", async (int? page, int? limit, string? category, string?
   .RequireRateLimiting("GeneralPolicy")
   .WithOpenApi();
 
-// GET /locations/{id}/photo - Get location photo separately for lazy loading
-app.MapGet("/locations/{id}/photo", async (int id, AppDbContext db) =>
+// GET /locations/{id}/photo - Get location photo with file storage support
+app.MapGet("/locations/{id}/photo", async (int id, AppDbContext db, IFileStorageService fileStorage) =>
 {
-    var location = await db.Locations
-        .Where(l => l.Id == id && l.IsActive)
-        .Select(l => new { l.Photo })
-        .FirstOrDefaultAsync();
-    
-    if (location == null)
+    try
     {
-        return Results.NotFound();
-    }
+        var location = await db.Locations
+            .Where(l => l.Id == id && l.IsActive)
+            .Select(l => new { l.PhotoPath })
+            .FirstOrDefaultAsync();
+        
+        if (location == null)
+        {
+            return Results.NotFound(new { error = "Location not found" });
+        }
 
-    return Results.Ok(new { 
-        photo = Convert.ToBase64String(location.Photo) 
-    });
+        // Use new file storage path
+        if (!string.IsNullOrEmpty(location.PhotoPath))
+        {
+            var photoUrl = fileStorage.GetFileUrl(location.PhotoPath);
+            return Results.Ok(new { 
+                photoUrl = photoUrl,
+                type = "file_storage"
+            });
+        }
+
+        return Results.NotFound(new { error = "Photo not found" });
+    }
+    catch (Exception ex)
+    {
+        Log.Error(ex, "Error fetching photo for location {LocationId}", id);
+        return Results.Problem("An error occurred while fetching photo");
+    }
 }).WithTags("Locations")
   .RequireRateLimiting("GeneralPolicy")
   .WithOpenApi();
@@ -1214,10 +1621,10 @@ app.MapPut("changepfp", async (HttpRequest req, AppDbContext db) =>
     // Additional MIME type validation by reading file header
     using var stream = file.OpenReadStream();
     var buffer = new byte[8];
-    await stream.ReadAsync(buffer, 0, 8);
+    await stream.ReadExactlyAsync(buffer, 0, 8);
     stream.Position = 0;
 
-    var isValidImage = IsValidImageFile(buffer, file.ContentType);
+    var isValidImage = IsValidImageFile(buffer, file.ContentType ?? "application/octet-stream");
     if (!isValidImage)
     {
         return Results.BadRequest("Invalid image file");
@@ -1281,7 +1688,7 @@ static string SanitizeInput(string input)
     return input.Trim();
 }
 
-app.MapPost("companyevents", async (HttpRequest req, AppDbContext db) =>
+app.MapPost("companyevents", async (HttpRequest req, AppDbContext db, IFileStorageService fileStorage) =>
 {
     var form = await req.ReadFormAsync();
     int companyId = int.Parse(form["id"].ToString());
@@ -1297,9 +1704,20 @@ app.MapPost("companyevents", async (HttpRequest req, AppDbContext db) =>
         Title = e.Title,
         Description = e.Description,
         Tags = string.IsNullOrEmpty(e.Tags) ? new List<string>() : e.Tags.Split(",").Select(t => t.Trim()).ToList(),
-        Likes = 0, // Temporarily disabled to avoid N+1 query issues
-        Photo = e.Photo != null ? Convert.ToBase64String(e.Photo) : string.Empty,
-        Company = string.Empty, // Company name removed to avoid join issues
+        Likes = db.Likes.Count(l => l.EventId == e.Id), // Add likes count
+        
+        // New URL-based photo storage approach
+        PhotoUrl = !string.IsNullOrEmpty(e.PhotoPath) 
+            ? fileStorage.GetFileUrl(e.PhotoPath) ?? string.Empty 
+            : string.Empty,
+        PhotoPath = e.PhotoPath,
+        HasPhoto = !string.IsNullOrEmpty(e.PhotoPath),
+        
+        // Legacy field for backward compatibility
+        Photo = !string.IsNullOrEmpty(e.PhotoPath) ? "use_photo_url" : string.Empty,
+        
+        Company = e.Company?.Name ?? "Unknown",
+        CompanyId = e.CompanyId,
         EventDate = e.EventDate,
         StartTime = e.StartTime.ToString(@"hh\:mm"),
         EndTime = e.EndTime.ToString(@"hh\:mm"),
@@ -1314,8 +1732,8 @@ app.MapPost("companyevents", async (HttpRequest req, AppDbContext db) =>
     return Results.Ok(eventResponses);
 });
 
-// GET /events/{id} - Get single event by ID
-app.MapGet("/events/{id}", async (int id, AppDbContext db) =>
+// GET /events/{id} - Get single event by ID with URL-based photo storage
+app.MapGet("/events/{id}", async (int id, AppDbContext db, IFileStorageService fileStorage) =>
 {
     var eventItem = await db.Events
         .Include(e => e.Company)
@@ -1333,8 +1751,19 @@ app.MapGet("/events/{id}", async (int id, AppDbContext db) =>
         Description = eventItem.Description,
         Tags = string.IsNullOrEmpty(eventItem.Tags) ? new List<string>() : eventItem.Tags.Split(",").Select(t => t.Trim()).ToList(),
         Likes = await db.Likes.CountAsync(l => l.EventId == eventItem.Id),
-        Photo = eventItem.Photo != null ? Convert.ToBase64String(eventItem.Photo) : string.Empty,
+        
+        // New URL-based photo storage approach
+        PhotoUrl = !string.IsNullOrEmpty(eventItem.PhotoPath) 
+            ? fileStorage.GetFileUrl(eventItem.PhotoPath) ?? string.Empty 
+            : string.Empty,
+        PhotoPath = eventItem.PhotoPath,
+        HasPhoto = !string.IsNullOrEmpty(eventItem.PhotoPath),
+        
+        // Legacy field for backward compatibility
+        Photo = !string.IsNullOrEmpty(eventItem.PhotoPath) ? "use_photo_url" : string.Empty,
+        
         Company = eventItem.Company?.Name ?? "Unknown",
+        CompanyId = eventItem.CompanyId,
         EventDate = eventItem.EventDate,
         StartTime = eventItem.StartTime.ToString(@"hh\:mm"),
         EndTime = eventItem.EndTime.ToString(@"hh\:mm"),
@@ -1495,63 +1924,43 @@ app.MapGet("/events/{id}/like-status/{userId}", async (int id, int userId, AppDb
 });
 
 // POST /events - Create new event
-app.MapPost("/events", async (HttpContext context, AppDbContext db) =>
+app.MapPost("/events", async (HttpContext context, AppDbContext db, IFileStorageService fileStorage) =>
 {
     try
     {
+        Log.Information("Creating new event - starting process");
+        
         // Get company ID from the authenticated user
         var companyIdClaim = context.User.FindFirst("sub")?.Value;
         if (string.IsNullOrEmpty(companyIdClaim) || !int.TryParse(companyIdClaim, out var companyId))
         {
+            Log.Warning("Unauthorized event creation attempt - no valid company ID");
             return Results.Unauthorized();
         }
 
         var company = await db.Companies.FindAsync(companyId);
         if (company == null)
         {
+            Log.Warning("Event creation failed - company not found: {CompanyId}", companyId);
             return Results.BadRequest("Company not found");
         }
 
         var form = await context.Request.ReadFormAsync();
+        Log.Information("Event form data received. Files count: {FileCount}", form.Files.Count);
 
-        // Handle image upload
-        byte[] imageData = Array.Empty<byte>();
-        if (form.Files.Count > 0)
-        {
-            // Handle file upload
-            var file = form.Files[0];
-            using var memoryStream = new MemoryStream();
-            await file.CopyToAsync(memoryStream);
-            imageData = memoryStream.ToArray();
-        }
-        else if (form.ContainsKey("photo") && !string.IsNullOrEmpty(form["photo"]))
-        {
-            // Handle base64 photo data
-            try
-            {
-                var photoString = form["photo"].ToString();
-                if (!string.IsNullOrEmpty(photoString))
-                {
-                    imageData = Convert.FromBase64String(photoString);
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Error converting base64 photo: {ex.Message}");
-            }
-        }
-
+        // Create the event first to get an ID
         var newEvent = new Event
         {
             Title = form["title"].ToString(),
             Description = form["description"].ToString(),
             Tags = form["tags"].ToString() ?? "",
             CompanyId = companyId,
-            Photo = imageData,
+            Photo = Array.Empty<byte>(), // Keep empty for new file system
+            PhotoPath = null, // Will be set after file upload
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
             
-            // New enhanced event fields
+            // Enhanced event fields
             EventDate = DateTime.Parse(form["eventDate"].ToString()),
             StartTime = TimeSpan.Parse(form["startTime"].ToString()),
             EndTime = TimeSpan.Parse(form["endTime"].ToString()),
@@ -1565,83 +1974,194 @@ app.MapPost("/events", async (HttpContext context, AppDbContext db) =>
         };
 
         db.Events.Add(newEvent);
-        await db.SaveChangesAsync();
+        await db.SaveChangesAsync(); // Save to get the ID
 
-        return Results.Ok(new { id = newEvent.Id, message = "Event created successfully" });
-    }
-    catch (Exception ex)
-    {
-        return Results.BadRequest($"Error creating event: {ex.Message}");
-    }
-}).RequireAuthorization();
+        Log.Information("Event created with ID: {EventId}", newEvent.Id);
 
-// PUT /events/{id} - Update event
-app.MapPut("/events/{id}", async (int id, HttpRequest request, AppDbContext db) =>
-{
-    try
-    {
-        var eventItem = await db.Events.FindAsync(id);
-        if (eventItem == null)
-        {
-            return Results.NotFound();
-        }
-
-        var form = await request.ReadFormAsync();
-
-        eventItem.Title = form["title"].ToString();
-        eventItem.Description = form["description"].ToString();
-        eventItem.Tags = form["tags"].ToString() ?? "";
-
-        // Handle image upload if provided
+        // Handle photo upload if provided
         if (form.Files.Count > 0)
         {
-            // Handle file upload
             var file = form.Files[0];
-            using var memoryStream = new MemoryStream();
-            await file.CopyToAsync(memoryStream);
-            eventItem.Photo = memoryStream.ToArray();
+            Log.Information("Processing photo upload for event {EventId}. File: {FileName}, Size: {FileSize}", 
+                newEvent.Id, file.FileName, file.Length);
+                
+            var photoPath = await fileStorage.SaveEventFileAsync(file, newEvent.Id, "photos");
+            if (!string.IsNullOrEmpty(photoPath))
+            {
+                newEvent.PhotoPath = photoPath;
+                Log.Information("Photo saved successfully for event {EventId}: {PhotoPath}", newEvent.Id, photoPath);
+            }
+            else
+            {
+                Log.Warning("Photo upload failed for event {EventId}", newEvent.Id);
+            }
         }
         else if (form.ContainsKey("photo") && !string.IsNullOrEmpty(form["photo"]))
         {
-            // Handle base64 photo data
+            // Handle base64 photo data - convert to file
             try
             {
                 var photoString = form["photo"].ToString();
                 if (!string.IsNullOrEmpty(photoString))
                 {
-                    eventItem.Photo = Convert.FromBase64String(photoString);
+                    var imageData = Convert.FromBase64String(photoString);
+                    var photoPath = await fileStorage.SaveEventFileAsync(imageData, "photo.jpg", newEvent.Id, "photos");
+                    if (!string.IsNullOrEmpty(photoPath))
+                    {
+                        newEvent.PhotoPath = photoPath;
+                        Log.Information("Base64 photo converted and saved for event {EventId}: {PhotoPath}", newEvent.Id, photoPath);
+                    }
                 }
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"Error converting base64 photo in update: {ex.Message}");
+                Log.Error(ex, "Error converting base64 photo for event {EventId}", newEvent.Id);
             }
+        }
+        else
+        {
+            Log.Information("No photo uploaded for event {EventId}", newEvent.Id);
+        }
+
+        // Save again with photo path
+        await db.SaveChangesAsync();
+
+        Log.Information("Event creation completed successfully: {EventId}", newEvent.Id);
+        return Results.Ok(new { id = newEvent.Id, message = "Event created successfully" });
+    }
+    catch (Exception ex)
+    {
+        Log.Error(ex, "Error creating event");
+        return Results.BadRequest($"Error creating event: {ex.Message}");
+    }
+}).RequireAuthorization();
+
+// PUT /events/{id} - Update event
+app.MapPut("/events/{id}", async (int id, HttpRequest request, AppDbContext db, IFileStorageService fileStorage) =>
+{
+    try
+    {
+        Log.Information("Updating event {EventId}", id);
+        
+        var eventItem = await db.Events.FindAsync(id);
+        if (eventItem == null)
+        {
+            Log.Warning("Event not found for update: {EventId}", id);
+            return Results.NotFound();
+        }
+
+        var form = await request.ReadFormAsync();
+        Log.Information("Event update form data received. Files count: {FileCount}", form.Files.Count);
+
+        eventItem.Title = form["title"].ToString();
+        eventItem.Description = form["description"].ToString();
+        eventItem.Tags = form["tags"].ToString() ?? "";
+
+        // Handle photo upload if provided
+        if (form.Files.Count > 0)
+        {
+            var file = form.Files[0];
+            Log.Information("Processing photo upload for event update {EventId}. File: {FileName}, Size: {FileSize}", 
+                id, file.FileName, file.Length);
+                
+            var photoPath = await fileStorage.SaveEventFileAsync(file, id, "photos");
+            if (!string.IsNullOrEmpty(photoPath))
+            {
+                // Delete old photo if it exists
+                if (!string.IsNullOrEmpty(eventItem.PhotoPath))
+                {
+                    await fileStorage.DeleteFileAsync(eventItem.PhotoPath);
+                }
+                
+                eventItem.PhotoPath = photoPath;
+                Log.Information("Photo updated successfully for event {EventId}: {PhotoPath}", id, photoPath);
+            }
+            else
+            {
+                Log.Warning("Photo upload failed for event update {EventId}", id);
+            }
+        }
+        else if (form.ContainsKey("photo") && !string.IsNullOrEmpty(form["photo"]))
+        {
+            // Handle base64 photo data - convert to file
+            try
+            {
+                var photoString = form["photo"].ToString();
+                if (!string.IsNullOrEmpty(photoString))
+                {
+                    var imageData = Convert.FromBase64String(photoString);
+                    var photoPath = await fileStorage.SaveEventFileAsync(imageData, "photo.jpg", id, "photos");
+                    if (!string.IsNullOrEmpty(photoPath))
+                    {
+                        // Delete old photo if it exists
+                        if (!string.IsNullOrEmpty(eventItem.PhotoPath))
+                        {
+                            await fileStorage.DeleteFileAsync(eventItem.PhotoPath);
+                        }
+                        
+                        eventItem.PhotoPath = photoPath;
+                        Log.Information("Base64 photo updated for event {EventId}: {PhotoPath}", id, photoPath);
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Error converting base64 photo for event update {EventId}", id);
+            }
+        }
+        else
+        {
+            Log.Information("No photo update for event {EventId}", id);
         }
 
         eventItem.UpdatedAt = DateTime.UtcNow;
 
         await db.SaveChangesAsync();
+        Log.Information("Event update completed successfully: {EventId}", id);
         return Results.Ok(new { message = "Event updated successfully" });
     }
     catch (Exception ex)
     {
+        Log.Error(ex, "Error updating event {EventId}", id);
         return Results.BadRequest($"Error updating event: {ex.Message}");
     }
 });
 
 // DELETE /events/{id} - Delete event
-app.MapDelete("/events/{id}", async (int id, AppDbContext db) =>
+app.MapDelete("/events/{id}", async (int id, AppDbContext db, IFileStorageService fileStorage) =>
 {
-    var eventItem = await db.Events.FindAsync(id);
-    if (eventItem == null)
+    try
     {
-        return Results.NotFound();
-    }
+        Log.Information("Deleting event {EventId}", id);
+        
+        var eventItem = await db.Events.FindAsync(id);
+        if (eventItem == null)
+        {
+            Log.Warning("Event not found for deletion: {EventId}", id);
+            return Results.NotFound();
+        }
 
-    db.Events.Remove(eventItem);
-    await db.SaveChangesAsync();
-    
-    return Results.Ok(new { message = "Event deleted successfully" });
+        // Delete associated files
+        if (!string.IsNullOrEmpty(eventItem.PhotoPath))
+        {
+            await fileStorage.DeleteFileAsync(eventItem.PhotoPath);
+            Log.Information("Deleted photo file for event {EventId}: {PhotoPath}", id, eventItem.PhotoPath);
+        }
+
+        // Delete event directory (will only delete if empty)
+        await fileStorage.DeleteEventDirectoryAsync(id);
+
+        db.Events.Remove(eventItem);
+        await db.SaveChangesAsync();
+        
+        Log.Information("Event deleted successfully: {EventId}", id);
+        return Results.Ok(new { message = "Event deleted successfully" });
+    }
+    catch (Exception ex)
+    {
+        Log.Error(ex, "Error deleting event {EventId}", id);
+        return Results.BadRequest($"Error deleting event: {ex.Message}");
+    }
 });
 
 // GET /events/{id}/attendees - Get event attendees (placeholder)
@@ -1677,20 +2197,36 @@ app.MapGet("/events/{id}/attendees", async (int id, AppDbContext db) =>
 });
 
 // OLD ENDPOINT - Deprecated: Company menu now handled per location
-app.MapGet("/companies/{id}/menu", async (int id, AppDbContext db) =>
+app.MapGet("/companies/{id}/menu", async (int id, AppDbContext db, IFileStorageService fileStorage) =>
 {
-    // Redirect to first active location's menu if available
+    // Find first active location for this company
     var firstLocation = await db.Locations
-        .Where(l => l.CompanyId == id && l.IsActive && l.MenuData.Length > 0)
+        .Where(l => l.CompanyId == id && l.IsActive)
         .FirstOrDefaultAsync();
-        
+
     if (firstLocation == null)
     {
         return Results.NotFound("Meniu inexistent pentru această companie");
     }
 
-    return Results.File(firstLocation.MenuData, "application/pdf", firstLocation.MenuName);
-});
+    // Prefer file-path based menus (URL) from file storage
+    if (!string.IsNullOrEmpty(firstLocation.MenuPath))
+    {
+        var menuUrl = fileStorage.GetFileUrl(firstLocation.MenuPath);
+        if (!string.IsNullOrEmpty(menuUrl))
+        {
+            return Results.Ok(new { menuUrl, menuName = firstLocation.MenuName });
+        }
+    }
+
+    // Fallback: if legacy MenuData exists, return the binary
+    if (firstLocation.MenuData != null && firstLocation.MenuData.Length > 0)
+    {
+        return Results.File(firstLocation.MenuData, "application/pdf", firstLocation.MenuName);
+    }
+
+    return Results.NotFound("Meniu inexistent pentru această companie");
+}).WithTags("Locations");
 
 // OLD ENDPOINT - Deprecated: Company menu upload now handled per location
 app.MapPost("/companies/{id}/upload-menu", (int id, HttpRequest request, AppDbContext db) =>
@@ -1705,7 +2241,7 @@ app.MapPost("/companies/{id}/upload-menu", (int id, HttpRequest request, AppDbCo
 // ==================== LOCATION MANAGEMENT ENDPOINTS ====================
 
 // Get all locations for a company
-app.MapGet("/companies/{companyId}/locations", async (int companyId, AppDbContext db) =>
+app.MapGet("/companies/{companyId}/locations", async (int companyId, AppDbContext db, IFileStorageService fileStorage) =>
 {
     var locations = await db.Locations
         .Where(l => l.CompanyId == companyId && l.IsActive)
@@ -1720,11 +2256,19 @@ app.MapGet("/companies/{companyId}/locations", async (int companyId, AppDbContex
         l.PhoneNumber,
         l.Latitude,
         l.Longitude,
-    l.Description,
+        l.Description,
         Tags = string.IsNullOrEmpty(l.Tags) ? new string[0] : l.Tags.Split(',').Select(t => t.Trim()).ToArray(),
-        Photo = Convert.ToBase64String(l.Photo),
+        
+        // New file storage approach
+        PhotoUrl = !string.IsNullOrEmpty(l.PhotoPath) ? fileStorage.GetFileUrl(l.PhotoPath) : string.Empty,
+        MenuUrl = !string.IsNullOrEmpty(l.MenuPath) ? fileStorage.GetFileUrl(l.MenuPath) : string.Empty,
+        HasPhoto = !string.IsNullOrEmpty(l.PhotoPath),
+        HasMenu = !string.IsNullOrEmpty(l.MenuPath),
+        
+        // Legacy support for backward compatibility
+        Photo = !string.IsNullOrEmpty(l.PhotoPath) ? "use_photo_url" : string.Empty,
         MenuName = l.MenuName,
-        HasMenu = l.MenuData.Length > 0,
+        
         l.CreatedAt,
         l.UpdatedAt
     }).ToList();
@@ -1733,7 +2277,7 @@ app.MapGet("/companies/{companyId}/locations", async (int companyId, AppDbContex
 });
 
 // Get a specific location
-app.MapGet("/locations/{id}", async (int id, AppDbContext db) =>
+app.MapGet("/locations/{id}", async (int id, AppDbContext db, IFileStorageService fileStorage) =>
 {
     var location = await db.Locations
         .Include(l => l.Company)
@@ -1751,11 +2295,19 @@ app.MapGet("/locations/{id}", async (int id, AppDbContext db) =>
         location.Latitude,
         location.Category,
         location.Longitude,
-    location.Description,
+        location.Description,
         Tags = string.IsNullOrEmpty(location.Tags) ? new string[0] : location.Tags.Split(',').Select(t => t.Trim()).ToArray(),
-        Photo = Convert.ToBase64String(location.Photo),
+        
+        // New file storage approach
+        PhotoUrl = !string.IsNullOrEmpty(location.PhotoPath) ? fileStorage.GetFileUrl(location.PhotoPath) : string.Empty,
+        MenuUrl = !string.IsNullOrEmpty(location.MenuPath) ? fileStorage.GetFileUrl(location.MenuPath) : string.Empty,
+        HasPhoto = !string.IsNullOrEmpty(location.PhotoPath),
+        HasMenu = !string.IsNullOrEmpty(location.MenuPath),
+        
+        // Legacy support (return URLs instead of binary data)
+        Photo = !string.IsNullOrEmpty(location.PhotoPath) ? "use_photo_url" : string.Empty,
         MenuName = location.MenuName,
-        HasMenu = location.MenuData.Length > 0,
+        
         location.CreatedAt,
         location.UpdatedAt,
         location.PhoneNumber
@@ -1765,7 +2317,7 @@ app.MapGet("/locations/{id}", async (int id, AppDbContext db) =>
 });
 
 // Create a new location
-app.MapPost("/companies/{companyId}/locations", async (int companyId, HttpRequest req, AppDbContext db) =>
+app.MapPost("/companies/{companyId}/locations", async (int companyId, HttpRequest req, AppDbContext db, IFileStorageService fileStorage) =>
 {
     try
     {
@@ -1784,13 +2336,13 @@ app.MapPost("/companies/{companyId}/locations", async (int companyId, HttpReques
         }
         
         // Check if location name already exists for this company (active or inactive)
-    var nameRaw = form["name"].ToString();
+        var nameRaw = form["name"].ToString();
         var addressRaw = form["address"].ToString();
         var categoryRaw = form["category"].ToString();
         var phoneRaw = form["phoneNumber"].ToString();
         var latRaw = form["latitude"].ToString();
         var lngRaw = form["longitude"].ToString();
-    var descriptionRaw = form["description"].ToString();
+        var descriptionRaw = form["description"].ToString();
 
         if (string.IsNullOrWhiteSpace(nameRaw))
             return Results.Problem("Name is required", statusCode: 400);
@@ -1810,9 +2362,6 @@ app.MapPost("/companies/{companyId}/locations", async (int companyId, HttpReques
             return Results.Conflict(new { Error = "Location with this name already exists for this company. Please choose a different name." });
         }
 
-        var photoFile = form.Files.GetFile("photo");
-        var menuFile = form.Files.GetFile("menu");
-        
         // Normalize and safely parse coordinates (accept both comma and dot)
         var latNorm = latRaw.Replace(',', '.');
         var lngNorm = lngRaw.Replace(',', '.');
@@ -1825,6 +2374,7 @@ app.MapPost("/companies/{companyId}/locations", async (int companyId, HttpReques
             return Results.Problem($"Invalid longitude: {lngRaw}", statusCode: 400);
         }
         
+        // Create location with basic info first
         var location = new Location
         {
             CompanyId = companyId,
@@ -1836,39 +2386,66 @@ app.MapPost("/companies/{companyId}/locations", async (int companyId, HttpReques
             Longitude = lngParsed,
             Tags = SanitizeInput(form["tags"].ToString()) ?? string.Empty,
             Description = string.IsNullOrWhiteSpace(descriptionRaw) ? null : SanitizeInput(descriptionRaw),
-            Photo = Array.Empty<byte>(), // Ensure non-null
-            MenuName = string.Empty, // Ensure non-null  
-            MenuData = Array.Empty<byte>(), // Ensure non-null
-            HasMenu = false,
             CreatedAt = DateTime.UtcNow,
             UpdatedAt = DateTime.UtcNow,
             IsActive = true
         };
 
-        // Handle photo upload
+        // Save location first to get the ID
+        db.Locations.Add(location);
+        await db.SaveChangesAsync();
+
+        // Ensure directory structure exists for this location
+        await fileStorage.EnsureLocationDirectoryAsync(location.Id);
+
+        var photoFile = form.Files.GetFile("photo");
+        var menuFile = form.Files.GetFile("menu");
+
+        // Debug logging for file uploads
+        Log.Information("Location creation upload debug - PhotoFile: {HasPhoto} (Size: {PhotoSize}), MenuFile: {HasMenu} (Size: {MenuSize}), FormFiles: [{FormFiles}]", 
+            photoFile != null, photoFile?.Length ?? 0, menuFile != null, menuFile?.Length ?? 0, 
+            string.Join(", ", form.Files.Select(f => $"{f.Name}:{f.FileName}:{f.Length}")));
+
+        // Handle photo upload to file storage
         if (photoFile != null && photoFile.Length > 0)
         {
-            using var ms = new MemoryStream();
-            await photoFile.OpenReadStream().CopyToAsync(ms);
-            location.Photo = ms.ToArray();
+            try
+            {
+                Log.Information("Processing photo upload for location {LocationId}, filename: {FileName}, contentType: {ContentType}", 
+                    location.Id, photoFile.FileName, photoFile.ContentType);
+                var photoPath = await fileStorage.SaveFileAsync(photoFile, location.Id, "photos");
+                location.PhotoPath = photoPath;
+                Log.Information("Photo saved successfully for location {LocationId}: {PhotoPath}", location.Id, photoPath);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to save photo for location {LocationId}", location.Id);
+                // Continue without photo rather than failing the entire operation
+            }
+        }
+        else
+        {
+            Log.Information("No photo file received for location {LocationId} creation", location.Id);
         }
 
-        // Handle menu upload
+        // Handle menu upload to file storage
         if (menuFile != null && menuFile.Length > 0)
         {
-            location.MenuName = menuFile.FileName;
-            using var ms = new MemoryStream();
-            await menuFile.OpenReadStream().CopyToAsync(ms);
-            location.MenuData = ms.ToArray();
-            location.HasMenu = true;
+            try
+            {
+                var menuPath = await fileStorage.SaveFileAsync(menuFile, location.Id, "menus");
+                location.MenuPath = menuPath;
+                location.MenuName = menuFile.FileName;
+                location.HasMenu = true;
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to save menu for location {LocationId}", location.Id);
+                // Continue without menu rather than failing the entire operation
+            }
         }
 
-        db.Locations.Add(location);
-        
-        // Debug logging before SaveChanges
-        Log.Information("Creating location with: Name='{Name}', Address='{Address}', Category='{Category}', Tags='{Tags}', Description='{Description}', Photo.Length={PhotoLength}, MenuName='{MenuName}', MenuData.Length={MenuDataLength}", 
-            location.Name, location.Address, location.Category, location.Tags, location.Description, location.Photo?.Length ?? 0, location.MenuName, location.MenuData?.Length ?? 0);
-        
+        // Save changes with file paths
         await db.SaveChangesAsync();
 
         var response = new
@@ -1882,8 +2459,9 @@ app.MapPost("/companies/{companyId}/locations", async (int companyId, HttpReques
             location.Longitude,
             location.Description,
             Tags = string.IsNullOrEmpty(location.Tags) ? new string[0] : location.Tags.Split(',').Select(t => t.Trim()).ToArray(),
-            Photo = Convert.ToBase64String(location.Photo),
+            PhotoUrl = !string.IsNullOrEmpty(location.PhotoPath) ? fileStorage.GetFileUrl(location.PhotoPath) : string.Empty,
             location.MenuName,
+            MenuUrl = !string.IsNullOrEmpty(location.MenuPath) ? fileStorage.GetFileUrl(location.MenuPath) : string.Empty,
             location.HasMenu
         };
 
@@ -1892,12 +2470,13 @@ app.MapPost("/companies/{companyId}/locations", async (int companyId, HttpReques
     catch (Exception ex)
     {
         var inner = ex.InnerException != null ? $" | Inner: {ex.InnerException.Message}" : string.Empty;
+        Log.Error(ex, "Error creating location");
         return Results.Problem($"Error creating location: {ex.Message}{inner}");
     }
 });
 
 // Update a location
-app.MapPut("/locations/{id}", async (int id, HttpRequest req, AppDbContext db) =>
+app.MapPut("/locations/{id}", async (int id, HttpRequest req, AppDbContext db, IFileStorageService fileStorage) =>
 {
     try
     {
@@ -1915,13 +2494,14 @@ app.MapPut("/locations/{id}", async (int id, HttpRequest req, AppDbContext db) =
         var form = await req.ReadFormAsync();
         
         // Check if another location with the same name exists for this company
-    var newName = form["name"].ToString();
+        var newName = form["name"].ToString();
         var existingLocation = await db.Locations
             .AnyAsync(l => l.CompanyId == location.CompanyId && l.Name == newName && l.Id != id);
         if (existingLocation)
         {
             return Results.Conflict(new { Error = "Another location with this name already exists for this company. Please choose a different name." });
         }
+        
         // Safe parsing of coordinates
         var latRawUpd = form["latitude"].ToString();
         var lngRawUpd = form["longitude"].ToString();
@@ -1936,6 +2516,7 @@ app.MapPut("/locations/{id}", async (int id, HttpRequest req, AppDbContext db) =
             return Results.Problem($"Invalid longitude: {lngRawUpd}", statusCode: 400);
         }
 
+        // Update basic location info
         location.Name = SanitizeInput(newName);
         location.Address = SanitizeInput(form["address"].ToString());
         location.Latitude = latParsedUpd;
@@ -1948,39 +2529,89 @@ app.MapPut("/locations/{id}", async (int id, HttpRequest req, AppDbContext db) =
         }
         location.UpdatedAt = DateTime.UtcNow;
 
+        // Ensure directory structure exists for this location
+        await fileStorage.EnsureLocationDirectoryAsync(location.Id);
+
+        // Handle photo upload with new file storage system
         var photoFile = form.Files.GetFile("photo");
+        Log.Information("Photo upload attempt for location {LocationId}: HasFile={HasFile}, FileSize={FileSize}", 
+            location.Id, photoFile != null, photoFile?.Length ?? 0);
+            
         if (photoFile != null && photoFile.Length > 0)
         {
-            using var ms = new MemoryStream();
-            await photoFile.OpenReadStream().CopyToAsync(ms);
-            location.Photo = ms.ToArray();
-        }
-        else if (form.ContainsKey("photo") && !string.IsNullOrEmpty(form["photo"]))
-        {
-            // Handle base64 photo data
-            var photoString = form["photo"].ToString();
-            if (photoString.StartsWith("data:image"))
+            try
             {
-                var base64Data = photoString.Substring(photoString.IndexOf(',') + 1);
-                location.Photo = Convert.FromBase64String(base64Data);
+                Log.Information("Processing photo upload for location {LocationId}, filename: {FileName}", 
+                    location.Id, photoFile.FileName);
+                    
+                // Delete old photo if it exists
+                if (!string.IsNullOrEmpty(location.PhotoPath))
+                {
+                    Log.Information("Deleting old photo: {OldPhotoPath}", location.PhotoPath);
+                    await fileStorage.DeleteFileAsync(location.PhotoPath);
+                }
+
+                // Save new photo
+                var photoPath = await fileStorage.SaveFileAsync(photoFile, location.Id, "photos");
+                location.PhotoPath = photoPath;
+                
+                Log.Information("Updated photo for location {LocationId}: {PhotoPath}", location.Id, photoPath);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to update photo for location {LocationId}", location.Id);
+                // Continue without photo update rather than failing the entire operation
             }
         }
+        else
+        {
+            Log.Information("No photo file received for location {LocationId} update", location.Id);
+        }
 
+        // Handle menu upload with new file storage system
         var menuFile = form.Files.GetFile("menu");
         if (menuFile != null && menuFile.Length > 0)
         {
-            location.MenuName = menuFile.FileName;
-            using var ms = new MemoryStream();
-            await menuFile.OpenReadStream().CopyToAsync(ms);
-            location.MenuData = ms.ToArray();
-            location.HasMenu = true;
+            try
+            {
+                // Delete old menu if it exists
+                if (!string.IsNullOrEmpty(location.MenuPath))
+                {
+                    await fileStorage.DeleteFileAsync(location.MenuPath);
+                }
+
+                // Save new menu
+                var menuPath = await fileStorage.SaveFileAsync(menuFile, location.Id, "menus");
+                location.MenuPath = menuPath;
+                location.MenuName = menuFile.FileName;
+                location.HasMenu = true;
+                
+                Log.Information("Updated menu for location {LocationId}: {MenuPath}", location.Id, menuPath);
+            }
+            catch (Exception ex)
+            {
+                Log.Error(ex, "Failed to update menu for location {LocationId}", location.Id);
+                // Continue without menu update rather than failing the entire operation
+            }
         }
 
         await db.SaveChangesAsync();
-        return Results.NoContent();
+        
+        // Return updated location info
+        var response = new
+        {
+            location.Id,
+            location.Name,
+            PhotoUrl = !string.IsNullOrEmpty(location.PhotoPath) ? fileStorage.GetFileUrl(location.PhotoPath) : string.Empty,
+            MenuUrl = !string.IsNullOrEmpty(location.MenuPath) ? fileStorage.GetFileUrl(location.MenuPath) : string.Empty,
+            message = "Location updated successfully"
+        };
+        
+        return Results.Ok(response);
     }
     catch (Exception ex)
     {
+        Log.Error(ex, "Error updating location {LocationId}", id);
         return Results.Problem($"Error updating location: {ex.Message}");
     }
 });

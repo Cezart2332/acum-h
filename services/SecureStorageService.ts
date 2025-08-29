@@ -3,10 +3,9 @@ import * as Crypto from "expo-crypto";
 import * as Device from "expo-device";
 import * as Application from "expo-application";
 
-// Security configuration
-const SECURITY_CONFIG = {
-  requireAuthentication: true,
-  accessControl: SecureStore.WHEN_UNLOCKED_THIS_DEVICE_ONLY,
+// Dynamic security configuration - simplified for reliability
+const SECURITY_CONFIG: SecureStore.SecureStoreOptions = {
+  requireAuthentication: false, // Disable biometric requirement to avoid setup issues
 };
 
 // Keys for secure storage
@@ -96,10 +95,19 @@ export class SecureStorageService {
    */
   static async setSecureItem(key: string, value: string): Promise<void> {
     try {
+      // First try with the default config
       await SecureStore.setItemAsync(key, value, SECURITY_CONFIG);
     } catch (error) {
-      console.error(`Failed to store secure item ${key}:`, error);
-      throw new Error(`Secure storage failed for ${key}`);
+      console.error(`Failed to store secure item ${key} with default config:`, error);
+      
+      // Try with minimal security config as fallback
+      try {
+        console.log(`Attempting fallback storage for ${key}...`);
+        await SecureStore.setItemAsync(key, value, {});
+      } catch (fallbackError) {
+        console.error(`Fallback storage also failed for ${key}:`, fallbackError);
+        throw new Error(`Secure storage failed for ${key}: ${fallbackError.message}`);
+      }
     }
   }
 
@@ -108,10 +116,18 @@ export class SecureStorageService {
    */
   static async getSecureItem(key: string): Promise<string | null> {
     try {
+      // First try with the default config
       return await SecureStore.getItemAsync(key, SECURITY_CONFIG);
     } catch (error) {
-      console.error(`Failed to retrieve secure item ${key}:`, error);
-      return null;
+      console.error(`Failed to retrieve secure item ${key} with default config:`, error);
+      
+      // Try with minimal config as fallback
+      try {
+        return await SecureStore.getItemAsync(key, {});
+      } catch (fallbackError) {
+        console.error(`Fallback retrieval also failed for ${key}:`, fallbackError);
+        return null;
+      }
     }
   }
 

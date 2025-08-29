@@ -189,7 +189,6 @@ export default function LoginScreen({ navigation }: { navigation: LoginNav }) {
         expiresAt: data.expiresAt,
       };
 
-      console.log(userData);
 
       // Use UserContext login method
       await login(userData);

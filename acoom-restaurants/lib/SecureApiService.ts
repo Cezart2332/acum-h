@@ -201,16 +201,39 @@ export class SecureApiService {
     };
 
     try {
+      // Diagnostic: log request and token state
+      try {
+        console.log("SecureApiService.request ->", {
+          method: requestOptions.method || "GET",
+          url,
+          hasAccessToken: !!this.accessToken,
+          hasRefreshToken: !!this.refreshToken,
+          headersPreview: {
+            Authorization: headers["Authorization"] ? "REDACTED" : undefined,
+          },
+        });
+      } catch (e) {
+        // ignore logging failures
+      }
+
       let response = await fetch(url, requestOptions);
 
-      // If unauthorized and we have a refresh token, try to refresh
-      if (response.status === 401 && this.refreshToken && !this.isRefreshing) {
-        const newToken = await this.refreshAccessToken();
+      // If unauthorized and we have a refresh token, try to refresh.
+      // Note: allow waiting for an in-progress refresh to finish to avoid races.
+      if (response.status === 401 && this.refreshToken) {
+        console.log("SecureApiService: 401 received; refreshTokenPresent=", !!this.refreshToken, "isRefreshing=", !!this.isRefreshing);
+        const refreshed = await this.refreshAccessToken();
 
-        if (newToken) {
-          // Retry the request with new token
-          headers["Authorization"] = `Bearer ${newToken}`;
-          response = await fetch(url, { ...requestOptions, headers });
+        if (refreshed) {
+          // Reload access token from secure storage
+          const access = await SecureStorageService.getAccessToken();
+          console.log("SecureApiService: refresh returned true, reloaded access token present=", !!access);
+          if (access) {
+            headers["Authorization"] = `Bearer ${access}`;
+            response = await fetch(url, { ...requestOptions, headers });
+          }
+        } else {
+          console.log("SecureApiService: refresh did not succeed; not retrying request");
         }
       }
 
@@ -251,17 +274,26 @@ export class SecureApiService {
   /**
    * Refresh the access token
    */
-  private static async refreshAccessToken(): Promise<string | null> {
+  private static async refreshAccessToken(): Promise<boolean> {
     if (this.isRefreshing && this.refreshPromise) {
-      return this.refreshPromise;
+      // wait for existing refresh attempt
+      try {
+        await this.refreshPromise;
+        return !!this.accessToken;
+      } catch (e) {
+        return false;
+      }
     }
 
     this.isRefreshing = true;
-    this.refreshPromise = this.performTokenRefresh();
+    // reuse existing promise pattern but adapt to boolean result
+    this.refreshPromise = (async () => {
+      return await this.performTokenRefresh();
+    })();
 
     try {
       const result = await this.refreshPromise;
-      return result;
+      return !!result;
     } finally {
       this.isRefreshing = false;
       this.refreshPromise = null;
@@ -275,6 +307,7 @@ export class SecureApiService {
     if (!this.refreshToken) return null;
 
     try {
+      console.log("SecureApiService.performTokenRefresh: sending refresh request, refreshTokenPresent=", !!this.refreshToken, "refreshTokenPrefix=", this.refreshToken ? `${this.refreshToken.substring(0,8)}...` : null);
       const response = await fetch(`${API_CONFIG.BASE_URL}/auth/refresh`, {
         method: "POST",
         headers: {
@@ -287,6 +320,7 @@ export class SecureApiService {
 
       if (response.ok) {
         const data = await response.json();
+        console.log("SecureApiService.performTokenRefresh: refresh OK, storing new tokens");
         this.accessToken = data.accessToken;
         this.refreshToken = data.refreshToken;
 
@@ -296,31 +330,28 @@ export class SecureApiService {
         );
 
         return this.accessToken;
+      } else {
+        // Log response body for debugging when refresh endpoint returns non-OK
+        let respText = "";
+        try {
+          respText = await response.text();
+        } catch (e) {
+          respText = `<failed to read response body: ${e}>`;
+        }
+        console.error("SecureApiService.performTokenRefresh: refresh endpoint returned non-OK status", response.status, response.statusText, "body:", respText);
       }
     } catch (error) {
       console.error("Token refresh failed:", error);
     }
 
-    // If refresh failed, check how recently we logged in before clearing everything
-    const tokenStoredAt = await AsyncStorage.getItem("token_stored_at");
-    const now = Date.now();
-
-    if (tokenStoredAt) {
-      const timeSinceLogin = now - parseInt(tokenStoredAt);
-      const fiveMinutes = 5 * 60 * 1000;
-
-      if (timeSinceLogin < fiveMinutes) {
-        console.log(
-          "Token refresh failed but login was recent, keeping user logged in"
-        );
-        // Don't logout if we logged in recently - the token might just be temporarily invalid
-        return null;
-      }
+    // If refresh failed, log and force logout to avoid silent stale state.
+    try {
+      console.log("SecureApiService.performTokenRefresh: refresh failed, forcing logout and clearing tokens");
+      await this.logout();
+    } catch (e) {
+      console.error("Error forcing logout after failed refresh:", e);
     }
 
-    // Only logout if it's been a while since login
-    console.log("Token refresh failed and login was not recent, logging out");
-    await this.logout();
     return null;
   }
 
@@ -458,6 +489,16 @@ export class SecureApiService {
           console.log("Storing user data...");
           await AsyncStorage.setItem("user", JSON.stringify(userData));
           console.log("User data stored");
+
+          // Also persist to SecureStorage for reliable session restore
+          try {
+            const SecureStorage = require("../../utils/SecureStorage").default;
+            await SecureStorage.storeUserData(userData);
+            await SecureStorage.setLoggedIn(true);
+            console.log("SecureStorage: user data stored");
+          } catch (e) {
+            console.warn("SecureStorage: failed to store user data:", e);
+          }
 
           console.log("Storing loggedIn status...");
           await AsyncStorage.setItem("loggedIn", JSON.stringify(true));
@@ -624,6 +665,17 @@ export class SecureApiService {
         await this.initialize();
       }
 
+      // Diagnostic logging for uploads
+      try {
+        console.log("SecureApiService.registerWithFile ->", {
+          url,
+          hasAccessToken: !!this.accessToken,
+          hasRefreshToken: !!this.refreshToken,
+        });
+      } catch (e) {
+        // ignore logging issues
+      }
+
       // For FormData, don't set Content-Type header - let the browser set the proper multipart boundary
       const headers: Record<string, string> = {
         Accept: "application/json",
@@ -642,17 +694,25 @@ export class SecureApiService {
       console.log("SecureApiService.registerWithFile: Making API request");
       let response = await fetch(url, requestOptions);
 
-      // If unauthorized and we have a refresh token, try to refresh
-      if (response.status === 401 && this.refreshToken && !this.isRefreshing) {
+      // If unauthorized and we have a refresh token, try to refresh.
+      // Allow waiting for an in-progress refresh to avoid duplicate refresh requests.
+      if (response.status === 401 && this.refreshToken) {
         console.log(
-          "SecureApiService.registerWithFile: Unauthorized, attempting token refresh"
+          "SecureApiService.registerWithFile: Unauthorized; refreshTokenPresent=",
+          !!this.refreshToken,
+          "isRefreshing=",
+          !!this.isRefreshing
         );
-        const newToken = await this.refreshAccessToken();
+        const refreshed = await this.refreshAccessToken();
 
-        if (newToken) {
-          // Retry the request with new token
-          headers["Authorization"] = `Bearer ${newToken}`;
-          response = await fetch(url, { ...requestOptions, headers });
+        if (refreshed) {
+          const access = await SecureStorageService.getAccessToken();
+          if (access) {
+            headers["Authorization"] = `Bearer ${access}`;
+            response = await fetch(url, { ...requestOptions, headers });
+          }
+        } else {
+          console.log("SecureApiService.registerWithFile: refresh did not succeed; not retrying");
         }
       }
 
@@ -804,6 +864,14 @@ export class SecureApiService {
             user: verification[1][1] ? "Found" : "Not found",
             loggedIn: verification[2][1],
           });
+          try {
+            const SecureStorage = require("../../utils/SecureStorage").default;
+            await SecureStorage.storeUserData(userData);
+            await SecureStorage.setLoggedIn(true);
+            console.log("SecureStorage: user data stored (registerWithFile)");
+          } catch (e) {
+            console.warn("SecureStorage: failed to store user data (registerWithFile):", e);
+          }
         } catch (storageError) {
           console.error(
             "SecureApiService.registerWithFile: Failed to store to AsyncStorage",
@@ -923,8 +991,14 @@ export class SecureApiService {
     const expired = await SecureStorageService.areTokensExpired();
     if (expired) {
       // Try to refresh
-      const newToken = await this.refreshAccessToken();
-      return newToken !== null;
+      const refreshed = await this.refreshAccessToken();
+      if (refreshed) {
+        // reload access token into memory
+        this.accessToken = await SecureStorageService.getAccessToken();
+        this.refreshToken = await SecureStorageService.getRefreshToken();
+        return !!this.accessToken;
+      }
+      return false;
     }
 
     return true;
@@ -934,7 +1008,7 @@ export class SecureApiService {
    * Generic GET request
    */
   static async get<T>(endpoint: string): Promise<ApiResponse<T>> {
-    return this.authenticatedRequest<T>(endpoint, {
+    return this.makeSecureRequest<T>(endpoint, {
       method: "GET",
     });
   }
@@ -959,7 +1033,99 @@ export class SecureApiService {
       }
     }
 
-    return this.authenticatedRequest<T>(endpoint, options);
+    return this.makeSecureRequest<T>(endpoint, options);
+  }
+
+  /**
+   * Generic POST multipart/form-data request
+   * This method intentionally avoids setting Content-Type so the runtime
+   * can attach the proper multipart boundary.
+   */
+  static async postForm<T>(endpoint: string, formData: FormData): Promise<ApiResponse<T>> {
+    try {
+      let url = `${API_CONFIG.BASE_URL}${endpoint}`;
+
+      // Ensure we have the latest tokens
+      if (!this.accessToken) {
+        await this.initialize();
+      }
+
+      // Diagnostic logging for postForm
+      try {
+        console.log("SecureApiService.postForm ->", {
+          endpointUrl: url,
+          hasAccessToken: !!this.accessToken,
+          hasRefreshToken: !!this.refreshToken,
+        });
+      } catch (e) {
+        // ignore logging issues
+      }
+
+      // For FormData, don't set Content-Type - let the runtime set the multipart boundary
+      const headers: Record<string, string> = {
+        Accept: "application/json",
+      };
+
+      if (this.accessToken) {
+        headers["Authorization"] = `Bearer ${this.accessToken}`;
+      }
+
+      const requestOptions: RequestInit = {
+        method: "POST",
+        headers,
+        body: formData,
+      };
+
+      let response = await fetch(url, requestOptions);
+
+      // If unauthorized and we have a refresh token, try to refresh.
+      // Allow awaiting an in-progress refresh to avoid race conditions.
+      if (response.status === 401 && this.refreshToken) {
+        console.log("SecureApiService.postForm: Unauthorized; refreshTokenPresent=", !!this.refreshToken, "isRefreshing=", !!this.isRefreshing);
+        const refreshed = await this.refreshAccessToken();
+
+        if (refreshed) {
+          const access = await SecureStorageService.getAccessToken();
+          if (access) {
+            headers["Authorization"] = `Bearer ${access}`;
+            response = await fetch(url, { ...requestOptions, headers });
+          }
+        } else {
+          console.log("SecureApiService.postForm: refresh did not succeed; not retrying");
+        }
+      }
+
+      const isSuccess = response.ok;
+      let data: T | undefined;
+      let error: string | undefined;
+
+      try {
+        const responseText = await response.text();
+        if (responseText) {
+          data = JSON.parse(responseText);
+        }
+      } catch (parseError) {
+        error = `Failed to parse response: ${parseError}`;
+      }
+
+      if (!isSuccess && !error) {
+        error = `HTTP ${response.status}: ${response.statusText}`;
+      }
+
+      return {
+        data,
+        error,
+        status: response.status,
+        success: isSuccess,
+      };
+    } catch (error) {
+      console.error("SecureApiService.postForm failed:", error);
+      return {
+        error: error instanceof Error ? error.message : "Network request failed",
+        status: 0,
+        success: false,
+      };
+    }
   }
 
   /**
@@ -981,14 +1147,14 @@ export class SecureApiService {
       }
     }
 
-    return this.authenticatedRequest<T>(endpoint, options);
+    return this.makeSecureRequest<T>(endpoint, options);
   }
 
   /**
    * Generic DELETE request
    */
   static async delete<T>(endpoint: string): Promise<ApiResponse<T>> {
-    return this.authenticatedRequest<T>(endpoint, {
+    return this.makeSecureRequest<T>(endpoint, {
       method: "DELETE",
     });
   }
